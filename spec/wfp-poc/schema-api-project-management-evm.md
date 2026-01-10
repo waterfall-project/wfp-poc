@@ -385,6 +385,142 @@ This section defines all HTTP endpoints, request/response schemas, and data mode
 
 ### 4.1. Data Models
 
+#### Entity Relationship Diagram
+
+The following diagram illustrates the relationships between all data entities in the wfp-poc system:
+
+```mermaid
+erDiagram
+    Project ||--o{ Task : "contains"
+    Project ||--o{ Milestone : "tracks"
+    Project ||--o{ Deliverable : "produces"
+    Project ||--o{ Resource : "uses"
+    Project ||--o{ Expense : "incurs"
+    Project ||--o{ RAEHistory : "forecasts"
+    
+    Task ||--o{ Task : "parent_of"
+    Task ||--o{ Assignment : "assigned_to"
+    Task }o--o{ Task : "predecessor_of"
+    
+    Milestone ||--o{ Deliverable : "delivers_at"
+    Milestone ||--o{ Expense : "allocates_to"
+    
+    Resource ||--o{ Assignment : "works_on"
+    
+    Project {
+        uuid id PK
+        uuid company_id FK
+        string name
+        string code
+        date planned_start_date
+        date planned_finish_date
+        decimal budget
+        enum status
+        string ms_project_uid
+        timestamp created_at
+        timestamp updated_at
+    }
+    
+    Task {
+        uuid id PK
+        uuid project_id FK
+        uuid parent_task_id FK
+        string name
+        string wbs_code
+        boolean is_summary
+        date planned_start_date
+        date planned_finish_date
+        integer duration
+        decimal budget
+        integer percent_complete
+        boolean is_critical
+        enum type
+        string ms_project_uid
+    }
+    
+    Milestone {
+        uuid id PK
+        uuid project_id FK
+        string name
+        date target_date
+        date actual_date
+        decimal budget_weight
+        enum status
+        string description
+    }
+    
+    Deliverable {
+        uuid id PK
+        uuid project_id FK
+        uuid milestone_id FK
+        string name
+        string description
+        date due_date
+        enum status
+        string document_reference
+    }
+    
+    Resource {
+        uuid id PK
+        uuid company_id FK
+        string name
+        string code
+        enum type
+        decimal cost_per_hour
+        decimal cost_per_unit
+        decimal max_units
+        string email
+    }
+    
+    Assignment {
+        uuid id PK
+        uuid task_id FK
+        uuid resource_id FK
+        decimal work_hours
+        decimal remaining_work
+        decimal allocation_percent
+        date start_date
+        date finish_date
+    }
+    
+    Expense {
+        uuid id PK
+        uuid project_id FK
+        uuid milestone_id FK
+        string description
+        decimal amount
+        date expense_date
+        enum category
+        string invoice_number
+        string payment_reference
+    }
+    
+    RAEHistory {
+        uuid id PK
+        uuid project_id FK
+        date date
+        decimal rae_value
+        string comment
+        uuid updated_by FK
+        timestamp created_at
+    }
+```
+
+**Key Relationships:**
+- **Project-centric**: All entities link to Project (multi-tenant isolation via `company_id`)
+- **Task Hierarchy**: Tasks reference `parent_task_id` for WBS structure (self-referencing)
+- **Task Dependencies**: Tasks can have multiple predecessors (many-to-many via predecessor table)
+- **Milestone-Expense**: Expenses allocated to milestones for AC calculation
+- **Milestone-Deliverable**: Deliverables tied to milestone achievements
+- **Task-Assignment-Resource**: Many-to-many relationship through Assignment join table
+- **RAE History**: Time-series tracking of Reste À Engager for physical progress EV
+
+**Cascade Delete Rules:**
+- Delete Project → cascades to Tasks, Milestones, Deliverables, Expenses, RAE History
+- Delete Task → cascades to Assignments, child Tasks
+- Delete Milestone → nullifies Expense.milestone_id, cascades to Deliverables
+- Delete Resource → prevents deletion if Assignments exist (constraint violation)
+
 #### Project Model
 
 ```json
