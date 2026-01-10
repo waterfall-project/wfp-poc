@@ -171,6 +171,118 @@ The primary purpose of **wfp-poc** is to:
 
 ## 3. Requirements, Constraints & Guidelines
 
+### Requirements Overview
+
+The wfp-poc API specification defines 105 requirements across 10 functional categories, plus security, performance, and architectural constraints. The following diagram illustrates the organization and relationships of these requirements:
+
+```mermaid
+mindmap
+  root((wfp-poc<br/>Requirements))
+    Functional Requirements
+      REQ-PM: Project Management
+        CRUD operations
+        Multi-tenant isolation
+        MS Project metadata
+        Bulk import support
+      REQ-TM: Task Management
+        Task hierarchy WBS
+        Predecessor relationships
+        Summary task aggregation
+        Critical path data
+      REQ-RM: Resource Management
+        Labor, Material, Cost types
+        Cost rates and units
+        Resource calendars
+      REQ-AS: Assignment Management
+        Task-resource allocation
+        Work hours tracking
+        Cost calculation
+      REQ-MD: Milestones & Deliverables
+        Milestone tracking
+        Budget weight allocation
+        Deliverable management
+        Target date constraints
+      REQ-ET: Expense Tracking
+        ERP import support
+        Milestone allocation
+        Category classification
+        Multi-currency support
+      REQ-RAE: Reste À Engager
+        Monthly RAE updates
+        Historical tracking
+        Physical progress calculation
+      REQ-EVM: EVM Calculations
+        Dual EV methods
+        PV/AC/EV computation
+        CPI/SPI indicators
+        Three EAC projections
+      REQ-ST: Statistics & Reporting
+        Time-series data
+        ECharts format
+        Expense breakdown
+        Resource utilization
+      REQ-PU: Progress Updates
+        Task completion tracking
+        Milestone achievement
+        RAE estimation
+    Security Requirements
+      SEC-AUTH: Authentication
+        JWT validation
+        Required claims
+        Token expiration
+      SEC-AUTHZ: Authorization
+        Guardian integration
+        RBAC permissions
+        Company isolation
+      SEC-INPUT: Input Validation
+        Schema validation
+        SQL injection prevention
+        XSS protection
+      SEC-RATE: Rate Limiting
+        10 req/min per endpoint
+        429 responses
+        X-RateLimit headers
+    Performance Requirements
+      PERF-RESPONSE: Response Time
+        <200ms list endpoints
+        <500ms EVM calculations
+        95th percentile SLA
+      PERF-SCALE: Scalability
+        100 concurrent users
+        500 tasks per project
+        Indexed queries
+      PERF-PAGINATION: Pagination
+        20 items per page default
+        100 items maximum
+        Cursor-based option
+    Architectural Constraints
+      CON-SCOPE: POC Limitations
+        Monthly granularity
+        Mock authentication
+        No caching
+        Single baseline
+      CON-DATA: Data Constraints
+        Non-overlapping milestones
+        Task date ranges
+        Budget weight sum=1.0
+        Expense date validation
+      CON-TECH: Technical Constraints
+        Synchronous operations
+        Fixed resource capacity
+        Linear PV distribution
+    Guidelines & Patterns
+      GUD: Development Guidelines
+        Waterfall template adherence
+        Standard response formats
+        ISO 8601 dates
+        UUID identifiers
+      PAT: Design Patterns
+        Layered architecture
+        Repository pattern
+        DTO pattern
+        Decorator pattern
+```
+
 ### Functional Requirements (REQ-xxx)
 
 #### Project Management (REQ-PM-xxx)
