@@ -381,7 +381,7 @@ The primary purpose of **wfp-poc** is to:
 
 ## 4. Interfaces & Data Contracts
 
-[À COMPLÉTER - Définition complète de tous les endpoints et schémas de données]
+This section defines all HTTP endpoints, request/response schemas, and data models for the wfp-poc API. Complete specifications for 46 endpoints across 11 categories are provided below.
 
 ### 4.1. Data Models
 
