@@ -526,12 +526,35 @@ POST /v0/projects/{project_id}/expenses/bulk
   ]
 }
 
-# RAE update (Excel from PM)
-POST /v0/projects/{project_id}/rae
+# RAE updates per milestone (Excel from PM)
+# Milestone 1: Phase 1 Complete (already done, RAE=0)
+POST /v0/milestones/{milestone_id_1}/rae
 {
   "date": "2026-06-30",
-  "amount": 170000,  # Remaining work estimate
-  "comment": "Backend delay adds 30K, but frontend optimized saves 10K"
+  "amount": 0,
+  "comment": "Phase 1 completed, no remaining work"
+}
+
+# Milestone 2: Phase 2 Complete (in progress)
+POST /v0/milestones/{milestone_id_2}/rae
+{
+  "date": "2026-06-30",
+  "amount": 85000,
+  "comment": "Backend delay adds 15K",
+  "details": {
+    "task_estimates": [
+      {"task_id": "...", "task_name": "Backend API", "status": "in_progress", "budget": 100000, "estimate_to_complete": 65000},
+      {"task_id": "...", "task_name": "Database", "status": "completed", "budget": 50000, "estimate_to_complete": 0}
+    ]
+  }
+}
+
+# Milestone 3: Phase 3 Complete (not started)
+POST /v0/milestones/{milestone_id_3}/rae
+{
+  "date": "2026-06-30",
+  "amount": 85000,
+  "comment": "Not started, using budget estimate"
 }
 ```
 
@@ -772,6 +795,375 @@ sequenceDiagram
 - Tracking data preserved (expenses, RAE, EV)
 - EVM recalculated with updated PV
 - Milestone dates auto-updated based on predecessor tasks
+
+---
+
+### Use Case 6: Import Expenses from Excel/ERP
+
+**Actors**: Financial Controller, poc-import service, wfp-poc API
+
+**Preconditions**:
+- Project exists in wfp-poc with milestones defined
+- Expense data available in Excel/ERP export format
+- User has valid JWT token with CREATE permissions
+
+**Excel Format Specification**:
+
+| Column | Type | Required | Description | Example |
+|--------|------|----------|-------------|---------|
+| expense_date | Date | Yes | Date of expense | 2026-03-31 |
+| description | String | Yes | Expense description | Q1 Labor Costs |
+| amount | Decimal | Yes | Expense amount (>= 0) | 150000.00 |
+| category | Enum | Yes | Labor, Material, Equipment, Subcontractor, Other | Labor |
+| milestone_name | String | Yes | Milestone allocation (must match wfp-poc) | Phase 1 Complete |
+| invoice_number | String | No | Invoice reference | INV-2026-0123 |
+| payment_reference | String | No | Payment tracking reference | PAY-2026-0045 |
+
+**Validation Rules**:
+- **VLD-EXP-001**: `expense_date` SHALL be valid ISO 8601 date
+- **VLD-EXP-002**: `amount` SHALL be >= 0 (no negative expenses)
+- **VLD-EXP-003**: `milestone_name` SHALL match existing milestone in project
+- **VLD-EXP-004**: `category` SHALL be one of: Labor, Material, Equipment, Subcontractor, Other
+- **VLD-EXP-005**: Duplicate detection: Same date + description + amount → skip or update
+
+**Sequence Diagram**:
+
+```mermaid
+sequenceDiagram
+    actor FC as Financial Controller
+    participant CLI as poc-import CLI
+    participant IMP as poc-import Service
+    participant API as wfp-poc API
+    participant DB as PostgreSQL
+
+    FC->>CLI: import expenses.xlsx --project-id={uuid}
+    CLI->>IMP: Parse Excel file
+    IMP->>IMP: Validate format (columns, types)
+    IMP->>API: GET /v0/projects/{id}/milestones
+    API-->>IMP: [{id, name, ...}]
+    IMP->>IMP: Map milestone_name → milestone_id
+    
+    alt Validation Success
+        IMP->>API: POST /v0/projects/{id}/expenses/bulk
+        Note over IMP,API: {expenses: [{description, amount, expense_date,<br/>category, milestone_id, invoice_number}]}
+        API->>DB: INSERT expenses (batch)
+        DB-->>API: Created
+        API->>DB: UPDATE milestones AC (sum expenses)
+        API-->>IMP: 201 Created {created: 15, updated: 0}
+        IMP-->>CLI: ✅ Import successful
+        CLI-->>FC: 15 expenses imported
+    else Validation Failure
+        IMP-->>CLI: ❌ Validation errors
+        CLI-->>FC: Error report (row numbers, issues)
+    end
+```
+
+**Example Workflow**:
+
+```bash
+# Step 1: Export expenses from ERP to Excel
+# expenses_q2.xlsx content:
+# expense_date | description       | amount   | category      | milestone_name    | invoice_number
+# 2026-04-15   | Backend Dev Team  | 85000.00 | Labor         | Phase 2 Complete  | INV-2026-0234
+# 2026-04-20   | Server Hardware   | 12000.00 | Equipment     | Phase 2 Complete  | INV-2026-0245
+# 2026-05-10   | Database License  | 8000.00  | Material      | Phase 2 Complete  | INV-2026-0267
+# 2026-05-30   | Cloud Hosting     | 3500.00  | Other         | Phase 2 Complete  | INV-2026-0289
+
+# Step 2: Import via poc-import
+python poc_import.py expenses expenses_q2.xlsx --project-id=a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d
+
+# Output:
+# ✅ Parsing expenses_q2.xlsx...
+# ✅ Validated 4 expenses
+# ✅ Resolved milestone "Phase 2 Complete" → d4e5f6a7-b8c9-4d5e-1f2a-3b4c5d6e7f8a
+# ✅ Importing to wfp-poc...
+# ✅ Created: 4 expenses (Total: $108,500.00)
+# ✅ Updated milestone AC: Phase 2 Complete = $108,500.00
+```
+
+**API Request Generated**:
+
+```http
+POST /v0/projects/a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d/expenses/bulk
+Authorization: Bearer {jwt_token}
+Content-Type: application/json
+
+{
+  "expenses": [
+    {
+      "expense_date": "2026-04-15",
+      "description": "Backend Dev Team",
+      "amount": 85000.00,
+      "category": "Labor",
+      "milestone_id": "d4e5f6a7-b8c9-4d5e-1f2a-3b4c5d6e7f8a",
+      "invoice_number": "INV-2026-0234"
+    },
+    {
+      "expense_date": "2026-04-20",
+      "description": "Server Hardware",
+      "amount": 12000.00,
+      "category": "Equipment",
+      "milestone_id": "d4e5f6a7-b8c9-4d5e-1f2a-3b4c5d6e7f8a",
+      "invoice_number": "INV-2026-0245"
+    },
+    {
+      "expense_date": "2026-05-10",
+      "description": "Database License",
+      "amount": 8000.00,
+      "category": "Material",
+      "milestone_id": "d4e5f6a7-b8c9-4d5e-1f2a-3b4c5d6e7f8a",
+      "invoice_number": "INV-2026-0267"
+    },
+    {
+      "expense_date": "2026-05-30",
+      "description": "Cloud Hosting",
+      "amount": 3500.00,
+      "category": "Other",
+      "milestone_id": "d4e5f6a7-b8c9-4d5e-1f2a-3b4c5d6e7f8a",
+      "invoice_number": "INV-2026-0289"
+    }
+  ]
+}
+```
+
+**Response**:
+
+```json
+{
+  "data": {
+    "created": 4,
+    "updated": 0,
+    "total_amount": 108500.00,
+    "milestone_summary": [
+      {
+        "milestone_id": "d4e5f6a7-b8c9-4d5e-1f2a-3b4c5d6e7f8a",
+        "milestone_name": "Phase 2 Complete",
+        "ac": 108500.00
+      }
+    ]
+  },
+  "message": "4 expenses imported successfully"
+}
+```
+
+**Benefits**:
+- ✅ Batch import reduces API calls (1 request vs N requests)
+- ✅ Automatic milestone AC calculation
+- ✅ Invoice/payment reference tracking for audit
+- ✅ Category-based reporting (Labor vs Material vs Equipment)
+
+---
+
+### Use Case 7: Import RAE from Excel (Milestone-Level)
+
+**Actors**: Project Manager, poc-import service, wfp-poc API
+
+**Preconditions**:
+- Project exists in wfp-poc with milestones defined
+- PM has reviewed in-progress tasks and estimated remaining work
+- RAE data prepared in Excel format
+- User has valid JWT token with CREATE permissions
+
+**Excel Format Specification**:
+
+| Column | Type | Required | Description | Example |
+|--------|------|----------|-------------|---------|
+| date | Date | Yes | RAE measurement date (typically month-end) | 2026-06-30 |
+| milestone_name | String | Yes | Milestone name (must match wfp-poc) | Phase 2 Complete |
+| amount | Decimal | Yes | Estimated remaining cost (>= 0) | 75000.00 |
+| comment | String | No | Explanation for estimate | Backend delay adds 15K |
+| task_name | String | No | Task breakdown (multiple rows per milestone) | Backend API Development |
+| task_status | Enum | No* | not_started, in_progress, completed | in_progress |
+| task_budget | Decimal | No* | Task budget from MS Project | 100000.00 |
+| task_estimate | Decimal | No* | PM estimate to complete this task | 65000.00 |
+
+*Required if providing task-level breakdown
+
+**Validation Rules**:
+- **VLD-RAE-001**: `date` SHALL be valid ISO 8601 date
+- **VLD-RAE-002**: `amount` SHALL be >= 0 (no negative RAE)
+- **VLD-RAE-003**: `milestone_name` SHALL match existing milestone in project
+- **VLD-RAE-004**: If task breakdown provided, `task_estimate` sum SHALL equal `amount`
+- **VLD-RAE-005**: One RAE record per milestone per date (upsert if duplicate)
+- **VLD-RAE-006**: `task_status` SHALL be one of: not_started, in_progress, completed
+
+**Sequence Diagram**:
+
+```mermaid
+sequenceDiagram
+    actor PM as Project Manager
+    participant CLI as poc-import CLI
+    participant IMP as poc-import Service
+    participant API as wfp-poc API
+    participant DB as PostgreSQL
+
+    PM->>CLI: import rae.xlsx --project-id={uuid}
+    CLI->>IMP: Parse Excel file
+    IMP->>IMP: Validate format (columns, types)
+    IMP->>API: GET /v0/projects/{id}/milestones
+    API-->>IMP: [{id, name, ...}]
+    IMP->>IMP: Map milestone_name → milestone_id
+    IMP->>IMP: Group task rows by milestone
+    IMP->>IMP: Validate task_estimate sum = amount
+    
+    alt Validation Success
+        loop For each milestone
+            IMP->>API: POST /v0/milestones/{id}/rae
+            Note over IMP,API: {date, amount, comment,<br/>details: {task_estimates: [...]}}
+            API->>DB: INSERT rae (UPSERT on milestone_id + date)
+            DB-->>API: Created/Updated
+            API-->>IMP: 201 Created
+        end
+        IMP-->>CLI: ✅ Import successful
+        CLI-->>PM: 3 milestones RAE updated
+    else Validation Failure
+        IMP-->>CLI: ❌ Validation errors
+        CLI-->>PM: Error report (milestone, issues)
+    end
+```
+
+**Example Workflow**:
+
+```bash
+# Step 1: Prepare RAE estimates in Excel
+# rae_june_2026.xlsx content:
+# date       | milestone_name    | amount   | comment                  | task_name            | task_status   | task_budget | task_estimate
+# 2026-06-30 | Phase 1 Complete  | 0        | Completed                | -                    | completed     | -           | 0
+# 2026-06-30 | Phase 2 Complete  | 85000    | Backend delay            | Backend API          | in_progress   | 100000      | 65000
+# 2026-06-30 | Phase 2 Complete  | 85000    | Backend delay            | Database Schema      | completed     | 50000       | 0
+# 2026-06-30 | Phase 2 Complete  | 85000    | Backend delay            | Frontend UI          | in_progress   | 75000       | 20000
+# 2026-06-30 | Phase 3 Complete  | 150000   | Not started, use budget  | -                    | not_started   | 150000      | 150000
+
+# Step 2: Import via poc-import
+python poc_import.py rae rae_june_2026.xlsx --project-id=a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d
+
+# Output:
+# ✅ Parsing rae_june_2026.xlsx...
+# ✅ Validated 3 milestones with RAE data
+# ✅ Phase 1 Complete: RAE = $0 (0 tasks)
+# ✅ Phase 2 Complete: RAE = $85,000 (3 tasks: 65K + 0 + 20K = 85K ✓)
+# ✅ Phase 3 Complete: RAE = $150,000 (1 task)
+# ✅ Importing to wfp-poc...
+# ✅ Updated: 3 milestones
+```
+
+**API Requests Generated**:
+
+```http
+# Milestone 1: Phase 1 Complete
+POST /v0/milestones/c3d4e5f6-a7b8-4c9d-0e1f-2a3b4c5d6e7f/rae
+Authorization: Bearer {jwt_token}
+Content-Type: application/json
+
+{
+  "date": "2026-06-30T23:59:59Z",
+  "amount": 0,
+  "comment": "Completed"
+}
+
+# Milestone 2: Phase 2 Complete (with task breakdown)
+POST /v0/milestones/d4e5f6a7-b8c9-4d5e-1f2a-3b4c5d6e7f8a/rae
+Authorization: Bearer {jwt_token}
+Content-Type: application/json
+
+{
+  "date": "2026-06-30T23:59:59Z",
+  "amount": 85000,
+  "comment": "Backend delay",
+  "details": {
+    "task_estimates": [
+      {
+        "task_id": "b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e",
+        "task_name": "Backend API",
+        "status": "in_progress",
+        "budget": 100000,
+        "estimate_to_complete": 65000
+      },
+      {
+        "task_id": "c3d4e5f6-a7b8-4c9d-0e1f-2a3b4c5d6e7f",
+        "task_name": "Database Schema",
+        "status": "completed",
+        "budget": 50000,
+        "estimate_to_complete": 0
+      },
+      {
+        "task_id": "d4e5f6a7-b8c9-4d0e-1f2a-3b4c5d6e7f8a",
+        "task_name": "Frontend UI",
+        "status": "in_progress",
+        "budget": 75000,
+        "estimate_to_complete": 20000
+      }
+    ]
+  }
+}
+
+# Milestone 3: Phase 3 Complete
+POST /v0/milestones/e5f6a7b8-c9d0-4e5f-2a3b-4c5d6e7f8a9b/rae
+Authorization: Bearer {jwt_token}
+Content-Type: application/json
+
+{
+  "date": "2026-06-30T23:59:59Z",
+  "amount": 150000,
+  "comment": "Not started, use budget"
+}
+```
+
+**Response (per milestone)**:
+
+```json
+{
+  "data": {
+    "id": "f6a7b8c9-d0e1-4f5a-2b3c-4d5e6f7a8b9c",
+    "milestone_id": "d4e5f6a7-b8c9-4d5e-1f2a-3b4c5d6e7f8a",
+    "date": "2026-06-30T23:59:59Z",
+    "amount": 85000,
+    "comment": "Backend delay",
+    "details": {
+      "task_estimates": [...]
+    },
+    "updated_by": "123e4567-e89b-42d3-a456-556642440000",
+    "created_at": "2026-06-30T18:00:00Z"
+  },
+  "message": "RAE recorded for milestone"
+}
+```
+
+**Benefits**:
+- ✅ Milestone-level granularity consistent with AC calculation
+- ✅ Optional task breakdown for PM transparency (stored in `details`)
+- ✅ Historical tracking (one record per date per milestone)
+- ✅ Bottom-up validation (task estimates must sum to milestone RAE)
+- ✅ Enables accurate EV_physical calculation: AC/(AC+RAE) * budget_weight * BAC
+
+**Integration with EVM**:
+
+After RAE import, EVM calculations automatically updated:
+
+```http
+GET /v0/projects/a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d/evm?date=2026-06-30
+
+// Response includes:
+{
+  "data": {
+    "ev_physical": 340000,  // Calculated using imported RAE values
+    "milestones": [
+      {
+        "name": "Phase 1 Complete",
+        "ac": 165000,
+        "rae": 0,
+        "ev": 165000  // AC/(AC+RAE) * budget_weight * BAC = 165000/165000 * 0.33 * 500000
+      },
+      {
+        "name": "Phase 2 Complete",
+        "ac": 108500,
+        "rae": 85000,
+        "ev": 140000  // AC/(AC+RAE) * budget_weight * BAC = 108500/193500 * 0.40 * 500000
+      }
+    ]
+  }
+}
+```
 
 ---
 

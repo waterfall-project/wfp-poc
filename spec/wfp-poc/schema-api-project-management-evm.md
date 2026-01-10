@@ -670,6 +670,7 @@ erDiagram
     Project ||--o{ Deliverable : "produces"
     Project ||--o{ Resource : "uses"
     Project ||--o{ Expense : "incurs"
+    Project ||--o{ EVMSnapshot : "measures"
     
     Task ||--o{ Task : "parent_of"
     Task ||--o{ Assignment : "assigned_to"
@@ -779,6 +780,25 @@ erDiagram
         uuid updated_by FK
         timestamp created_at
     }
+    
+    EVMSnapshot {
+        uuid id PK
+        uuid project_id FK
+        date snapshot_date
+        decimal bac
+        decimal pv
+        decimal ac
+        decimal ev_physical
+        decimal ev_milestone
+        decimal cv_physical
+        decimal sv_physical
+        decimal cpi_physical
+        decimal spi_physical
+        decimal eac_cpi_physical
+        decimal etc_physical
+        decimal vac_physical
+        timestamp created_at
+    }
 ```
 
 **Key Relationships:**
@@ -789,9 +809,10 @@ erDiagram
 - **Milestone-Deliverable**: Deliverables tied to milestone achievements
 - **Milestone-RAE**: RAE (Reste À Engager) tracked at milestone level for EV physical progress
 - **Task-Assignment-Resource**: Many-to-many relationship through Assignment join table
+- **Project-EVMSnapshot**: Historical EVM metrics for trend analysis and reporting
 
 **Cascade Delete Rules:**
-- Delete Project → cascades to Tasks, Milestones, Deliverables, Expenses
+- Delete Project → cascades to Tasks, Milestones, Deliverables, Expenses, RAE records, EVM Snapshots
 - Delete Milestone → cascades to Deliverables, RAE records, nullifies Expense.milestone_id
 - Delete Task → cascades to Assignments, child Tasks
 - Delete Resource → prevents deletion if Assignments exist (constraint violation)
@@ -1987,7 +2008,9 @@ Stores the estimated remaining cost for a milestone at a specific date. The RAE 
 }
 ```
 
-#### RAE History Model
+#### EVM Snapshots Model
+
+Stores historical EVM metrics at specific points in time for performance tracking and trend analysis. Snapshots are automatically created after each import of expenses or RAE data.
 
 ```json
 {
@@ -1996,56 +2019,174 @@ Stores the estimated remaining cost for a milestone at a specific date. The RAE 
     "required": true,
     "description": "Unique identifier (UUID v4), auto-generated"
   },
-  "task_id": {
+  "project_id": {
     "type": "uuid",
     "required": true,
-    "description": "Associated task reference"
+    "description": "Reference to the project (FK CASCADE DELETE)"
   },
-  "date": {
+  "snapshot_date": {
     "type": "datetime",
     "required": true,
     "format": "ISO 8601",
-    "description": "RAE update date (typically month-end)"
+    "description": "Date of EVM calculation snapshot (typically month-end)"
   },
-  "remaining_cost": {
+  "bac": {
     "type": "decimal",
     "required": true,
-    "precision": "2 decimal places",
-    "minimum": 0,
-    "description": "Remaining cost to complete task (RAE value)"
+    "precision": 15,
+    "scale": 2,
+    "description": "Budget At Completion (total project budget)"
   },
-  "comment": {
-    "type": "string",
-    "required": false,
-    "maxLength": 500,
-    "description": "Optional comment explaining RAE update"
+  "pv": {
+    "type": "decimal",
+    "required": true,
+    "precision": 15,
+    "scale": 2,
+    "description": "Planned Value at snapshot_date"
   },
-  "updated_by": {
-    "type": "uuid",
-    "required": false,
-    "description": "User ID who made the update (from JWT)"
+  "ac": {
+    "type": "decimal",
+    "required": true,
+    "precision": 15,
+    "scale": 2,
+    "description": "Actual Cost (sum of expenses)"
+  },
+  "ev_physical": {
+    "type": "decimal",
+    "required": true,
+    "precision": 15,
+    "scale": 2,
+    "description": "Earned Value Physical Progress (AC/(AC+RAE) method)"
+  },
+  "ev_milestone": {
+    "type": "decimal",
+    "required": true,
+    "precision": 15,
+    "scale": 2,
+    "description": "Earned Value Milestone Method (weighted completion)"
+  },
+  "ev_delta": {
+    "type": "decimal",
+    "required": true,
+    "precision": 15,
+    "scale": 2,
+    "description": "Difference between EV_physical and EV_milestone"
+  },
+  "cv_physical": {
+    "type": "decimal",
+    "required": true,
+    "precision": 15,
+    "scale": 2,
+    "description": "Cost Variance (EV_physical - AC)"
+  },
+  "sv_physical": {
+    "type": "decimal",
+    "required": true,
+    "precision": 15,
+    "scale": 2,
+    "description": "Schedule Variance (EV_physical - PV)"
+  },
+  "cpi_physical": {
+    "type": "decimal",
+    "required": true,
+    "precision": 4,
+    "scale": 2,
+    "description": "Cost Performance Index (EV_physical / AC)"
+  },
+  "spi_physical": {
+    "type": "decimal",
+    "required": true,
+    "precision": 4,
+    "scale": 2,
+    "description": "Schedule Performance Index (EV_physical / PV)"
+  },
+  "eac_cpi_physical": {
+    "type": "decimal",
+    "required": true,
+    "precision": 15,
+    "scale": 2,
+    "description": "Estimate At Completion using CPI (BAC / CPI)"
+  },
+  "eac_cpispi_physical": {
+    "type": "decimal",
+    "required": true,
+    "precision": 15,
+    "scale": 2,
+    "description": "Estimate At Completion using CPI*SPI (BAC / (CPI * SPI))"
+  },
+  "etc_physical": {
+    "type": "decimal",
+    "required": true,
+    "precision": 15,
+    "scale": 2,
+    "description": "Estimate To Complete (EAC - AC)"
+  },
+  "vac_physical": {
+    "type": "decimal",
+    "required": true,
+    "precision": 15,
+    "scale": 2,
+    "description": "Variance At Completion (BAC - EAC)"
+  },
+  "tcpi_bac": {
+    "type": "decimal",
+    "required": true,
+    "precision": 4,
+    "scale": 2,
+    "description": "To-Complete Performance Index based on BAC"
+  },
+  "percent_complete": {
+    "type": "decimal",
+    "required": true,
+    "precision": 5,
+    "scale": 2,
+    "description": "Project completion percentage (EV_physical / BAC * 100)"
   },
   "created_at": {
     "type": "datetime",
     "required": true,
     "format": "ISO 8601",
-    "description": "Record creation timestamp"
+    "description": "Snapshot creation timestamp"
   }
 }
 ```
 
+**Constraints:**
+- `project_id` → Foreign key to `projects.id` (CASCADE DELETE)
+- `UNIQUE(project_id, snapshot_date)` → One snapshot per project per date
+- `INDEX(project_id, snapshot_date DESC)` → Efficient time-series queries
+
 **Example:**
 ```json
 {
-  "id": "c9d0e1f2-a3b4-4c5d-6e7f-8a9b0c1d2e3f",
-  "task_id": "b2c3d4e5-f6a7-4b5c-9d0e-1f2a3b4c5d6e",
-  "date": "2026-01-31T23:59:59Z",
-  "remaining_cost": 12500.00,
-  "comment": "Updated based on Q1 progress review",
-  "updated_by": "550e8400-e29b-41d4-a716-446655440000",
-  "created_at": "2026-01-10T10:00:00Z"
+  "id": "a9b0c1d2-e3f4-5a6b-7c8d-9e0f1a2b3c4d",
+  "project_id": "a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d",
+  "snapshot_date": "2026-06-30T23:59:59Z",
+  "bac": 500000.00,
+  "pv": 450000.00,
+  "ac": 330000.00,
+  "ev_physical": 340000.00,
+  "ev_milestone": 330000.00,
+  "ev_delta": 10000.00,
+  "cv_physical": 10000.00,
+  "sv_physical": -110000.00,
+  "cpi_physical": 1.03,
+  "spi_physical": 0.76,
+  "eac_cpi_physical": 485437.00,
+  "eac_cpispi_physical": 638158.00,
+  "etc_physical": 155437.00,
+  "vac_physical": 14563.00,
+  "tcpi_bac": 0.94,
+  "percent_complete": 68.00,
+  "created_at": "2026-06-30T18:00:00Z"
 }
 ```
+
+**Usage:**
+- Automatically created after expense/RAE imports
+- Used for dashboards and reports (fast queries, no recalculation)
+- Supports trend analysis (query snapshots over time)
+- Enables historical comparisons (forecasts vs actuals)
 
 ### 4.2. Project Endpoints
 
