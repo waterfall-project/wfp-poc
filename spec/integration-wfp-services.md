@@ -810,11 +810,11 @@ sequenceDiagram
 **Excel Format Specification**:
 
 | Column | Type | Required | Description | Example |
-|--------|------|----------|-------------|---------|
+|--------|------|----------|-------------|---------|-------|
 | expense_date | Date | Yes | Date of expense | 2026-03-31 |
 | description | String | Yes | Expense description | Q1 Labor Costs |
 | amount | Decimal | Yes | Expense amount (>= 0) | 150000.00 |
-| category | Enum | Yes | Labor, Material, Equipment, Subcontractor, Other | Labor |
+| category | Enum | Yes | labor, procurement, subcontracting, overhead | labor |
 | milestone_name | String | Yes | Milestone allocation (must match wfp-poc) | Phase 1 Complete |
 | invoice_number | String | No | Invoice reference | INV-2026-0123 |
 | payment_reference | String | No | Payment tracking reference | PAY-2026-0045 |
@@ -823,7 +823,7 @@ sequenceDiagram
 - **VLD-EXP-001**: `expense_date` SHALL be valid ISO 8601 date
 - **VLD-EXP-002**: `amount` SHALL be >= 0 (no negative expenses)
 - **VLD-EXP-003**: `milestone_name` SHALL match existing milestone in project
-- **VLD-EXP-004**: `category` SHALL be one of: Labor, Material, Equipment, Subcontractor, Other
+- **VLD-EXP-004**: `category` SHALL be one of: labor, procurement, subcontracting, overhead
 - **VLD-EXP-005**: Duplicate detection: Same date + description + amount → skip or update
 
 **Sequence Diagram**:
@@ -863,11 +863,11 @@ sequenceDiagram
 ```bash
 # Step 1: Export expenses from ERP to Excel
 # expenses_q2.xlsx content:
-# expense_date | description       | amount   | category      | milestone_name    | invoice_number
-# 2026-04-15   | Backend Dev Team  | 85000.00 | Labor         | Phase 2 Complete  | INV-2026-0234
-# 2026-04-20   | Server Hardware   | 12000.00 | Equipment     | Phase 2 Complete  | INV-2026-0245
-# 2026-05-10   | Database License  | 8000.00  | Material      | Phase 2 Complete  | INV-2026-0267
-# 2026-05-30   | Cloud Hosting     | 3500.00  | Other         | Phase 2 Complete  | INV-2026-0289
+# expense_date | description       | amount   | category        | milestone_name    | invoice_number
+# 2026-04-15   | Backend Dev Team  | 85000.00 | labor           | Phase 2 Complete  | INV-2026-0234
+# 2026-04-20   | Server Hardware   | 12000.00 | procurement     | Phase 2 Complete  | INV-2026-0245
+# 2026-05-10   | Database License  | 8000.00  | procurement     | Phase 2 Complete  | INV-2026-0267
+# 2026-05-30   | Cloud Hosting     | 3500.00  | overhead        | Phase 2 Complete  | INV-2026-0289
 
 # Step 2: Import via poc-import
 python poc_import.py expenses expenses_q2.xlsx --project-id=a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d
@@ -894,7 +894,7 @@ Content-Type: application/json
       "expense_date": "2026-04-15",
       "description": "Backend Dev Team",
       "amount": 85000.00,
-      "category": "Labor",
+      "category": "labor",
       "milestone_id": "d4e5f6a7-b8c9-4d5e-1f2a-3b4c5d6e7f8a",
       "invoice_number": "INV-2026-0234"
     },
@@ -902,7 +902,7 @@ Content-Type: application/json
       "expense_date": "2026-04-20",
       "description": "Server Hardware",
       "amount": 12000.00,
-      "category": "Equipment",
+      "category": "procurement",
       "milestone_id": "d4e5f6a7-b8c9-4d5e-1f2a-3b4c5d6e7f8a",
       "invoice_number": "INV-2026-0245"
     },
@@ -910,7 +910,7 @@ Content-Type: application/json
       "expense_date": "2026-05-10",
       "description": "Database License",
       "amount": 8000.00,
-      "category": "Material",
+      "category": "procurement",
       "milestone_id": "d4e5f6a7-b8c9-4d5e-1f2a-3b4c5d6e7f8a",
       "invoice_number": "INV-2026-0267"
     },
@@ -918,7 +918,7 @@ Content-Type: application/json
       "expense_date": "2026-05-30",
       "description": "Cloud Hosting",
       "amount": 3500.00,
-      "category": "Other",
+      "category": "overhead",
       "milestone_id": "d4e5f6a7-b8c9-4d5e-1f2a-3b4c5d6e7f8a",
       "invoice_number": "INV-2026-0289"
     }

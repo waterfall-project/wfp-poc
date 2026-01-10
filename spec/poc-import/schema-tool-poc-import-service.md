@@ -106,14 +106,14 @@ tags: [tool, poc-import, ms-project, excel, etl, validation]
 - **REQ-024**: poc-import SHALL map Excel milestone_name to milestone_id via wfp-poc GET /milestones
 - **REQ-025**: poc-import SHALL calculate milestone budget_weight from task budget distribution
 - **REQ-026**: poc-import SHALL convert MS Project dates to ISO 8601 UTC timestamps
-- **REQ-027**: poc-import SHALL map Excel expense category to wfp-poc enum (Labor, Material, Equipment, etc.)
+- **REQ-027**: poc-import SHALL map Excel expense category to wfp-poc enum (labor, procurement, subcontracting, overhead)
 
 #### API Orchestration
 
 - **REQ-028**: poc-import SHALL authenticate API requests using JWT token (from config or CLI arg)
 - **REQ-029**: poc-import SHALL include correlation_id in all API requests for tracing
 - **REQ-030**: poc-import SHALL use POST for initial import (create entities)
-- **REQ-031**: poc-import SHALL use PUT /tasks/sync for reimport (upsert based on ms_project_guid)
+- **REQ-031**: poc-import SHALL use PUT /projects/{project_id}/tasks/sync for reimport (upsert based on ms_project_guid)
 - **REQ-032**: poc-import SHALL use POST /expenses/bulk for batch expense import
 - **REQ-033**: poc-import SHALL use POST /milestones/{id}/rae for each milestone RAE update
 - **REQ-034**: poc-import SHALL implement retry logic for transient API errors (3 retries with exponential backoff)
@@ -233,7 +233,7 @@ poc-import expenses <file.xlsx> \
 | expense_date | Date | Yes | Date of expense (YYYY-MM-DD) | 2026-03-31 |
 | description | String | Yes | Expense description | Q1 Labor Costs |
 | amount | Decimal | Yes | Expense amount (>= 0) | 150000.00 |
-| category | Enum | Yes | Labor, Material, Equipment, Subcontractor, Other | Labor |
+| category | Enum | Yes | labor, procurement, subcontracting, overhead | labor |
 | milestone_name | String | Yes | Milestone allocation (must match wfp-poc) | Phase 1 Complete |
 | invoice_number | String | No | Invoice reference | INV-2026-0123 |
 | payment_reference | String | No | Payment tracking reference | PAY-2026-0045 |
@@ -241,7 +241,7 @@ poc-import expenses <file.xlsx> \
 **Validation Rules:**
 - Date format: ISO 8601 (YYYY-MM-DD) or Excel date serial
 - Amount: Non-negative decimal, max 15 digits, 2 decimal places
-- Category: Case-insensitive match to enum values
+- Category: Case-insensitive match to enum values (labor, procurement, subcontracting, overhead)
 - milestone_name: Must exist in project (case-sensitive)
 - Duplicate detection: Same date + description + amount → skip or update (configurable)
 
@@ -339,7 +339,7 @@ POST /v0/projects
 
 **Mapping to wfp-poc API (Initial Import):**
 ```json
-POST /v0/tasks/bulk
+POST /v0/projects/{project_id}/tasks/bulk
 {
   "tasks": [
     {
@@ -363,7 +363,7 @@ POST /v0/tasks/bulk
 
 **Mapping to wfp-poc API (Reimport/Sync):**
 ```json
-PUT /v0/tasks/sync
+PUT /v0/projects/{project_id}/tasks/sync
 {
   "tasks": [
     {
@@ -395,7 +395,7 @@ PUT /v0/tasks/sync
 
 **Mapping to wfp-poc API:**
 ```json
-POST /v0/resources/bulk
+POST /v0/projects/{project_id}/resources/bulk
 {
   "resources": [
     {
@@ -426,7 +426,7 @@ POST /v0/resources/bulk
 
 **Mapping to wfp-poc API:**
 ```json
-POST /v0/assignments/bulk
+POST /v0/projects/{project_id}/assignments/bulk
 {
   "assignments": [
     {
