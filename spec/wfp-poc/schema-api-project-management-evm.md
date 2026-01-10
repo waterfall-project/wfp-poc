@@ -171,11 +171,13 @@ The primary purpose of **wfp-poc** is to:
 
 - **Bulk Import**: Endpoint accepting arrays of entities for efficient batch creation, used by poc-import service to load large datasets from MS Project XML files.
 
-- **Task Sync (Upsert)**: Endpoint for updating existing tasks during MS Project reimport. Uses `ms_project_uid` as reconciliation key. Only updates planning fields (dates, duration, predecessors); preserves tracking data (actual dates, progress, RAE).
+- **Task Sync (Upsert)**: Endpoint for updating existing tasks during MS Project reimport. Uses `ms_project_guid` (stable UUID) as reconciliation key. Only updates planning fields (dates, duration, predecessors); preserves tracking data (actual dates, progress, RAE).
 
 - **Milestone Structure Validation**: Pre-import check ensuring milestone entities (count and names) remain unchanged between imports. Prevents accidental addition/removal of milestones which would break EVM calculations (budget_weight must sum to 1.0).
 
-- **MS Project UID**: Microsoft Project's unique identifier for tasks, resources, and assignments. Preserved during import to enable round-trip export via poc-export service.
+- **MS Project GUID**: Microsoft Project's globally unique identifier (UUID) for tasks. **Stable** across all operations (reorder, delete, reimport). Used as reconciliation key for upsert.
+
+- **MS Project UID**: Microsoft Project's unique identifier (integer) for tasks within a project file. **Unstable** - changes when tasks are reordered or deleted. Preserved for display and traceability only, not for upsert.
 
 - **Expense Category**: Classification of expenses from ERP system:
   - **Labor (MO - Main d'Oeuvre)**: Personnel costs (salaries, contractors)
@@ -990,21 +992,21 @@ erDiagram
     "nullable": true,
     "description": "Parent task for WBS hierarchy (null for top-level tasks)"
   },
-  "ms_project_uid": {
-    "type": "integer",
-    "required": false,
-    "description": "MS Project UID (unique within project)"
-  },
-  "ms_project_id": {
-    "type": "integer",
-    "required": false,
-    "description": "MS Project ID (display order)"
-  },
   "ms_project_guid": {
     "type": "string",
     "required": false,
     "maxLength": 50,
-    "description": "MS Project GUID"
+    "description": "MS Project GUID (stable UUID for upsert reconciliation)"
+  },
+  "ms_project_uid": {
+    "type": "integer",
+    "required": false,
+    "description": "MS Project UID (display ID, unstable - changes on reorder)"
+  },
+  "ms_project_id": {
+    "type": "integer",
+    "required": false,
+    "description": "MS Project ID (display order, changes frequently)"
   },
   "name": {
     "type": "string",

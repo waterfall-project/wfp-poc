@@ -42,8 +42,9 @@ This specification defines the integration architecture, communication protocols
 | **Structural Validation** | Verification that milestone count and names remain unchanged during reimport |
 | **Planning Data** | MS Project-sourced data: WBS, task dates, durations, dependencies, resource assignments |
 | **Tracking Data** | wfp-poc-sourced data: expenses, actual dates, progress, RAE, EV calculations |
-| **ms_project_uid** | MS Project Task Unique ID - integer identifier for upsert reconciliation |
-| **ms_project_guid** | MS Project GUID - UUID for project-level identification |
+| **ms_project_uid** | MS Project Task UID - integer ID displayed in MS Project (unstable, changes on reorder) |
+| **ms_project_guid** | MS Project Task GUID - UUID stable identifier for task-level upsert reconciliation |
+| **ms_project_project_guid** | MS Project Project GUID - UUID for project-level identification |
 | **MCP Server** | Model Context Protocol Server - AI-accessible interface to services |
 
 ## 3. Requirements, Constraints & Guidelines
@@ -61,41 +62,42 @@ This specification defines the integration architecture, communication protocols
 #### MS Project Compatibility
 
 - **INT-006**: poc-import SHALL parse MS Project 2010+ XML format
-- **INT-007**: poc-import SHALL preserve `ms_project_uid` (Task UID) for upsert reconciliation
-- **INT-008**: poc-import SHALL preserve `ms_project_guid` (Project GUID) for project identification
-- **INT-009**: poc-export SHALL generate valid MS Project 2010+ XML compatible with MS Project desktop
-- **INT-010**: poc-export SHALL preserve UID/GUID mappings for round-trip consistency
+- **INT-007**: poc-import SHALL preserve `ms_project_guid` (Task GUID) for upsert reconciliation
+- **INT-008**: poc-import SHALL preserve `ms_project_uid` (Task UID) for display/reference purposes only
+- **INT-009**: poc-import SHALL preserve `ms_project_project_guid` (Project GUID) for project identification
+- **INT-010**: poc-export SHALL generate valid MS Project 2010+ XML compatible with MS Project desktop
+- **INT-011**: poc-export SHALL preserve GUID/UID mappings for round-trip consistency
 
 #### Import Validation
 
-- **INT-011**: poc-import SHALL validate milestone structure consistency on reimport (count + names)
-- **INT-012**: poc-import SHALL reject reimport if milestone count changed from previous import
-- **INT-013**: poc-import SHALL reject reimport if milestone names changed from previous import
-- **INT-014**: poc-import SHALL allow reimport if only task dates, durations, or dependencies changed
-- **INT-015**: poc-import SHALL provide detailed validation error messages with resolution steps
+- **INT-012**: poc-import SHALL validate milestone structure consistency on reimport (count + names)
+- **INT-013**: poc-import SHALL reject reimport if milestone count changed from previous import
+- **INT-014**: poc-import SHALL reject reimport if milestone names changed from previous import
+- **INT-015**: poc-import SHALL allow reimport if only task dates, durations, or dependencies changed
+- **INT-016**: poc-import SHALL provide detailed validation error messages with resolution steps
 
 #### Data Synchronization
 
-- **INT-016**: Initial import SHALL create all entities: project, tasks, milestones, resources
-- **INT-017**: Reimport SHALL use PUT /tasks/sync endpoint for upsert based on `ms_project_uid`
-- **INT-018**: Reimport SHALL preserve tracking data (actual_start_date, actual_finish_date, percent_complete)
-- **INT-019**: Reimport SHALL update planning data (planned_start_date, planned_finish_date, duration, predecessors)
-- **INT-020**: wfp-poc SHALL auto-recalculate milestone target_date when predecessor task dates change
+- **INT-017**: Initial import SHALL create all entities: project, tasks, milestones, resources
+- **INT-018**: Reimport SHALL use PUT /tasks/sync endpoint for upsert based on `ms_project_guid`
+- **INT-019**: Reimport SHALL preserve tracking data (actual_start_date, actual_finish_date, percent_complete)
+- **INT-020**: Reimport SHALL update planning data (planned_start_date, planned_finish_date, duration, predecessors)
+- **INT-021**: wfp-poc SHALL auto-recalculate milestone target_date when predecessor task dates change
 
 #### Export Requirements
 
-- **INT-021**: poc-export SHALL export current project state including all tasks, milestones, resources
-- **INT-022**: poc-export SHALL map wfp-poc tasks to MS Project Task elements with preserved UIDs
-- **INT-023**: poc-export SHALL export actual dates to MS Project ActualStart/ActualFinish fields
-- **INT-024**: poc-export SHALL export planned dates to MS Project Start/Finish fields
-- **INT-025**: poc-export SHALL export dependencies as MS Project PredecessorLink elements
+- **INT-022**: poc-export SHALL export current project state including all tasks, milestones, resources
+- **INT-023**: poc-export SHALL map wfp-poc tasks to MS Project Task elements with preserved GUIDs/UIDs
+- **INT-024**: poc-export SHALL export actual dates to MS Project ActualStart/ActualFinish fields
+- **INT-025**: poc-export SHALL export planned dates to MS Project Start/Finish fields
+- **INT-026**: poc-export SHALL export dependencies as MS Project PredecessorLink elements
 
 #### MCP Server Requirements
 
-- **INT-026**: poc-import MAY expose MCP server for AI-assisted import workflows
-- **INT-027**: poc-export MAY expose MCP server for AI-assisted export workflows
-- **INT-028**: MCP servers SHALL support tools for file upload, validation, and API orchestration
-- **INT-029**: MCP servers SHALL return structured JSON responses compatible with AI tools
+- **INT-027**: poc-import MAY expose MCP server for AI-assisted import workflows
+- **INT-028**: poc-export MAY expose MCP server for AI-assisted export workflows
+- **INT-029**: MCP servers SHALL support tools for file upload, validation, and API orchestration
+- **INT-030**: MCP servers SHALL return structured JSON responses compatible with AI tools
 
 ### Performance Constraints (CON-xxx)
 
@@ -112,11 +114,12 @@ This specification defines the integration architecture, communication protocols
 
 ### Guidelines (GUD-xxx)
 
-- **GUD-001**: Use `ms_project_uid` for task-level reconciliation (upsert)
-- **GUD-002**: Use `ms_project_guid` for project-level identification
-- **GUD-003**: Prefer bulk endpoints (POST /tasks/bulk, PUT /tasks/sync) over individual creates/updates
-- **GUD-004**: Export planning data from wfp-poc to MS Project for reporting, not for editing
-- **GUD-005**: Use MS Project for initial structure definition, wfp-poc for tracking and EVM
+- **GUD-001**: Use `ms_project_guid` for task-level reconciliation (upsert) - GUID is stable across reorders
+- **GUD-002**: Use `ms_project_project_guid` for project-level identification
+- **GUD-003**: Preserve `ms_project_uid` for display/traceability but DO NOT use for upsert (unstable)
+- **GUD-004**: Prefer bulk endpoints (POST /tasks/bulk, PUT /tasks/sync) over individual creates/updates
+- **GUD-005**: Export planning data from wfp-poc to MS Project for reporting, not for editing
+- **GUD-006**: Use MS Project for initial structure definition, wfp-poc for tracking and EVM
 
 ## 4. Service Architecture
 
@@ -209,9 +212,9 @@ sequenceDiagram
     API-->>IMP: 201 {project_id}
     
     IMP->>API: POST /v0/projects/{id}/tasks/bulk
-    Note over IMP,API: 50 tasks in single request
+    Note over IMP,API: 50 tasks in single request with ms_project_guid
     API->>DB: INSERT tasks (bulk)
-    API-->>IMP: 201 {tasks: [{id, ms_project_uid}]}
+    API-->>IMP: 201 {tasks: [{id, ms_project_guid, ms_project_uid}]}
     
     IMP->>API: POST /v0/projects/{id}/milestones
     API->>DB: INSERT milestone
@@ -236,8 +239,8 @@ sequenceDiagram
 ```
 
 **Postconditions**:
-- Project created with `ms_project_guid`
-- All tasks created with `ms_project_uid` preserved
+- Project created with `ms_project_project_guid`
+- All tasks created with `ms_project_guid` (stable) and `ms_project_uid` (display only) preserved
 - Milestones created with M2M links to predecessor tasks
 - Resources and assignments created
 - `target_date` auto-calculated for all milestones
@@ -299,7 +302,7 @@ sequenceDiagram
     
     PM->>CLI: poc_import.py project_v2.mpp --mode=sync --project-id={uuid}
     CLI->>IMP: Parse XML
-    IMP->>IMP: Extract tasks with ms_project_uid
+    IMP->>IMP: Extract tasks with ms_project_guid (stable)
     IMP->>IMP: Extract milestone tasks
     
     IMP->>API: GET /v0/projects/{id}/milestones
@@ -315,7 +318,7 @@ sequenceDiagram
         CLI-->>PM: Validation failed with resolution steps
     else Structure valid ✅
         IMP->>API: PUT /v0/projects/{id}/tasks/sync
-        Note over IMP,API: Upsert 50 tasks by ms_project_uid
+        Note over IMP,API: Upsert 50 tasks by ms_project_guid (stable)
         API->>DB: UPDATE tasks (planning data)
         API->>DB: UPDATE milestone.target_date (auto-calc)
         API->>DB: UPDATE pv_timeseries (recalculate)
@@ -373,14 +376,16 @@ POST /v0/projects/{project_id}/tasks/bulk
 {
   "tasks": [
     {
-      "ms_project_uid": "UID_1",
+      "ms_project_guid": "41DA3870-5DF4-EF11-9360-F4EE08B24B68",
+      "ms_project_uid": 1,
       "name": "Planning Phase",
       "type": "summary",
       "wbs_code": "1",
       ...
     },
     {
-      "ms_project_uid": "UID_10",
+      "ms_project_guid": "42DA3870-5DF4-EF11-9360-F4EE08B24B68",
+      "ms_project_uid": 10,
       "name": "Phase 1 Complete",
       "type": "milestone",
       "duration": 0,
@@ -460,20 +465,22 @@ if existing_names != new_names:
 # ✅ PASS: Names unchanged
 ```
 
-**Step 2: Sync tasks (upsert based on ms_project_uid)**
+**Step 2: Sync tasks (upsert based on ms_project_guid)**
 ```http
 PUT /v0/projects/{project_id}/tasks/sync
 {
   "tasks": [
     {
-      "ms_project_uid": "UID_7",
+      "ms_project_guid": "47DA3870-5DF4-EF11-9360-F4EE08B24B68",
+      "ms_project_uid": 7,
       "name": "Backend Development",
       "duration": 60,  # Was 45, now 60 (+15 days delay)
       "planned_start_date": "2026-03-15T00:00:00Z",
       "planned_finish_date": "2026-05-30T00:00:00Z"  # Was 2026-04-30, now 2026-05-30 (+1 month)
     },
     {
-      "ms_project_uid": "UID_8",
+      "ms_project_guid": "48DA3870-5DF4-EF11-9360-F4EE08B24B68",
+      "ms_project_uid": 8,
       "name": "Frontend Development",
       "duration": 50,  # Unchanged
       "planned_start_date": "2026-04-01T00:00:00Z",
@@ -787,13 +794,13 @@ ValidationError: Milestone structure changed
   Option 2: Revert name in MS Project to "Phase 2 Complete"
 ```
 
-#### Scenario 5b: Task UID Missing (New Task Added in MS Project)
+#### Scenario 5b: Task GUID Missing (New Task Added in MS Project)
 
 ```http
 PUT /v0/projects/{project_id}/tasks/sync
 {
   "tasks": [
-    {"ms_project_uid": "UID_51", "name": "New Task", ...}  # New UID not in wfp-poc
+    {"ms_project_guid": "51DA3870-5DF4-EF11-9360-F4EE08B24B68", "name": "New Task", ...}  # New GUID not in wfp-poc
   ]
 }
 
@@ -801,7 +808,7 @@ PUT /v0/projects/{project_id}/tasks/sync
 {
   "message": "Cannot add new tasks via sync endpoint",
   "errors": {
-    "tasks[0]": ["Task with ms_project_uid 'UID_51' not found. Use POST /tasks/bulk for new tasks."]
+    "tasks[0]": ["Task with ms_project_guid '51DA3870-5DF4-EF11-9360-F4EE08B24B68' not found. Use POST /tasks/bulk for new tasks."]
   }
 }
 ```
@@ -854,7 +861,7 @@ Authorization: Bearer <expired_token>
 - **AC-INT-004**: Given an existing project, when only task dates change in MS Project, then poc-import SHALL successfully sync via PUT /tasks/sync
 - **AC-INT-005**: Given updated task dates, when reimport completes, then milestone target_date SHALL be auto-recalculated to MAX(predecessor task finish dates)
 - **AC-INT-006**: Given a project in wfp-poc, when poc-export generates XML, then MS Project SHALL successfully open the file without errors
-- **AC-INT-007**: Given an exported XML, when opened in MS Project, then all UIDs SHALL match original values for round-trip consistency
+- **AC-INT-007**: Given an exported XML, when opened in MS Project, then all GUIDs SHALL match original values for round-trip consistency
 - **AC-INT-008**: Given reimported tasks, when tracking data exists, then actual_start_date, actual_finish_date, percent_complete SHALL be preserved
 - **AC-INT-009**: Given reimported tasks, when planning data changes, then planned_start_date, planned_finish_date, duration, predecessors SHALL be updated
 - **AC-INT-010**: Given a complete round-trip (export → edit → reimport), when EVM is recalculated, then PV SHALL reflect new dates and AC/EV SHALL remain unchanged
@@ -897,13 +904,18 @@ Authorization: Bearer <expired_token>
 
 **Trade-off**: Less flexibility, but prevents data corruption and maintains EVM integrity.
 
-### Why Upsert via ms_project_uid?
+### Why Upsert via ms_project_guid?
 
-**Problem**: MS Project UID is stable across exports/edits, UUID is wfp-poc internal identifier.
+**Problem**: MS Project has 3 identifiers per task:
+- `<UID>` (integer): Displayed in MS Project, **NOT stable** - changes when tasks reordered/deleted
+- `<GUID>` (UUID): **Stable** across all operations - the true persistent identifier
+- `<ID>` (integer): Display row number, changes frequently
 
-**Solution**: Use `ms_project_uid` as natural key for reconciliation during reimport.
+**Solution**: Use `ms_project_guid` (from `<GUID>` element) as natural key for reconciliation during reimport.
 
-**Alternative Considered**: Match by task name → Rejected due to potential duplicates and renames.
+**Alternative Considered**: 
+- Match by `ms_project_uid` → Rejected: UID changes on task reorder/deletion
+- Match by task name → Rejected: duplicates and renames break reconciliation
 
 ### Why M2M Milestone-Task Relationship?
 
@@ -949,10 +961,10 @@ Authorization: Bearer <expired_token>
 
 - **VAL-INT-001**: Complete end-to-end test: Initial import → Export → Edit in MS Project → Reimport → Verify EVM
 - **VAL-INT-002**: Milestone structural validation: Test rejection when count/names change
-- **VAL-INT-003**: Task upsert validation: Test ms_project_uid reconciliation with 1000 tasks
+- **VAL-INT-003**: Task upsert validation: Test ms_project_guid reconciliation with 1000 tasks
 - **VAL-INT-004**: Tracking data preservation: Verify actual dates, progress, RAE unchanged after reimport
 - **VAL-INT-005**: Auto-calculation validation: Verify milestone.target_date = MAX(predecessor finish dates)
-- **VAL-INT-006**: Round-trip consistency: Export → Reimport → Compare UIDs/GUIDs match 100%
+- **VAL-INT-006**: Round-trip consistency: Export → Reimport → Compare GUIDs match 100% (UIDs may change)
 
 ### Performance Validation (VAL-PERF-xxx)
 
@@ -983,7 +995,8 @@ Authorization: Bearer <expired_token>
 
 | MS Project Field | wfp-poc Field | Direction | Notes |
 |------------------|---------------|-----------|-------|
-| `<UID>` | `ms_project_uid` | Both | Natural key for upsert |
+| `<GUID>` | `ms_project_guid` | Both | Stable UUID for upsert reconciliation |
+| `<UID>` | `ms_project_uid` | Both | Display ID (unstable, changes on reorder) |
 | `<Name>` | `name` | Both | Task name |
 | `<Start>` | `planned_start_date` | Both | Planned start |
 | `<Finish>` | `planned_finish_date` | Both | Planned finish |
@@ -1000,7 +1013,8 @@ Authorization: Bearer <expired_token>
 
 | MS Project Field | wfp-poc Field | Direction | Notes |
 |------------------|---------------|-----------|-------|
-| `<UID>` | `ms_project_uid` | Both | Resource ID |
+| `<GUID>` | `ms_project_guid` | Both | Stable resource identifier |
+| `<UID>` | `ms_project_uid` | Both | Display ID (unstable) |
 | `<Name>` | `name` | Both | Resource name |
 | `<Type>` | `type` | Both | Work/Material/Cost |
 | `<MaxUnits>` | `max_units` | Both | Availability |
@@ -1014,7 +1028,7 @@ Authorization: Bearer <expired_token>
 |------------|-------------|-------------|------------|
 | `MILESTONE_COUNT_MISMATCH` | 400 | Milestone count changed | Add/remove milestone manually in wfp-poc |
 | `MILESTONE_NAME_MISMATCH` | 400 | Milestone name changed | Rename in wfp-poc or revert in MS Project |
-| `TASK_UID_NOT_FOUND` | 400 | Task ms_project_uid not found | Use POST /tasks/bulk for new tasks |
+| `TASK_GUID_NOT_FOUND` | 400 | Task ms_project_guid not found | Use POST /tasks/bulk for new tasks |
 | `PAYLOAD_TOO_LARGE` | 413 | Request exceeds size limit | Split into multiple requests |
 | `INVALID_JWT` | 401 | JWT token expired or invalid | Refresh token from Identity service |
 | `INSUFFICIENT_PERMISSIONS` | 403 | Guardian permission denied | Request access from admin |
