@@ -13,7 +13,7 @@ tags: [tool, poc-import, ms-project, excel, etl, validation]
 
 ### Purpose
 
-`poc-import` is a command-line ETL (Extract, Transform, Load) service that imports project data from MS Project XML files and Excel spreadsheets into the wfp-poc REST API. It serves as the primary data ingestion tool for the Waterfall project management ecosystem.
+`poc-import` is a Flask-based ETL (Extract, Transform, Load) service that imports project data from MS Project XML files and Excel spreadsheets into the wfp-poc REST API. It provides both a command-line interface (CLI) for batch operations and REST API endpoints for programmatic access, serving as the primary data ingestion tool for the Waterfall project management ecosystem.
 
 ### Scope
 
@@ -22,16 +22,19 @@ tags: [tool, poc-import, ms-project, excel, etl, validation]
 - Parse Excel files for expenses and RAE (Reste À Engager) data
 - Validate data integrity and business rules before import
 - Transform source data into wfp-poc API payloads
-- Orchestrate API calls with error handling and retry logic
+- Orchestrate wfp-poc API calls with error handling and retry logic
 - Support initial import and incremental reimport workflows
+- Provide CLI interface for manual/scripted imports
+- Provide REST API endpoints for programmatic imports (future)
+- Support MCP (Model Context Protocol) server for AI integration (future)
 - Provide detailed validation reports and import summaries
 
 **Out of Scope:**
 - MS Project binary .mpp file parsing (convert to XML first using MS Project or Project Server)
 - Real-time synchronization (batch import only)
 - Data export (handled by poc-export service)
-- User interface (CLI only, no GUI)
-- Direct database access (API-only communication)
+- Web UI for file uploads (CLI and API only)
+- Direct database access (API-only communication with wfp-poc)
 
 ### Intended Audience
 
@@ -644,12 +647,111 @@ POST /v0/assignments/bulk
 
 ## 6. Rationale & Context
 
-### Why CLI Tool?
+### Why Flask Service with CLI?
+
+**Architecture Decision: Flask Service + CLI (not pure CLI)**
+
+Alternative approaches considered:
+
+| Approach | Pros | Cons | Decision |
+|----------|------|------|----------|
+| **Pure CLI Tool** | Simple, no server overhead, easy deployment | No API for future integrations (MCP, webhooks), harder to add web UI later | ❌ Rejected |
+| **Flask Service + CLI** ✅ | Consistent with wfp-poc, supports CLI + API, enables MCP/webhooks, shared parsers library | Slightly more complex initial setup | ✅ **Chosen** |
+| **Separate CLI + API Services** | Maximum separation of concerns | Duplicate parser logic, more deployment complexity | ❌ Rejected |
+
+**Chosen Architecture Benefits:**
+- ✅ **Reusable Parsers**: `app/parsers/` used by both CLI and REST API
+- ✅ **Consistent Stack**: Same Flask patterns as wfp-poc (resources, schemas, utils)
+- ✅ **Future-Proof**: Easy to add REST endpoints for programmatic imports
+- ✅ **MCP Support**: Can expose MCP server using Flask app context
+- ✅ **Testing**: Leverage Flask test client for integration tests
+- ✅ **Monitoring**: Standard Flask metrics, logging, error handling
+
+**Layered Architecture:**
+```
+┌─────────────────────────────────────┐
+│         CLI Interface               │ ← Flask Click commands
+├─────────────────────────────────────┤
+│      REST API (optional)            │ ← Flask-RESTful resources
+├─────────────────────────────────────┤
+│         Services Layer              │ ← Orchestration logic
+│  • ImportService                    │
+│  • WfpApiClient                     │
+├─────────────────────────────────────┤
+│         Parsers Layer               │ ← Pure logic (reusable)
+│  • MSProjectParser                  │
+│  • ExcelExpenseParser               │
+│  • ExcelRAEParser                   │
+│  • Validators                       │
+└─────────────────────────────────────┘
+```
+
+**File Structure:**
+```
+poc-import/
+├── app/
+│   ├── __init__.py           # Flask app factory
+│   ├── config.py             # Configuration classes
+│   ├── cli.py                # CLI commands (flask import msproject ...)
+│   ├── parsers/              # 🔧 REUSABLE PARSING LOGIC
+│   │   ├── __init__.py
+│   │   ├── msproject_parser.py    # MS Project XML → Python objects
+│   │   ├── excel_expense_parser.py # Excel expenses → Python objects
+│   │   ├── excel_rae_parser.py     # Excel RAE → Python objects
+│   │   └── validators.py           # Business rule validation
+│   ├── services/             # 🎯 ORCHESTRATION LOGIC
+│   │   ├── __init__.py
+│   │   ├── import_service.py       # High-level import workflows
+│   │   └── wfp_api_client.py       # wfp-poc API wrapper
+│   ├── resources/            # 🌐 REST API (future)
+│   │   ├── __init__.py
+│   │   └── import_resource.py
+│   ├── schemas/              # Marshmallow schemas
+│   │   └── import_schema.py
+│   └── utils/
+│       ├── logger.py
+│       └── retry.py
+├── tests/
+│   ├── unit/
+│   │   ├── test_msproject_parser.py
+│   │   ├── test_excel_parser.py
+│   │   └── test_validators.py
+│   └── integration/
+│       └── test_import_workflows.py
+├── run.py                    # CLI entry point: python run.py ...
+├── pyproject.toml
+└── README.md
+```
+
+**CLI Usage (Flask Click commands):**
+```bash
+# Using Flask CLI
+flask --app poc_import import msproject project.xml --mode=initial --company-id=...
+
+# Or standalone entry point
+python run.py import msproject project.xml --mode=initial --company-id=...
+```
+
+**Future REST API (when needed):**
+```bash
+# Start service
+flask --app poc_import run --port=5001
+
+# Import via API
+curl -X POST http://localhost:5001/v0/import/msproject \
+  -H "Authorization: Bearer $JWT" \
+  -F "file=@project.xml" \
+  -F "mode=initial" \
+  -F "company_id=..."
+```
+
+### Why CLI as Primary Interface (despite Flask)?
 
 - **Automation**: Easy integration into CI/CD pipelines and scheduled jobs
-- **Simplicity**: No web server overhead, direct file processing
-- **Performance**: Batch processing without HTTP server latency
+- **Simplicity**: No server needed for batch imports
+- **Performance**: Direct file processing, no HTTP overhead for large files
 - **Debugging**: stdout/stderr logging for troubleshooting
+- **Future Growth**: Can add REST API later without rewriting parsers
 
 ### Why ms_project_guid for Reconciliation?
 
@@ -697,11 +799,13 @@ Alternative approaches considered:
 ### Technology Platform Dependencies
 
 - **PLT-001**: Python 3.9+ - Runtime environment
-- **PLT-002**: lxml library - MS Project XML parsing with schema validation
-- **PLT-003**: openpyxl or pandas - Excel file parsing (.xlsx format)
-- **PLT-004**: requests library - HTTP client for wfp-poc API
-- **PLT-005**: Click or argparse - CLI framework
-- **PLT-006**: python-dateutil - Date parsing and timezone handling
+- **PLT-002**: Flask - Web framework (service layer, optional REST API)
+- **PLT-003**: lxml library - MS Project XML parsing with schema validation
+- **PLT-004**: openpyxl or pandas - Excel file parsing (.xlsx format)
+- **PLT-005**: requests library - HTTP client for wfp-poc API
+- **PLT-006**: Click - CLI framework (Flask built-in CLI support)
+- **PLT-007**: python-dateutil - Date parsing and timezone handling
+- **PLT-008**: SQLAlchemy - ORM for optional import job tracking (future)
 
 ### Infrastructure Dependencies
 
