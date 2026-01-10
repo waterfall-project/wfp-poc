@@ -173,248 +173,217 @@ The primary purpose of **wfp-poc** is to:
 
 ### Requirements Overview
 
+The wfp-poc API specification defines 105 requirements across 10 functional categories, plus security, performance, and architectural constraints. The following diagram illustrates the organization and relationships of these requirements:
+
+```mermaid
+mindmap
+  root((wfp-poc<br/>Requirements))
+    Functional Requirements
+      REQ-PM: Project Management
+        CRUD operations
+        Multi-tenant isolation
+        MS Project metadata
+        Bulk import support
+      REQ-TM: Task Management
+        Task hierarchy WBS
+        Predecessor relationships
+        Summary task aggregation
+        Critical path data
+      REQ-RM: Resource Management
+        Labor, Material, Cost types
+        Cost rates and units
+        Resource calendars
+      REQ-AS: Assignment Management
+        Task-resource allocation
+        Work hours tracking
+        Cost calculation
+      REQ-MD: Milestones & Deliverables
+        Milestone tracking
+        Budget weight allocation
+        Deliverable management
+        Target date constraints
+      REQ-ET: Expense Tracking
+        ERP import support
+        Milestone allocation
+        Category classification
+        Multi-currency support
+      REQ-RAE: Reste À Engager
+        Monthly RAE updates
+        Historical tracking
+        Physical progress calculation
+      REQ-EVM: EVM Calculations
+        Dual EV methods
+        PV/AC/EV computation
+        CPI/SPI indicators
+        Three EAC projections
+      REQ-ST: Statistics & Reporting
+        Time-series data
+        ECharts format
+        Expense breakdown
+        Resource utilization
+      REQ-PU: Progress Updates
+        Task completion tracking
+        Milestone achievement
+        RAE estimation
+    Security Requirements
+      SEC-AUTH: Authentication
+        JWT validation
+        Required claims
+        Token expiration
+      SEC-AUTHZ: Authorization
+        Guardian integration
+        RBAC permissions
+        Company isolation
+      SEC-INPUT: Input Validation
+        Schema validation
+        SQL injection prevention
+        XSS protection
+      SEC-RATE: Rate Limiting
+        10 req/min per endpoint
+        429 responses
+        X-RateLimit headers
+    Performance Requirements
+      PERF-RESPONSE: Response Time
+        <200ms list endpoints
+        <500ms EVM calculations
+        95th percentile SLA
+      PERF-SCALE: Scalability
+        100 concurrent users
+        500 tasks per project
+        Indexed queries
+      PERF-PAGINATION: Pagination
+        20 items per page default
+        100 items maximum
+        Cursor-based option
+    Architectural Constraints
+      CON-SCOPE: POC Limitations
+        Monthly granularity
+        Mock authentication
+        No caching
+        Single baseline
+      CON-DATA: Data Constraints
+        Non-overlapping milestones
+        Task date ranges
+        Budget weight sum=1.0
+        Expense date validation
+      CON-TECH: Technical Constraints
+        Synchronous operations
+        Fixed resource capacity
+        Linear PV distribution
+    Guidelines & Patterns
+      GUD: Development Guidelines
+        Waterfall template adherence
+        Standard response formats
+        ISO 8601 dates
+        UUID identifiers
+      PAT: Design Patterns
+        Layered architecture
+        Repository pattern
+        DTO pattern
+        Decorator pattern
+```
+
+
 The wfp-poc API specification defines 105 requirements across 10 functional categories, plus security, performance, and architectural constraints. The following diagram illustrates the organization, hierarchy, and relationships of these requirements:
 
 ```mermaid
-requirementDiagram
-
-    requirement REQ-FUNC {
-        id: REQ-FUNC
-        text: Functional Requirements
-        risk: low
-        verifymethod: test
-    }
-
-    functionalRequirement REQ-PM {
-        id: REQ-PM-001-007
-        text: Project Management - CRUD operations, multi-tenant isolation, MS Project metadata, bulk import
-        risk: medium
-        verifymethod: integration
-    }
-
-    functionalRequirement REQ-TM {
-        id: REQ-TM-001-013
-        text: Task Management - WBS hierarchy, predecessors, summary tasks, critical path
-        risk: high
-        verifymethod: integration
-    }
-
-    functionalRequirement REQ-RM {
-        id: REQ-RM-001-005
-        text: Resource Management - Labor/Material/Cost types, rates, calendars
-        risk: low
-        verifymethod: unit
-    }
-
-    functionalRequirement REQ-AS {
-        id: REQ-AS-001-004
-        text: Assignment Management - Task-resource allocation, work tracking, cost calculation
-        risk: medium
-        verifymethod: integration
-    }
-
-    functionalRequirement REQ-MD {
-        id: REQ-MD-001-007
-        text: Milestones & Deliverables - Budget weights, target dates, deliverable tracking
-        risk: medium
-        verifymethod: integration
-    }
-
-    functionalRequirement REQ-ET {
-        id: REQ-ET-001-006
-        text: Expense Tracking - ERP import, milestone allocation, category classification
-        risk: medium
-        verifymethod: integration
-    }
-
-    functionalRequirement REQ-RAE {
-        id: REQ-RAE-001-005
-        text: Reste À Engager - Monthly updates, historical tracking, physical progress
-        risk: high
-        verifymethod: integration
-    }
-
-    functionalRequirement REQ-EVM {
-        id: REQ-EVM-001-011
-        text: EVM Calculations - Dual EV methods, PV/AC/EV, CPI/SPI, three EAC projections
-        risk: high
-        verifymethod: calculation
-    }
-
-    functionalRequirement REQ-ST {
-        id: REQ-ST-001-005
-        text: Statistics & Reporting - Time-series, ECharts format, expense breakdown
-        risk: low
-        verifymethod: integration
-    }
-
-    functionalRequirement REQ-PU {
-        id: REQ-PU-001-003
-        text: Progress Updates - Task completion, milestone achievement, RAE estimation
-        risk: medium
-        verifymethod: integration
-    }
-
-    requirement REQ-SEC {
-        id: REQ-SEC
-        text: Security Requirements
-        risk: high
-        verifymethod: test
-    }
-
-    functionalRequirement SEC-AUTH {
-        id: SEC-001-003
-        text: Authentication - JWT validation, required claims, token expiration
-        risk: high
-        verifymethod: security
-    }
-
-    functionalRequirement SEC-AUTHZ {
-        id: SEC-004-006
-        text: Authorization - Guardian integration, RBAC permissions, company isolation
-        risk: high
-        verifymethod: security
-    }
-
-    functionalRequirement SEC-INPUT {
-        id: SEC-007-009
-        text: Input Validation - Schema validation, SQL injection prevention, XSS protection
-        risk: high
-        verifymethod: security
-    }
-
-    functionalRequirement SEC-RATE {
-        id: SEC-010
-        text: Rate Limiting - 10 req/min per endpoint, 429 responses, X-RateLimit headers
-        risk: medium
-        verifymethod: performance
-    }
-
-    requirement REQ-PERF {
-        id: REQ-PERF
-        text: Performance Requirements
-        risk: medium
-        verifymethod: performance
-    }
-
-    performanceRequirement PERF-RESPONSE {
-        id: PERF-001-003
-        text: Response Time - <200ms list endpoints, <500ms EVM calculations, 95th percentile SLA
-        risk: medium
-        verifymethod: performance
-    }
-
-    performanceRequirement PERF-SCALE {
-        id: PERF-004-006
-        text: Scalability - 100 concurrent users, 500 tasks per project, indexed queries
-        risk: medium
-        verifymethod: performance
-    }
-
-    performanceRequirement PERF-PAGINATION {
-        id: PERF-007
-        text: Pagination - 20 items per page default, 100 maximum, cursor-based option
-        risk: low
-        verifymethod: integration
-    }
-
-    requirement CON-ALL {
-        id: CON-ALL
-        text: Architectural Constraints
-        risk: low
-        verifymethod: inspection
-    }
-
-    interfaceRequirement CON-SCOPE {
-        id: CON-001-009
-        text: POC Limitations - Monthly granularity, mock auth, no caching, single baseline
-        risk: low
-        verifymethod: inspection
-    }
-
-    interfaceRequirement CON-DATA {
-        id: CON-003-004
-        text: Data Constraints - Non-overlapping milestones, task date ranges, budget weight sum
-        risk: medium
-        verifymethod: validation
-    }
-
-    interfaceRequirement CON-TECH {
-        id: CON-005-008
-        text: Technical Constraints - Synchronous operations, fixed capacity, linear PV distribution
-        risk: low
-        verifymethod: inspection
-    }
-
-    requirement GUIDE-ALL {
-        id: GUIDE-ALL
-        text: Guidelines & Patterns
-        risk: low
-        verifymethod: review
-    }
-
-    designConstraint GUD-DEV {
-        id: GUD-001-014
-        text: Development Guidelines - Waterfall template, standard formats, ISO 8601, UUID
-        risk: low
-        verifymethod: review
-    }
-
-    designConstraint PAT-ARCH {
-        id: PAT-001-010
-        text: Design Patterns - Layered architecture, Repository, DTO, Decorator patterns
-        risk: low
-        verifymethod: review
-    }
-
-    REQ-FUNC - contains -> REQ-PM
-    REQ-FUNC - contains -> REQ-TM
-    REQ-FUNC - contains -> REQ-RM
-    REQ-FUNC - contains -> REQ-AS
-    REQ-FUNC - contains -> REQ-MD
-    REQ-FUNC - contains -> REQ-ET
-    REQ-FUNC - contains -> REQ-RAE
-    REQ-FUNC - contains -> REQ-EVM
-    REQ-FUNC - contains -> REQ-ST
-    REQ-FUNC - contains -> REQ-PU
-
-    REQ-SEC - contains -> SEC-AUTH
-    REQ-SEC - contains -> SEC-AUTHZ
-    REQ-SEC - contains -> SEC-INPUT
-    REQ-SEC - contains -> SEC-RATE
-
-    REQ-PERF - contains -> PERF-RESPONSE
-    REQ-PERF - contains -> PERF-SCALE
-    REQ-PERF - contains -> PERF-PAGINATION
-
-    CON-ALL - contains -> CON-SCOPE
-    CON-ALL - contains -> CON-DATA
-    CON-ALL - contains -> CON-TECH
-
-    GUIDE-ALL - contains -> GUD-DEV
-    GUIDE-ALL - contains -> PAT-ARCH
-
-    REQ-EVM - derives -> REQ-PM
-    REQ-EVM - derives -> REQ-TM
-    REQ-EVM - derives -> REQ-ET
-    REQ-EVM - derives -> REQ-RAE
-
-    REQ-TM - derives -> REQ-PM
-    REQ-AS - derives -> REQ-TM
-    REQ-AS - derives -> REQ-RM
-    REQ-ET - derives -> REQ-MD
-    REQ-RAE - derives -> REQ-PM
-
-    REQ-ST - derives -> REQ-EVM
-    REQ-PU - derives -> REQ-TM
-    REQ-PU - derives -> REQ-MD
-
-    SEC-AUTHZ - derives -> SEC-AUTH
-    CON-DATA - refines -> REQ-MD
-    CON-DATA - refines -> REQ-ET
-
-    GUD-DEV - traces -> REQ-FUNC
-    PAT-ARCH - traces -> REQ-FUNC
+graph TB
+    REQ-FUNC[Functional Requirements<br/>REQ-FUNC]
+    REQ-PM[Project Management<br/>REQ-PM-001-007<br/>Risk: Medium]
+    REQ-TM[Task Management<br/>REQ-TM-001-013<br/>Risk: High]
+    REQ-RM[Resource Management<br/>REQ-RM-001-005<br/>Risk: Low]
+    REQ-AS[Assignment Management<br/>REQ-AS-001-004<br/>Risk: Medium]
+    REQ-MD[Milestones & Deliverables<br/>REQ-MD-001-007<br/>Risk: Medium]
+    REQ-ET[Expense Tracking<br/>REQ-ET-001-006<br/>Risk: Medium]
+    REQ-RAE[Reste À Engager<br/>REQ-RAE-001-005<br/>Risk: High]
+    REQ-EVM[EVM Calculations<br/>REQ-EVM-001-011<br/>Risk: High]
+    REQ-ST[Statistics & Reporting<br/>REQ-ST-001-005<br/>Risk: Low]
+    REQ-PU[Progress Updates<br/>REQ-PU-001-003<br/>Risk: Medium]
+    
+    REQ-SEC[Security Requirements<br/>REQ-SEC]
+    SEC-AUTH[Authentication<br/>SEC-001-003<br/>Risk: High]
+    SEC-AUTHZ[Authorization<br/>SEC-004-006<br/>Risk: High]
+    SEC-INPUT[Input Validation<br/>SEC-007-009<br/>Risk: High]
+    SEC-RATE[Rate Limiting<br/>SEC-010<br/>Risk: Medium]
+    
+    REQ-PERF[Performance Requirements<br/>REQ-PERF]
+    PERF-RESPONSE[Response Time<br/>PERF-001-003<br/>Risk: Medium]
+    PERF-SCALE[Scalability<br/>PERF-004-006<br/>Risk: Medium]
+    PERF-PAGINATION[Pagination<br/>PERF-007<br/>Risk: Low]
+    
+    CON-ALL[Architectural Constraints<br/>CON-ALL]
+    CON-SCOPE[POC Limitations<br/>CON-001-009<br/>Risk: Low]
+    CON-DATA[Data Constraints<br/>CON-003-004<br/>Risk: Medium]
+    CON-TECH[Technical Constraints<br/>CON-005-008<br/>Risk: Low]
+    
+    GUIDE-ALL[Guidelines & Patterns<br/>GUIDE-ALL]
+    GUD-DEV[Development Guidelines<br/>GUD-001-014<br/>Risk: Low]
+    PAT-ARCH[Design Patterns<br/>PAT-001-010<br/>Risk: Low]
+    
+    %% Containment relationships
+    REQ-FUNC --> REQ-PM
+    REQ-FUNC --> REQ-TM
+    REQ-FUNC --> REQ-RM
+    REQ-FUNC --> REQ-AS
+    REQ-FUNC --> REQ-MD
+    REQ-FUNC --> REQ-ET
+    REQ-FUNC --> REQ-RAE
+    REQ-FUNC --> REQ-EVM
+    REQ-FUNC --> REQ-ST
+    REQ-FUNC --> REQ-PU
+    
+    REQ-SEC --> SEC-AUTH
+    REQ-SEC --> SEC-AUTHZ
+    REQ-SEC --> SEC-INPUT
+    REQ-SEC --> SEC-RATE
+    
+    REQ-PERF --> PERF-RESPONSE
+    REQ-PERF --> PERF-SCALE
+    REQ-PERF --> PERF-PAGINATION
+    
+    CON-ALL --> CON-SCOPE
+    CON-ALL --> CON-DATA
+    CON-ALL --> CON-TECH
+    
+    GUIDE-ALL --> GUD-DEV
+    GUIDE-ALL --> PAT-ARCH
+    
+    %% Derivation relationships (dependencies)
+    REQ-EVM -.derives.-> REQ-PM
+    REQ-EVM -.derives.-> REQ-TM
+    REQ-EVM -.derives.-> REQ-ET
+    REQ-EVM -.derives.-> REQ-RAE
+    
+    REQ-TM -.derives.-> REQ-PM
+    REQ-AS -.derives.-> REQ-TM
+    REQ-AS -.derives.-> REQ-RM
+    REQ-ET -.derives.-> REQ-MD
+    REQ-RAE -.derives.-> REQ-PM
+    
+    REQ-ST -.derives.-> REQ-EVM
+    REQ-PU -.derives.-> REQ-TM
+    REQ-PU -.derives.-> REQ-MD
+    
+    SEC-AUTHZ -.derives.-> SEC-AUTH
+    
+    %% Refinement relationships
+    CON-DATA -.refines.-> REQ-MD
+    CON-DATA -.refines.-> REQ-ET
+    
+    %% Tracing relationships
+    GUD-DEV -.traces.-> REQ-FUNC
+    PAT-ARCH -.traces.-> REQ-FUNC
+    
+    %% Styling
+    classDef highRisk fill:#ffcccc,stroke:#cc0000,stroke-width:2px
+    classDef mediumRisk fill:#ffffcc,stroke:#cccc00,stroke-width:2px
+    classDef lowRisk fill:#ccffcc,stroke:#00cc00,stroke-width:2px
+    classDef category fill:#cce5ff,stroke:#0066cc,stroke-width:3px
+    
+    class REQ-TM,REQ-RAE,REQ-EVM,SEC-AUTH,SEC-AUTHZ,SEC-INPUT highRisk
+    class REQ-PM,REQ-AS,REQ-MD,REQ-ET,REQ-PU,SEC-RATE,PERF-RESPONSE,PERF-SCALE,CON-DATA mediumRisk
+    class REQ-RM,REQ-ST,PERF-PAGINATION,CON-SCOPE,CON-TECH,GUD-DEV,PAT-ARCH lowRisk
+    class REQ-FUNC,REQ-SEC,REQ-PERF,CON-ALL,GUIDE-ALL category
 ```
 
 ### Functional Requirements (REQ-xxx)
