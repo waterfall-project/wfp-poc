@@ -7,6 +7,10 @@ owner: Backend Team
 tags: [infrastructure, health-check, monitoring, template]
 ---
 
+<p align="center">
+  <img src="../../docs/assets/waterfall_logo.svg" alt="Waterfall Logo" width="200"/>
+</p>
+
 # Introduction
 
 This specification defines three standard observability endpoints that MUST be present in all Waterfall microservices built from the wfp-flask-template. These endpoints enable Kubernetes health probes, monitoring, and version tracking without requiring authentication.

@@ -7,6 +7,10 @@ owner: Waterfall Project Team
 tags: [api, schema, evm, project-management, planning, poc]
 ---
 
+<p align="center">
+  <img src="../../docs/assets/waterfall_logo.svg" alt="Waterfall Logo" width="200"/>
+</p>
+
 # Introduction
 
 The **wfp-poc** service is a proof-of-concept microservice that provides comprehensive project management and Earned Value Management (EVM) capabilities for the Waterfall suite. This service enables project tracking, financial monitoring, and performance forecasting through industry-standard EVM metrics.
@@ -81,6 +85,12 @@ The primary purpose of **wfp-poc** is to:
 - **Critical Path**: The longest sequence of dependent tasks that determines the minimum project duration. Tasks on the critical path have zero total slack; any delay impacts the project end date. Calculated using forward/backward pass algorithms considering predecessor relationships.
 
 - **Milestone**: A zero-duration marker representing a significant project checkpoint or decision point (e.g., "Requirements Approved", "Testing Complete"). Milestones are used to track progress and allocate expenses in this system. In MS Project XML, milestones are tasks with `<Milestone>1</Milestone>` and zero duration.
+  
+  **Milestone-Task Relationship (M2M)**: Each milestone is preceded by one or more tasks. The milestone's `target_date` is automatically calculated as the MAX of all predecessor tasks' `planned_finish_date`. This many-to-many relationship enables:
+  - Multiple tasks converging to a single milestone (e.g., "Phase 1 Complete" requires Task A, B, and C)
+  - A single task preceding multiple milestones (e.g., "Infrastructure Setup" enables both "Dev Environment Ready" and "Production Ready")
+  - Automatic date propagation during replanification: if any predecessor task is delayed, the milestone `target_date` is recalculated
+  - Traceability: identify precisely which task(s) are blocking a milestone
 
 - **Deliverable**: A tangible or intangible output produced by project work (e.g., document, code module, trained system). Deliverables are associated with milestones. In this POC, deliverables may be represented as tasks with an `is_deliverable` flag or as separate entities linked to milestones.
 
@@ -160,6 +170,10 @@ The primary purpose of **wfp-poc** is to:
 - **Company ID**: Unique identifier for a tenant in multi-tenant architecture. All project data is scoped to a company_id to ensure data isolation.
 
 - **Bulk Import**: Endpoint accepting arrays of entities for efficient batch creation, used by poc-import service to load large datasets from MS Project XML files.
+
+- **Task Sync (Upsert)**: Endpoint for updating existing tasks during MS Project reimport. Uses `ms_project_uid` as reconciliation key. Only updates planning fields (dates, duration, predecessors); preserves tracking data (actual dates, progress, RAE).
+
+- **Milestone Structure Validation**: Pre-import check ensuring milestone entities (count and names) remain unchanged between imports. Prevents accidental addition/removal of milestones which would break EVM calculations (budget_weight must sum to 1.0).
 
 - **MS Project UID**: Microsoft Project's unique identifier for tasks, resources, and assignments. Preserved during import to enable round-trip export via poc-export service.
 
@@ -452,9 +466,11 @@ graph TB
 - **REQ-TM-011**: System SHALL detect and reject circular dependencies in predecessor relationships
 - **REQ-TM-012**: System SHALL calculate critical path using forward/backward pass algorithms considering all predecessor relationships
 - **REQ-TM-013**: System SHALL support bulk task creation via POST /projects/{id}/tasks/bulk endpoint for efficient import
-- **REQ-TM-014**: System SHALL validate that task start date is before finish date (except milestones with zero duration)
-- **REQ-TM-015**: System SHALL validate that child task dates fall within parent summary task date range
-- **REQ-TM-016**: System SHALL automatically aggregate summary task attributes (dates, costs, work) from child tasks
+- **REQ-TM-014**: System SHALL support task sync (upsert) via PUT /projects/{id}/tasks/sync using ms_project_uid as reconciliation key
+- **REQ-TM-015**: System SHALL update only planning fields (dates, duration, predecessors) during task sync, preserving tracking data (actual dates, progress, RAE)
+- **REQ-TM-016**: System SHALL validate that task start date is before finish date (except milestones with zero duration)
+- **REQ-TM-017**: System SHALL validate that child task dates fall within parent summary task date range
+- **REQ-TM-018**: System SHALL automatically aggregate summary task attributes (dates, costs, work) from child tasks
 
 #### Resource Management (REQ-RM-xxx)
 
@@ -478,14 +494,16 @@ graph TB
 #### Milestone & Deliverables (REQ-MD-xxx)
 
 - **REQ-MD-001**: System SHALL support full CRUD operations for milestones
-- **REQ-MD-002**: System SHALL store milestone attributes: name, target_date, actual_date, planned_date, status (upcoming, achieved, missed), budget
-- **REQ-MD-003**: System SHALL maintain historical planned_date values for time-based variance analysis (time/time diagrams)
-- **REQ-MD-004**: System SHALL link milestones to tasks marked with is_milestone flag
-- **REQ-MD-005**: System SHALL support multiple deliverables per milestone
-- **REQ-MD-006**: System SHALL store deliverable attributes: name, description, type (document, code, system), status (planned, in_progress, delivered, accepted)
-- **REQ-MD-007**: System SHALL validate that milestones do not overlap in time (non-overlapping constraint for expense allocation)
-- **REQ-MD-008**: System SHALL validate that project has at least one milestone before accepting expenses
-- **REQ-MD-009**: System SHALL automatically update milestone status based on actual_date (upcoming if null, achieved if filled)
+- **REQ-MD-002**: System SHALL store milestone attributes: name, target_date, actual_date, planned_date, status (upcoming, achieved, missed), budget_weight
+- **REQ-MD-003**: System SHALL maintain many-to-many relationships between milestones and tasks via milestone_tasks junction table
+- **REQ-MD-004**: System SHALL automatically calculate milestone target_date as MAX(predecessor_tasks.planned_finish_date) when predecessor tasks are linked
+- **REQ-MD-005**: System SHALL recalculate milestone target_date when any linked task's planned_finish_date is updated
+- **REQ-MD-006**: System SHALL validate that milestone budget_weights sum to 1.0 per project for EVM milestone method
+- **REQ-MD-007**: System SHALL support multiple deliverables per milestone
+- **REQ-MD-008**: System SHALL store deliverable attributes: name, description, type (document, code, system), status (planned, in_progress, delivered, accepted)
+- **REQ-MD-009**: System SHALL validate that milestones do not overlap in time (non-overlapping constraint for expense allocation)
+- **REQ-MD-010**: System SHALL validate that project has at least one milestone before accepting expenses
+- **REQ-MD-011**: System SHALL automatically update milestone status based on actual_date (upcoming if null, achieved if filled)
 
 #### Expense Tracking (REQ-ET-xxx)
 
@@ -1283,12 +1301,6 @@ erDiagram
     "required": true,
     "description": "Parent project reference"
   },
-  "task_id": {
-    "type": "uuid",
-    "required": false,
-    "nullable": true,
-    "description": "Associated task (if milestone originates from MS Project task)"
-  },
   "name": {
     "type": "string",
     "required": true,
@@ -1306,14 +1318,8 @@ erDiagram
     "type": "datetime",
     "required": true,
     "format": "ISO 8601",
-    "description": "Target completion date",
+    "description": "Target completion date - Auto-calculated as MAX(predecessor_tasks.planned_finish_date) if tasks linked, otherwise manual",
     "validation": "Must not overlap with other milestones"
-  },
-  "planned_date": {
-    "type": "datetime",
-    "required": false,
-    "format": "ISO 8601",
-    "description": "Original planned date (for time/time diagrams)"
   },
   "actual_date": {
     "type": "datetime",
@@ -1329,25 +1335,26 @@ erDiagram
     "enum": ["upcoming", "achieved", "missed"],
     "description": "Milestone status (auto-updated based on actual_date)"
   },
-  "budget": {
+  "budget_weight": {
     "type": "decimal",
-    "required": false,
-    "precision": "2 decimal places",
+    "required": true,
+    "precision": "4 decimal places",
     "minimum": 0,
-    "description": "Budget allocated to milestone (for EV calculation)"
+    "maximum": 1,
+    "description": "Weight for EV milestone calculation (sum of all milestone weights per project must equal 1.0)"
   },
-  "planned_date_history": {
-    "type": "array",
+  "is_achieved": {
+    "type": "boolean",
     "required": false,
-    "items": {
-      "type": "object",
-      "properties": {
-        "date": {"type": "datetime", "format": "ISO 8601"},
-        "planned_date": {"type": "datetime", "format": "ISO 8601"},
-        "updated_at": {"type": "datetime", "format": "ISO 8601"}
-      }
-    },
-    "description": "Historical planned dates for variance tracking"
+    "default": false,
+    "description": "True if milestone has been achieved (alternative to status field)"
+  },
+  "achieved_date": {
+    "type": "datetime",
+    "required": false,
+    "nullable": true,
+    "format": "ISO 8601",
+    "description": "Date when milestone was achieved (for EV milestone method)"
   },
   "created_at": {
     "type": "datetime",
@@ -1363,6 +1370,48 @@ erDiagram
   }
 }
 ```
+
+#### Milestone-Task Association Model (milestone_tasks)
+
+**Purpose**: Many-to-many junction table linking milestones to their predecessor tasks. Enables automatic `target_date` calculation and dependency traceability.
+
+```json
+{
+  "id": {
+    "type": "uuid",
+    "required": true,
+    "description": "Unique identifier (UUID v4), auto-generated"
+  },
+  "milestone_id": {
+    "type": "uuid",
+    "required": true,
+    "description": "Milestone reference (FK to milestones.id, CASCADE DELETE)"
+  },
+  "task_id": {
+    "type": "uuid",
+    "required": true,
+    "description": "Task reference (FK to tasks.id, CASCADE DELETE)"
+  },
+  "relationship_type": {
+    "type": "string",
+    "required": false,
+    "default": "predecessor",
+    "enum": ["predecessor", "contributor"],
+    "description": "Type of relationship (for future extensibility)"
+  },
+  "created_at": {
+    "type": "datetime",
+    "required": true,
+    "format": "ISO 8601",
+    "description": "Record creation timestamp"
+  }
+}
+```
+
+**Constraints**:
+- UNIQUE(milestone_id, task_id) - Prevent duplicate links
+- INDEX(milestone_id) - Fast lookup of tasks for a milestone
+- INDEX(task_id) - Fast lookup of milestones depending on a task
 
 **Example:**
 ```json
@@ -2250,6 +2299,100 @@ erDiagram
 
 ---
 
+#### Sync Tasks (Upsert for Reimport)
+
+**Endpoint:** `PUT /v0/projects/{project_id}/tasks/sync`
+
+**Description:** Update existing tasks during MS Project reimport. Uses `ms_project_uid` as reconciliation key. Only updates **planning fields** (dates, duration, predecessors), preserves **tracking data** (actual dates, progress, RAE).
+
+**Request Headers:**
+- `Authorization: Bearer <JWT>` (required)
+- `Content-Type: application/json` (required)
+
+**Path Parameters:**
+- `project_id` (uuid, required): Parent project identifier
+
+**Request Body:**
+```json
+{
+  "tasks": [
+    {
+      "ms_project_uid": "UID_123 (required, reconciliation key)",
+      "name": "string (optional, only updated if changed)",
+      "duration": "integer (days, optional)",
+      "planned_start_date": "datetime ISO 8601 (optional)",
+      "planned_finish_date": "datetime ISO 8601 (optional)",
+      "predecessors": [
+        {
+          "predecessor_task_uid": "UID_124",
+          "type": "FS",
+          "lag": 0
+        }
+      ]
+    }
+  ]
+}
+```
+
+**Behavior:**
+- **Lookup** task by `ms_project_uid` + `project_id`
+- **Update only if exists**: If task not found by UID, log warning and skip (not an error)
+- **Fields updated**:
+  - `name`, `duration`, `planned_start_date`, `planned_finish_date`
+  - `predecessors` (replace entire list)
+  - `wbs_code`, `outline_level`, `parent_task_id` (structure changes)
+- **Fields preserved**:
+  - `actual_start`, `actual_finish`, `percent_complete`
+  - RAE-related data (via separate endpoints)
+  - All tracking/progress fields
+- **Cascade effects**:
+  - If task has linked milestones (via milestone_tasks), recalculate milestone `target_date`
+  - Trigger PV recalculation for project (if dates changed)
+
+**Response:** `200 OK`
+```json
+{
+  "data": {
+    "updated_count": 148,
+    "not_found_count": 2,
+    "milestone_recalculated_count": 3,
+    "updated_tasks": [
+      {
+        "id": "uuid",
+        "ms_project_uid": "UID_123",
+        "name": "Backend Development",
+        "planned_finish_date": "2026-05-15T00:00:00Z",  // Updated
+        "actual_finish": null  // Preserved
+      }
+    ],
+    "not_found_uids": ["UID_999", "UID_888"],  // Tasks in XML but not in DB
+    "recalculated_milestones": [
+      {
+        "milestone_id": "uuid-m1",
+        "name": "Phase 1 Complete",
+        "old_target_date": "2026-04-15T00:00:00Z",
+        "new_target_date": "2026-05-15T00:00:00Z",  // Auto-recalculated
+        "critical_task_id": "uuid-task-backend",  // Task causing delay
+        "critical_task_name": "Backend Development"
+      }
+    ]
+  },
+  "message": "148 tasks updated, 2 not found, 3 milestones recalculated"
+}
+```
+
+**Error Responses:**
+- `400 Bad Request`: Missing ms_project_uid in payload
+- `401 Unauthorized`: Missing or invalid JWT
+- `403 Forbidden`: Insufficient Guardian permissions
+- `404 Not Found`: Project not found
+- `422 Unprocessable Entity`: Validation errors (e.g., start > finish)
+- `429 Too Many Requests`: Rate limit exceeded
+
+**Use Case:** Called by poc-import service after validating milestone structure hasn't changed.
+
+---
+
 #### List Tasks
 
 **Endpoint:** `GET /v0/projects/{project_id}/tasks`
@@ -2509,13 +2652,15 @@ erDiagram
 ```json
 {
   "name": "string",
-  "target_date": "datetime",
+  "target_date": "datetime (manual override, use with caution if tasks linked)",
   "actual_date": "datetime",
-  "budget": "decimal"
+  "budget_weight": "decimal (0.0-1.0)",
+  "is_achieved": "boolean",
+  "achieved_date": "datetime"
 }
 ```
 
-**Note:** Updating `planned_date` appends to `planned_date_history` for time/time analysis.
+**Note:** If milestone has linked tasks (via milestone_tasks), manually updating `target_date` will **not** affect task dates. Use `PUT /tasks/sync` to update task dates, which will automatically recalculate milestone `target_date`.
 
 **Response:** `200 OK`
 
@@ -2529,6 +2674,101 @@ erDiagram
 
 **Error Responses:**
 - `409 Conflict`: Cannot delete milestone with associated expenses or deliverables
+
+---
+
+#### Link Tasks to Milestone (M2M)
+
+**Endpoint:** `POST /v0/milestones/{milestone_id}/tasks`
+
+**Request Body:**
+```json
+{
+  "task_ids": ["uuid1", "uuid2", "uuid3"],
+  "relationship_type": "predecessor (default)"
+}
+```
+
+**Behavior:**
+- Creates entries in `milestone_tasks` junction table
+- Automatically recalculates `milestone.target_date = MAX(tasks.planned_finish_date)`
+- Returns updated milestone with new `target_date`
+
+**Response:** `200 OK`
+```json
+{
+  "data": {
+    "milestone_id": "uuid",
+    "target_date": "2026-05-15T00:00:00Z",  // Recalculated
+    "linked_task_count": 3,
+    "predecessor_tasks": [
+      {"id": "uuid1", "name": "Task A", "planned_finish_date": "2026-04-30T00:00:00Z"},
+      {"id": "uuid2", "name": "Task B", "planned_finish_date": "2026-05-15T00:00:00Z"},  // MAX
+      {"id": "uuid3", "name": "Task C", "planned_finish_date": "2026-05-10T00:00:00Z"}
+    ]
+  }
+}
+```
+
+---
+
+#### Sync Milestone-Task Links (Upsert for Reimport)
+
+**Endpoint:** `PUT /v0/milestones/{milestone_id}/tasks/sync`
+
+**Request Body:**
+```json
+{
+  "task_ids": ["uuid1", "uuid2", "uuid4"]  // New set of predecessor tasks
+}
+```
+
+**Behavior:**
+- **Removes** existing links not in `task_ids` array
+- **Adds** new links for task_ids not already linked
+- **Preserves** existing links that are in both sets
+- Recalculates `milestone.target_date`
+
+**Use Case:** During MS Project reimport, update predecessor relationships based on new planning graph.
+
+**Response:** `200 OK`
+
+---
+
+#### Get Milestone Predecessor Tasks
+
+**Endpoint:** `GET /v0/milestones/{milestone_id}/tasks`
+
+**Response:** `200 OK`
+```json
+{
+  "data": {
+    "milestone_id": "uuid",
+    "milestone_name": "Phase 1 Complete",
+    "target_date": "2026-05-15T00:00:00Z",
+    "predecessor_tasks": [
+      {
+        "id": "uuid1",
+        "name": "Task A",
+        "planned_finish_date": "2026-05-15T00:00:00Z",
+        "is_critical": true,  // This task determines the milestone date
+        "ms_project_uid": "UID_123"
+      },
+      {
+        "id": "uuid2",
+        "name": "Task B",
+        "planned_finish_date": "2026-05-10T00:00:00Z",
+        "is_critical": false,
+        "ms_project_uid": "UID_124"
+      }
+    ]
+  }
+}
+```
+
+**Note:** `is_critical` flag indicates if this task's `planned_finish_date` equals the milestone's `target_date` (i.e., this task is blocking the milestone).
+
+---
 
 ### 4.5. Resource Endpoints
 
@@ -5149,6 +5389,10 @@ GET /v0/projects/550e8400-e29b-41d4-a716-446655440000/evm/timeseries?from_date=2
   }
 }
 ```
+
+**Note**: For import/reimport workflow examples, see the [Integration Specification](../integration-wfp-services.md#use-case-2-reimport---sync-planning-changes).
+
+---
 
 ### Edge Case 1: Expense Before First Milestone
 

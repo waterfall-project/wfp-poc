@@ -7,6 +7,10 @@ owner: Backend Team
 tags: [infrastructure, monitoring, prometheus, observability, template]
 ---
 
+<p align="center">
+  <img src="../../docs/assets/waterfall_logo.svg" alt="Waterfall Logo" width="200"/>
+</p>
+
 # Introduction
 
 This specification defines the `/metrics` endpoint that exposes Prometheus-compatible metrics for all Waterfall microservices built from the wfp-flask-template. This endpoint enables comprehensive monitoring and observability through Prometheus scraping.
