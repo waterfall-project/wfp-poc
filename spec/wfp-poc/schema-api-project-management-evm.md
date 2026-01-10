@@ -102,7 +102,7 @@ The primary purpose of **wfp-poc** is to:
   
   Relationships may include lag (delay) or lead (overlap) time.
 
-- **RAE (Reste À Engager)**: "Remaining to be Committed" - The estimated cost remaining to complete a task or milestone, updated monthly based on actual progress. Used to calculate EV via physical progress method: `Progress = AC / (AC + RAE)`. Historical RAE values are tracked for time-series analysis.
+- **RAE (Reste À Engager)**: "Remaining to be Committed" - The estimated cost remaining to complete a milestone, updated monthly based on actual progress. Calculated bottom-up from predecessor tasks: sum of remaining costs for non-started tasks plus PM re-estimates for in-progress tasks. Used to calculate EV via physical progress method: `Progress = AC / (AC + RAE)`. Historical RAE values are tracked for time-series analysis.
 
 - **Assignment**: The allocation of a resource (person, equipment, material) to a task, specifying the amount of work or percentage allocation. One task can have multiple assignments; one resource can be assigned to multiple tasks.
 
@@ -522,13 +522,14 @@ graph TB
 
 #### RAE (Reste À Engager) Management (REQ-RAE-xxx)
 
-- **REQ-RAE-001**: System SHALL store RAE (Remaining to be Committed) values at task level
+- **REQ-RAE-001**: System SHALL store RAE (Remaining to be Committed) values at milestone level
 - **REQ-RAE-002**: System SHALL maintain complete historical record of RAE updates with timestamps
-- **REQ-RAE-003**: System SHALL support RAE updates via POST /projects/{project_id}/tasks/{task_id}/rae endpoint
+- **REQ-RAE-003**: System SHALL support RAE updates via POST /milestones/{milestone_id}/rae endpoint
 - **REQ-RAE-004**: System SHALL validate that RAE values are non-negative
-- **REQ-RAE-005**: System SHALL use RAE history for physical progress EV calculations
+- **REQ-RAE-005**: System SHALL use RAE history for physical progress EV calculations at milestone level
 - **REQ-RAE-006**: System SHALL support monthly RAE update frequency (typical use case)
 - **REQ-RAE-007**: System SHALL return RAE history with pagination for long-running projects
+- **REQ-RAE-008**: System SHALL calculate milestone RAE automatically from predecessor tasks' remaining costs when not manually set
 
 #### EVM Calculations (REQ-EVM-xxx)
 
@@ -669,7 +670,6 @@ erDiagram
     Project ||--o{ Deliverable : "produces"
     Project ||--o{ Resource : "uses"
     Project ||--o{ Expense : "incurs"
-    Project ||--o{ RAEHistory : "forecasts"
     
     Task ||--o{ Task : "parent_of"
     Task ||--o{ Assignment : "assigned_to"
@@ -677,6 +677,7 @@ erDiagram
     
     Milestone ||--o{ Deliverable : "delivers_at"
     Milestone ||--o{ Expense : "allocates_to"
+    Milestone ||--o{ RAE : "forecasts"
     
     Resource ||--o{ Assignment : "works_on"
     
@@ -768,12 +769,13 @@ erDiagram
         string payment_reference
     }
     
-    RAEHistory {
+    RAE {
         uuid id PK
-        uuid project_id FK
+        uuid milestone_id FK
         date date
-        decimal rae_value
+        decimal amount
         string comment
+        json details
         uuid updated_by FK
         timestamp created_at
     }
@@ -785,13 +787,13 @@ erDiagram
 - **Task Dependencies**: Tasks can have multiple predecessors (many-to-many via predecessor table)
 - **Milestone-Expense**: Expenses allocated to milestones for AC calculation
 - **Milestone-Deliverable**: Deliverables tied to milestone achievements
+- **Milestone-RAE**: RAE (Reste À Engager) tracked at milestone level for EV physical progress
 - **Task-Assignment-Resource**: Many-to-many relationship through Assignment join table
-- **RAE History**: Time-series tracking of Reste À Engager for physical progress EV
 
 **Cascade Delete Rules:**
-- Delete Project → cascades to Tasks, Milestones, Deliverables, Expenses, RAE History
+- Delete Project → cascades to Tasks, Milestones, Deliverables, Expenses
+- Delete Milestone → cascades to Deliverables, RAE records, nullifies Expense.milestone_id
 - Delete Task → cascades to Assignments, child Tasks
-- Delete Milestone → nullifies Expense.milestone_id, cascades to Deliverables
 - Delete Resource → prevents deletion if Assignments exist (constraint violation)
 
 #### Project Model
@@ -1437,6 +1439,119 @@ erDiagram
   ],
   "created_at": "2026-01-10T10:00:00Z",
   "updated_at": "2026-01-10T10:00:00Z"
+}
+```
+
+#### RAE (Remaining At End) Model
+
+Stores the estimated remaining cost for a milestone at a specific date. The RAE is calculated bottom-up from predecessor tasks: non-started tasks use their budget, in-progress tasks use PM estimates, and completed tasks contribute zero.
+
+```json
+{
+  "id": {
+    "type": "uuid",
+    "required": true,
+    "description": "Unique identifier (UUID v4), auto-generated"
+  },
+  "milestone_id": {
+    "type": "uuid",
+    "required": true,
+    "description": "Reference to the milestone (FK CASCADE DELETE)"
+  },
+  "date": {
+    "type": "datetime",
+    "required": true,
+    "format": "ISO 8601",
+    "description": "Date of RAE measurement (typically month-end)"
+  },
+  "amount": {
+    "type": "decimal",
+    "required": true,
+    "minimum": 0,
+    "precision": 15,
+    "scale": 2,
+    "description": "Estimated remaining cost to complete the milestone (>= 0)"
+  },
+  "comment": {
+    "type": "string",
+    "required": false,
+    "nullable": true,
+    "maxLength": 500,
+    "description": "Optional explanation for this RAE estimate"
+  },
+  "details": {
+    "type": "object",
+    "required": false,
+    "nullable": true,
+    "description": "Optional task-level breakdown used for bottom-up calculation",
+    "properties": {
+      "task_estimates": {
+        "type": "array",
+        "items": {
+          "task_id": "uuid",
+          "task_name": "string",
+          "status": "not_started|in_progress|completed",
+          "budget": "decimal",
+          "estimate_to_complete": "decimal"
+        }
+      }
+    }
+  },
+  "updated_by": {
+    "type": "uuid",
+    "required": true,
+    "description": "User ID who recorded this RAE (from JWT claims)"
+  },
+  "created_at": {
+    "type": "datetime",
+    "required": true,
+    "format": "ISO 8601",
+    "description": "Record creation timestamp"
+  }
+}
+```
+
+**Constraints:**
+- `milestone_id` → Foreign key to `milestones.id` (CASCADE DELETE)
+- `CHECK(amount >= 0)` → RAE cannot be negative
+- `INDEX(milestone_id, date)` → Efficient time-series queries
+- `UNIQUE(milestone_id, date)` → One RAE measurement per milestone per date
+
+**Example:**
+```json
+{
+  "id": "f6a7b8c9-d0e1-4f5a-2b3c-4d5e6f7a8b9c",
+  "milestone_id": "d4e5f6a7-b8c9-4d5e-1f2a-3b4c5d6e7f8a",
+  "date": "2026-12-31T23:59:59Z",
+  "amount": 75000.00,
+  "comment": "Year-end estimate: Task A ahead of schedule, Task B delayed requiring extra effort",
+  "details": {
+    "task_estimates": [
+      {
+        "task_id": "b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e",
+        "task_name": "Requirements Analysis",
+        "status": "completed",
+        "budget": 50000.00,
+        "estimate_to_complete": 0.00
+      },
+      {
+        "task_id": "c3d4e5f6-a7b8-4c9d-0e1f-2a3b4c5d6e7f",
+        "task_name": "Design Phase",
+        "status": "in_progress",
+        "budget": 100000.00,
+        "estimate_to_complete": 60000.00
+      },
+      {
+        "task_id": "d4e5f6a7-b8c9-4d0e-1f2a-3b4c5d6e7f8a",
+        "task_name": "Implementation",
+        "status": "not_started",
+        "budget": 150000.00,
+        "estimate_to_complete": 150000.00
+      }
+    ]
+  },
+  "updated_by": "123e4567-e89b-42d3-a456-556642440000",
+  "created_at": "2026-12-31T18:00:00Z"
 }
 ```
 
@@ -3044,27 +3159,47 @@ erDiagram
 
 ### 4.8. RAE (Reste À Engager) Endpoints
 
-#### Update Task RAE
+#### Update Milestone RAE
 
-**Endpoint:** `POST /v0/projects/{project_id}/tasks/{task_id}/rae`
+**Endpoint:** `POST /v0/milestones/{milestone_id}/rae`
 
-**Description:** Record a new RAE (Remaining to be Committed) value for a task. Creates historical record.
+**Description:** Record a new RAE (Remaining to be Committed) value for a milestone. Creates historical record. RAE represents the PM's re-evaluation of remaining work for the milestone based on current progress of predecessor tasks.
 
 **Request Headers:**
 - `Authorization: Bearer <JWT>` (required)
 - `Content-Type: application/json` (required)
 
 **Path Parameters:**
-- `project_id` (uuid, required): Parent project identifier
-- `task_id` (uuid, required): Task identifier
+- `milestone_id` (uuid, required): Milestone identifier
 
 **Request Body:**
 ```json
 {
   "date": "datetime ISO 8601 (required, typically month-end)",
-  "remaining_cost": "decimal (required, >= 0)",
-  "comment": "string (optional, max 500 chars)"
+  "amount": "decimal (required, >= 0)",
+  "comment": "string (optional, max 500 chars)",
+  "details": {
+    "task_estimates": [
+      {
+        "task_id": "uuid",
+        "task_name": "string",
+        "remaining_cost": "decimal",
+        "comment": "string (optional)"
+      }
+    ]
+  }
 }
+```
+
+**Calculation Logic (if not provided manually):**
+```python
+# Auto-calculate RAE for milestone from predecessor tasks:
+RAE_milestone = sum(
+    task.remaining_cost if not task.actual_start_date  # Non-started: use budget
+    else task.rae if task.rae is not None             # In-progress: use PM estimate
+    else 0                                             # Completed: RAE = 0
+    for task in milestone.predecessor_tasks
+)
 ```
 
 **Response:** `201 Created`
@@ -3072,10 +3207,13 @@ erDiagram
 {
   "data": {
     "id": "uuid",
-    "task_id": "uuid",
+    "milestone_id": "uuid",
     "date": "datetime",
-    "remaining_cost": "decimal",
+    "amount": "decimal",
     "comment": "string",
+    "details": {
+      "task_estimates": [...]
+    },
     "updated_by": "uuid (from JWT)",
     "created_at": "datetime"
   },
@@ -3083,26 +3221,44 @@ erDiagram
 }
 ```
 
-**Side Effect:** Also updates `task.remaining_cost` field with latest value.
+**Side Effects:** 
+- Updates `milestone.current_rae` field with latest value
+- Recalculates EV_physical for the milestone
+- Updates project-level EV_physical aggregation
 
 **Error Responses:**
-- `400 Bad Request`: Validation errors (remaining_cost < 0)
-- `404 Not Found`: Task or project not found
+- `400 Bad Request`: Validation errors (amount < 0)
+- `404 Not Found`: Milestone not found
+
+**Example:**
+```http
+POST /v0/milestones/milestone-uuid-2/rae
+{
+  "date": "2026-06-30T23:59:59Z",
+  "amount": 15000.00,
+  "comment": "Backend delay adds 5k, but frontend optimized saves 2k",
+  "details": {
+    "task_estimates": [
+      {"task_id": "task-uuid-7", "task_name": "Backend Development", "remaining_cost": 8000, "comment": "DB migration complex"},
+      {"task_id": "task-uuid-8", "task_name": "Frontend", "remaining_cost": 7000, "comment": "Optimized"}
+    ]
+  }
+}
+```
 
 ---
 
-#### Get RAE History
+#### Get Milestone RAE History
 
-**Endpoint:** `GET /v0/projects/{project_id}/tasks/{task_id}/rae/history`
+**Endpoint:** `GET /v0/milestones/{milestone_id}/rae/history`
 
-**Description:** Retrieve historical RAE values for a task (time series)
+**Description:** Retrieve historical RAE values for a milestone (time series)
 
 **Request Headers:**
 - `Authorization: Bearer <JWT>` (required)
 
 **Path Parameters:**
-- `project_id` (uuid, required): Parent project identifier
-- `task_id` (uuid, required): Task identifier
+- `milestone_id` (uuid, required): Milestone identifier
 
 **Query Parameters:**
 - `page` (integer, optional, default: 1): Page number
@@ -3117,32 +3273,99 @@ erDiagram
   "data": [
     {
       "id": "uuid",
-      "task_id": "uuid",
-      "date": "datetime",
-      "remaining_cost": "decimal",
-      "comment": "string",
+      "milestone_id": "uuid",
+      "date": "2026-05-31T23:59:59Z",
+      "amount": 12000.00,
+      "comment": "Initial estimate",
+      "details": null,
       "updated_by": "uuid",
-      "created_at": "datetime"
+      "created_at": "2026-06-01T09:00:00Z"
     },
     {
       "id": "uuid",
-      "task_id": "uuid",
-      "date": "2026-02-28T23:59:59Z",
-      "remaining_cost": 10000.00,
-      "comment": "Updated based on Q2 progress",
+      "milestone_id": "uuid",
+      "date": "2026-06-30T23:59:59Z",
+      "amount": 15000.00,
+      "comment": "Updated based on Q2 progress - backend delay",
+      "details": {
+        "task_estimates": [
+          {"task_id": "task-uuid-7", "task_name": "Backend Development", "remaining_cost": 8000},
+          {"task_id": "task-uuid-8", "task_name": "Frontend", "remaining_cost": 7000}
+        ]
+      },
       "updated_by": "uuid",
-      "created_at": "2026-03-01T10:00:00Z"
+      "created_at": "2026-07-01T10:00:00Z"
     }
   ],
   "page": 1,
   "per_page": 20,
-  "total": 12,
+  "total": 2,
   "total_pages": 1
 }
 ```
 
 **Error Responses:**
-- `404 Not Found`: Task or project not found
+- `404 Not Found`: Milestone not found
+
+---
+
+#### Get Project-wide RAE Summary
+
+**Endpoint:** `GET /v0/projects/{project_id}/rae/summary`
+
+**Description:** Get current RAE values for all milestones in a project
+
+**Request Headers:**
+- `Authorization: Bearer <JWT>` (required)
+
+**Path Parameters:**
+- `project_id` (uuid, required): Project identifier
+
+**Query Parameters:**
+- `as_of_date` (datetime, optional): Get RAE values as of specific date (default: latest)
+
+**Response:** `200 OK`
+```json
+{
+  "data": {
+    "project_id": "uuid",
+    "as_of_date": "2026-06-30T23:59:59Z",
+    "total_rae": 170000.00,
+    "milestones": [
+      {
+        "milestone_id": "uuid-1",
+        "name": "Phase 1 Complete",
+        "budget_weight": 0.28,
+        "rae": 0.00,
+        "rae_date": "2026-04-30T23:59:59Z",
+        "achieved": true,
+        "comment": "Completed"
+      },
+      {
+        "milestone_id": "uuid-2",
+        "name": "Phase 2 Complete",
+        "budget_weight": 0.35,
+        "rae": 15000.00,
+        "rae_date": "2026-06-30T23:59:59Z",
+        "achieved": false,
+        "comment": "Backend delay"
+      },
+      {
+        "milestone_id": "uuid-3",
+        "name": "Phase 3 Complete",
+        "budget_weight": 0.37,
+        "rae": 155000.00,
+        "rae_date": "2026-06-30T23:59:59Z",
+        "achieved": false,
+        "comment": "Not started yet"
+      }
+    ]
+  }
+}
+```
+
+**Error Responses:**
+- `404 Not Found`: Project not found
 
 ### 4.9. EVM Indicators Endpoints
 
