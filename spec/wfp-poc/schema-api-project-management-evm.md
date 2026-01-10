@@ -173,7 +173,20 @@ The primary purpose of **wfp-poc** is to:
 
 ### Requirements Overview
 
-The wfp-poc API specification defines 105 requirements across 10 functional categories, plus security, performance, and architectural constraints. The following diagram illustrates the organization and relationships of these requirements:
+The wfp-poc API specification defines 105 requirements across 10 functional categories, plus security, performance, and architectural constraints.
+
+#### Diagram 1: Hierarchical Mind Map
+
+This mind map provides a **comprehensive catalog** of all requirements organized by domain. Each branch shows the detailed functional capabilities, security controls, performance targets, and constraints. Use this diagram to:
+- Understand the breadth of the specification (what features are included)
+- Explore specific capabilities within each domain (e.g., what EVM calculations are supported)
+- Identify gaps or missing functionality during requirements review
+
+**Legend:**
+- **Central Node**: Overall requirements container (wfp-poc Requirements)
+- **Primary Branches**: Five main requirement categories (Functional, Security, Performance, Constraints, Guidelines)
+- **Secondary Branches**: Specific requirement domains (REQ-PM, REQ-TM, SEC-AUTH, etc.)
+- **Leaf Nodes**: Individual capabilities or constraints within each domain
 
 ```mermaid
 mindmap
@@ -284,7 +297,32 @@ mindmap
 ```
 
 
-The wfp-poc API specification defines 105 requirements across 10 functional categories, plus security, performance, and architectural constraints. The following diagram illustrates the organization, hierarchy, and relationships of these requirements:
+#### Diagram 2: Dependency and Risk Analysis Graph
+
+This directed graph shows **formal relationships between requirements** and highlights implementation priorities through color-coded risk levels. Use this diagram to:
+- Identify critical path requirements (high-risk items that block others)
+- Understand requirement dependencies (which must be implemented first)
+- Plan implementation order based on derivation relationships
+- Assess risk concentration (e.g., EVM depends on 4 high/medium risk domains)
+
+**Legend:**
+
+*Node Colors (Risk Levels):*
+- 🔴 **Red (High Risk)**: Complex algorithms, critical security, high implementation effort
+  - Examples: REQ-TM (task hierarchy), REQ-EVM (dual calculation methods), SEC-AUTH (JWT validation)
+- 🟡 **Yellow (Medium Risk)**: Moderate complexity, integration with external systems
+  - Examples: REQ-PM (multi-tenant isolation), REQ-ET (expense allocation), PERF-RESPONSE
+- 🟢 **Green (Low Risk)**: Simple CRUD, straightforward logic, standard patterns
+  - Examples: REQ-RM (resource management), REQ-ST (statistics), GUD-DEV (guidelines)
+- 🔵 **Blue (Categories)**: Requirement group containers (non-implementable)
+  - Examples: REQ-FUNC, REQ-SEC, REQ-PERF, CON-ALL, GUIDE-ALL
+
+*Edge Types (Relationships):*
+- **Solid arrows (→)**: Containment - parent contains child requirements
+- **Dotted arrows (-.->)**: 
+  - `derives` - requirement depends on another for implementation (e.g., REQ-EVM derives from REQ-PM)
+  - `refines` - constraint refines a requirement (e.g., CON-DATA refines REQ-MD)
+  - `traces` - guideline traces back to requirements (e.g., GUD-DEV traces to REQ-FUNC)
 
 ```mermaid
 graph TB
