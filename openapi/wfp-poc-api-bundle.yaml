@@ -1,0 +1,5891 @@
+openapi: 3.1.0
+info:
+  title: WFP-POC - Project Management & EVM API
+  version: '1.0'
+  description: |
+    The **wfp-poc** service is a proof-of-concept microservice that provides comprehensive
+    project management and Earned Value Management (EVM) capabilities for the Waterfall suite.
+
+    This service enables:
+    - **Project planning data** imported from Microsoft Project XML files
+    - **Financial tracking** imported from ERP Excel exports
+    - **EVM indicators** calculated and exposed for dashboard visualization
+    - **Performance forecasts** using multiple projection methods
+
+    **Architecture Position:**
+    - **Upstream**: Consumes data from `poc-import` service
+    - **Downstream**: Provides data to `poc-export` service and frontend
+    - **Standalone**: Exposes REST API for direct CRUD operations
+  contact:
+    name: Waterfall Project Team
+  license:
+    name: Commercial License
+    url: https://github.com/waterfall/wfp-poc/blob/main/COMMERCIAL-LICENSE.txt
+servers:
+  - url: https://wfp-poc.waterfall-services.io
+    description: Production API
+  - url: https://staging-wfp-poc.waterfall-services.io
+    description: Staging API
+  - url: http://127.0.0.1:5000
+    description: Local development
+security:
+  - bearerAuth: []
+tags:
+  - name: Health
+    description: Health check endpoints
+  - name: Metrics
+    description: Prometheus metrics endpoint
+  - name: Projects
+    description: Project management operations (CRUD, bulk import)
+  - name: Tasks
+    description: Task management with WBS hierarchy and predecessor relationships
+  - name: Milestones
+    description: Milestone tracking and deliverable management
+  - name: Resources
+    description: Resource management (labor, material, cost) - company-scoped
+  - name: Assignments
+    description: Task-resource assignments with work hours and cost tracking
+  - name: Expenses
+    description: Expense tracking with ERP integration (labor, procurement, subcontracting, overhead)
+  - name: RAE
+    description: RAE (Reste À Engager) tracking for milestone cost estimates
+  - name: EVM
+    description: Earned Value Management calculations and indicators
+  - name: Statistics
+    description: Reporting endpoints for chart visualization
+  - name: Progress
+    description: Task progress updates and history
+paths:
+  /health:
+    get:
+      summary: Health check endpoint
+      description: Returns service health status (alive), even if degraded.
+      operationId: getHealth
+      tags:
+        - Health
+      security: []
+      responses:
+        '200':
+          description: Service is alive (ok or degraded)
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+              example: no-cache, no-store, must-revalidate
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+        '500':
+          description: Internal server error
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+              example: no-cache, no-store, must-revalidate
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthErrorResponse'
+  /ready:
+    get:
+      summary: Readiness probe
+      description: Checks if the application is ready to accept traffic.
+      operationId: getReady
+      tags:
+        - Health
+      security: []
+      responses:
+        '200':
+          description: Ready
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+              example: no-cache, no-store, must-revalidate
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReadyResponse'
+        '503':
+          description: Not ready
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+              example: no-cache, no-store, must-revalidate
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotReadyResponse'
+  /version:
+    get:
+      summary: Version information
+      description: Returns service version information.
+      operationId: getVersion
+      tags:
+        - Health
+      security: []
+      responses:
+        '200':
+          description: Version info
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+              example: public, max-age=3600
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VersionResponse'
+        '500':
+          description: Internal server error
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+              example: public, max-age=3600
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VersionErrorResponse'
+  /metrics:
+    get:
+      summary: Prometheus metrics endpoint
+      description: Exposes application metrics in Prometheus text exposition format.
+      operationId: getMetrics
+      tags:
+        - Metrics
+      security:
+        - metricsAuth: []
+      responses:
+        '200':
+          description: Prometheus metrics
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+              example: no-cache, no-store, must-revalidate
+          content:
+            text/plain; version=0.0.4; charset=utf-8:
+              schema:
+                type: string
+              examples:
+                prometheus:
+                  summary: Example metrics payload
+                  value: |
+                    # HELP python_info Python platform information
+                    # TYPE python_info gauge
+                    python_info{implementation="CPython",major="3",minor="11",patchlevel="7",version="3.11.7"} 1.0
+        '401':
+          description: Missing or invalid API key
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+              example: no-cache, no-store, must-revalidate
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - message
+                  - timestamp
+                properties:
+                  message:
+                    type: string
+                  timestamp:
+                    type: string
+                    format: date-time
+              examples:
+                missing:
+                  value:
+                    message: Missing Authorization header
+                    timestamp: '2026-01-07T10:30:00Z'
+                invalid:
+                  value:
+                    message: Invalid API key
+                    timestamp: '2026-01-07T10:30:00Z'
+        '429':
+          description: Rate limit exceeded
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+              example: no-cache, no-store, must-revalidate
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - message
+                  - retry_after
+                properties:
+                  message:
+                    type: string
+                  retry_after:
+                    type: integer
+                    minimum: 0
+              examples:
+                rate_limited:
+                  value:
+                    message: 'Rate limit exceeded: 10 per minute'
+                    retry_after: 45
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /{version}/projects:
+    get:
+      summary: List projects
+      description: Retrieve paginated list of projects for the authenticated user's company
+      operationId: listProjects
+      tags:
+        - Projects
+      parameters:
+        - $ref: '#/components/parameters/VersionParam'
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PerPageParam'
+        - name: status
+          in: query
+          description: Filter by project status
+          schema:
+            type: string
+            enum:
+              - active
+              - completed
+              - cancelled
+              - on_hold
+        - name: start_date_from
+          in: query
+          description: Filter projects starting after this date
+          schema:
+            type: string
+            format: date-time
+        - name: start_date_to
+          in: query
+          description: Filter projects starting before this date
+          schema:
+            type: string
+            format: date-time
+        - name: search
+          in: query
+          description: Search in name, code, title fields
+          schema:
+            type: string
+        - name: sort_by
+          in: query
+          description: Field to sort by
+          schema:
+            type: string
+            enum:
+              - name
+              - code
+              - start_date
+              - created_at
+            default: created_at
+        - name: sort_order
+          in: query
+          description: Sort direction
+          schema:
+            type: string
+            enum:
+              - asc
+              - desc
+            default: desc
+      responses:
+        '200':
+          description: Successful response with paginated project list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    post:
+      summary: Create project
+      description: Create a new project for the authenticated user's company
+      operationId: createProject
+      tags:
+        - Projects
+      parameters:
+        - $ref: '#/components/parameters/VersionParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProjectCreate'
+            examples:
+              default:
+                summary: Example project creation
+                value:
+                  name: Enterprise Modernization Project 2025
+                  code: G.PRJ.12345
+                  title: Infrastructure Upgrade
+                  start_date: '2024-11-25T09:00:00Z'
+                  finish_date: '2027-02-19T18:00:00Z'
+                  budget: 1500000
+                  currency_code: EUR
+      responses:
+        '201':
+          description: Project created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          description: Project code already exists
+          headers:
+            X-Correlation-ID:
+              schema:
+                type: string
+              description: Correlation ID for tracing
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Project with code 'G.PRJ.12345' already exists for this company
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /{version}/projects/{id}:
+    get:
+      summary: Get project
+      description: Retrieve a single project by ID
+      operationId: getProject
+      tags:
+        - Projects
+      parameters:
+        - $ref: '#/components/parameters/VersionParam'
+        - $ref: '#/components/parameters/ProjectIdParam'
+      responses:
+        '200':
+          description: Successful response with project details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    patch:
+      summary: Update project
+      description: Update an existing project (partial update)
+      operationId: updateProject
+      tags:
+        - Projects
+      parameters:
+        - $ref: '#/components/parameters/VersionParam'
+        - $ref: '#/components/parameters/ProjectIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProjectUpdate'
+      responses:
+        '200':
+          description: Project updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    delete:
+      summary: Delete project
+      description: |
+        Delete a project only if it has no related entities (tasks, milestones, expenses, assignments, resources).
+        If related data exists, the deletion is blocked with a 409 Conflict.
+      operationId: deleteProject
+      tags:
+        - Projects
+      parameters:
+        - $ref: '#/components/parameters/VersionParam'
+        - $ref: '#/components/parameters/ProjectIdParam'
+      responses:
+        '204':
+          description: Project deleted successfully
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Project cannot be deleted because related data exists
+          headers:
+            X-Correlation-ID:
+              schema:
+                type: string
+              description: Correlation ID for tracing
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Cannot delete project with existing tasks/milestones/expenses
+                correlation_id: 123e4567-e89b-12d3-a456-426614174000
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /{version}/projects/{project_id}/tasks:
+    post:
+      summary: Create task
+      description: Create a new task within a project
+      operationId: createTask
+      tags:
+        - Tasks
+      parameters:
+        - $ref: '#/components/parameters/VersionParam'
+        - $ref: '#/components/parameters/ProjectIdQueryParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TaskCreate'
+      responses:
+        '201':
+          description: Task created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Circular dependency in predecessors
+          headers:
+            X-Correlation-ID:
+              schema:
+                type: string
+              description: Correlation ID for tracing
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    get:
+      summary: List tasks
+      description: Retrieve paginated list of tasks for a project
+      operationId: listTasks
+      tags:
+        - Tasks
+      parameters:
+        - $ref: '#/components/parameters/VersionParam'
+        - $ref: '#/components/parameters/ProjectIdQueryParam'
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PerPageParam'
+        - name: parent_id
+          in: query
+          description: Filter by parent task (use "null" for top-level tasks)
+          schema:
+            type: string
+            format: uuid
+        - name: is_milestone
+          in: query
+          description: Filter milestones only
+          schema:
+            type: boolean
+        - name: is_summary
+          in: query
+          description: Filter summary tasks only
+          schema:
+            type: boolean
+        - name: is_critical
+          in: query
+          description: Filter critical path tasks only
+          schema:
+            type: boolean
+        - name: status
+          in: query
+          description: Filter by status
+          schema:
+            type: string
+            enum:
+              - not_started
+              - in_progress
+              - completed
+              - cancelled
+        - name: search
+          in: query
+          description: Search in name field
+          schema:
+            type: string
+        - name: sort_by
+          in: query
+          description: Sort field
+          schema:
+            type: string
+            enum:
+              - wbs
+              - name
+              - start
+              - finish
+            default: wbs
+        - name: sort_order
+          in: query
+          description: Sort direction
+          schema:
+            type: string
+            enum:
+              - asc
+              - desc
+            default: asc
+      responses:
+        '200':
+          description: Successful response with task list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /{version}/projects/{project_id}/tasks/bulk:
+    post:
+      summary: Bulk create tasks
+      description: Create multiple tasks in a single request (for efficient import)
+      operationId: bulkCreateTasks
+      tags:
+        - Tasks
+      parameters:
+        - $ref: '#/components/parameters/VersionParam'
+        - $ref: '#/components/parameters/ProjectIdQueryParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TaskBulkCreate'
+      responses:
+        '201':
+          description: Tasks created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskBulkResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /{version}/projects/{project_id}/tasks/sync:
+    put:
+      summary: Sync tasks (upsert for reimport)
+      description: |
+        Update existing tasks during MS Project reimport. Uses ms_project_uid as reconciliation key.
+        Only updates planning fields (dates, duration, predecessors), preserves tracking data
+        (actual dates, progress, RAE).
+      operationId: syncTasks
+      tags:
+        - Tasks
+      parameters:
+        - $ref: '#/components/parameters/VersionParam'
+        - $ref: '#/components/parameters/ProjectIdQueryParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TaskSync'
+      responses:
+        '200':
+          description: Tasks synchronized successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskSyncResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /{version}/projects/{project_id}/tasks/{id}:
+    get:
+      summary: Get task
+      description: Retrieve a single task by ID
+      operationId: getTask
+      tags:
+        - Tasks
+      parameters:
+        - $ref: '#/components/parameters/VersionParam'
+        - $ref: '#/components/parameters/ProjectIdQueryParam'
+        - $ref: '#/components/parameters/TaskIdParam'
+      responses:
+        '200':
+          description: Successful response with task details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    patch:
+      summary: Update task
+      description: Update an existing task (partial update)
+      operationId: updateTask
+      tags:
+        - Tasks
+      parameters:
+        - $ref: '#/components/parameters/VersionParam'
+        - $ref: '#/components/parameters/ProjectIdQueryParam'
+        - $ref: '#/components/parameters/TaskIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TaskUpdate'
+      responses:
+        '200':
+          description: Task updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Circular dependency in predecessors
+          headers:
+            X-Correlation-ID:
+              schema:
+                type: string
+              description: Correlation ID for tracing
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    delete:
+      summary: Delete task
+      description: Delete a task (cascades to assignments and child tasks)
+      operationId: deleteTask
+      tags:
+        - Tasks
+      parameters:
+        - $ref: '#/components/parameters/VersionParam'
+        - $ref: '#/components/parameters/ProjectIdQueryParam'
+        - $ref: '#/components/parameters/TaskIdParam'
+      responses:
+        '204':
+          description: Task deleted successfully
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Task is referenced by other tasks as predecessor
+          headers:
+            X-Correlation-ID:
+              schema:
+                type: string
+              description: Correlation ID for tracing
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /{version}/projects/{project_id}/milestones:
+    post:
+      summary: Create milestone
+      description: Create a new milestone for a project. The sum of budget_weight across all project milestones must equal 1.0.
+      operationId: createMilestone
+      tags:
+        - Milestones
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/VersionParam'
+        - $ref: '#/components/parameters/ProjectIdQueryParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MilestoneCreate'
+            examples:
+              rqf_milestone:
+                summary: Requirements Qualification Review
+                value:
+                  name: RQF - Requirements Qualification Review
+                  description: Formal review of requirements specification
+                  target_date: '2027-01-22T18:00:00Z'
+                  budget_weight: 0.15
+      responses:
+        '201':
+          description: Milestone created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MilestoneResponse'
+              example:
+                data:
+                  id: d4e5f6a7-b8c9-4d5e-1f2a-3b4c5d6e7f8a
+                  project_id: a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d
+                  name: RQF - Requirements Qualification Review
+                  description: Formal review of requirements specification
+                  target_date: '2027-01-22T18:00:00Z'
+                  actual_date: null
+                  status: upcoming
+                  budget_weight: 0.15
+                  is_achieved: false
+                  achieved_date: null
+                  created_at: '2026-01-11T10:00:00Z'
+                  updated_at: '2026-01-11T10:00:00Z'
+                message: Milestone created successfully
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Conflict - Milestone overlaps or budget_weight sum exceeds 1.0
+          headers:
+            X-Correlation-ID:
+              schema:
+                type: string
+              description: Correlation ID for tracing
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: 'Sum of milestone budget_weight would exceed 1.0 (current: 0.90, adding: 0.15)'
+                correlation_id: 123e4567-e89b-12d3-a456-426614174000
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    get:
+      summary: List milestones
+      description: Retrieve all milestones for a project with optional filtering
+      operationId: listMilestones
+      tags:
+        - Milestones
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/VersionParam'
+        - $ref: '#/components/parameters/ProjectIdQueryParam'
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PerPageParam'
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum:
+              - upcoming
+              - achieved
+              - missed
+          description: Filter by milestone status
+        - name: target_date_from
+          in: query
+          schema:
+            type: string
+            format: date-time
+          description: Filter milestones with target_date >= this value
+        - name: target_date_to
+          in: query
+          schema:
+            type: string
+            format: date-time
+          description: Filter milestones with target_date <= this value
+        - $ref: '#/components/parameters/SearchParam'
+        - $ref: '#/components/parameters/SortByParam'
+        - $ref: '#/components/parameters/SortOrderParam'
+      responses:
+        '200':
+          description: Milestones retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MilestoneList'
+              example:
+                data:
+                  - id: d4e5f6a7-b8c9-4d5e-1f2a-3b4c5d6e7f8a
+                    project_id: a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d
+                    name: RQF
+                    target_date: '2027-01-22T18:00:00Z'
+                    status: upcoming
+                    budget_weight: 0.15
+                page: 1
+                per_page: 20
+                total: 8
+                total_pages: 1
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /{version}/projects/{project_id}/milestones/{id}:
+    get:
+      summary: Get milestone by ID
+      description: Retrieve a single milestone with all details
+      operationId: getMilestone
+      tags:
+        - Milestones
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/VersionParam'
+        - $ref: '#/components/parameters/ProjectIdQueryParam'
+        - $ref: '#/components/parameters/MilestoneIdParam'
+      responses:
+        '200':
+          description: Milestone retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MilestoneResponse'
+              example:
+                data:
+                  id: d4e5f6a7-b8c9-4d5e-1f2a-3b4c5d6e7f8a
+                  project_id: a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d
+                  name: RQF - Requirements Qualification Review
+                  description: Formal review of requirements specification
+                  target_date: '2027-01-22T18:00:00Z'
+                  actual_date: null
+                  status: upcoming
+                  budget_weight: 0.15
+                  is_achieved: false
+                  achieved_date: null
+                  created_at: '2026-01-11T10:00:00Z'
+                  updated_at: '2026-01-11T10:00:00Z'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    patch:
+      summary: Update milestone
+      description: Update milestone fields. Warning - manually updating target_date will not affect linked task dates.
+      operationId: updateMilestone
+      tags:
+        - Milestones
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/VersionParam'
+        - $ref: '#/components/parameters/ProjectIdQueryParam'
+        - $ref: '#/components/parameters/MilestoneIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MilestoneUpdate'
+            examples:
+              mark_achieved:
+                summary: Mark milestone as achieved
+                value:
+                  is_achieved: true
+                  achieved_date: '2027-01-20T14:30:00Z'
+                  actual_date: '2027-01-20T14:30:00Z'
+      responses:
+        '200':
+          description: Milestone updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MilestoneResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Budget weight sum would exceed 1.0
+          headers:
+            X-Correlation-ID:
+              schema:
+                type: string
+              description: Correlation ID for tracing
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    delete:
+      summary: Delete milestone
+      description: Delete a milestone. Cannot delete if milestone has associated expenses or deliverables.
+      operationId: deleteMilestone
+      tags:
+        - Milestones
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/VersionParam'
+        - $ref: '#/components/parameters/ProjectIdQueryParam'
+        - $ref: '#/components/parameters/MilestoneIdParam'
+      responses:
+        '204':
+          description: Milestone deleted successfully
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Cannot delete milestone with associated expenses or deliverables
+          headers:
+            X-Correlation-ID:
+              schema:
+                type: string
+              description: Correlation ID for tracing
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Cannot delete milestone with 3 associated expenses
+                correlation_id: 123e4567-e89b-12d3-a456-426614174000
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /{version}/milestones/{milestone_id}/tasks:
+    post:
+      summary: Link tasks to milestone
+      description: Create M2M links between milestone and predecessor tasks. Auto-recalculates milestone target_date as MAX(tasks.planned_finish_date).
+      operationId: linkMilestoneTasks
+      tags:
+        - Milestones
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/VersionParam'
+        - $ref: '#/components/parameters/MilestoneIdPathParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MilestoneTaskLink'
+            example:
+              task_ids:
+                - b2c3d4e5-f6a7-4b5c-9d0e-1f2a3b4c5d6e
+                - c3d4e5f6-a7b8-4c5d-0e1f-2a3b4c5d6e7f
+              relationship_type: predecessor
+      responses:
+        '200':
+          description: Tasks linked successfully, milestone target_date recalculated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MilestoneTaskLinkResponse'
+              example:
+                data:
+                  milestone_id: d4e5f6a7-b8c9-4d5e-1f2a-3b4c5d6e7f8a
+                  target_date: '2027-01-22T18:00:00Z'
+                  linked_task_count: 2
+                  predecessor_tasks:
+                    - id: b2c3d4e5-f6a7-4b5c-9d0e-1f2a3b4c5d6e
+                      name: Requirements validation
+                      planned_finish_date: '2027-01-22T18:00:00Z'
+                      is_critical: true
+                    - id: c3d4e5f6-a7b8-4c5d-0e1f-2a3b4c5d6e7f
+                      name: Documentation review
+                      planned_finish_date: '2027-01-20T16:00:00Z'
+                      is_critical: false
+                message: Tasks linked successfully, milestone target_date recalculated
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    get:
+      summary: Get milestone predecessor tasks
+      description: Retrieve all tasks that are linked as predecessors to this milestone
+      operationId: getMilestonePredecessorTasks
+      tags:
+        - Milestones
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/VersionParam'
+        - $ref: '#/components/parameters/MilestoneIdPathParam'
+      responses:
+        '200':
+          description: Predecessor tasks retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MilestonePredecessorTasks'
+              example:
+                data:
+                  milestone_id: d4e5f6a7-b8c9-4d5e-1f2a-3b4c5d6e7f8a
+                  milestone_name: RQF - Requirements Qualification Review
+                  target_date: '2027-01-22T18:00:00Z'
+                  predecessor_tasks:
+                    - id: b2c3d4e5-f6a7-4b5c-9d0e-1f2a3b4c5d6e
+                      name: Requirements validation
+                      wbs: 1.2.3
+                      planned_finish_date: '2027-01-22T18:00:00Z'
+                      is_critical: true
+                      ms_project_uid: 123
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /{version}/milestones/{milestone_id}/tasks/sync:
+    put:
+      summary: Sync milestone-task links
+      description: Upsert milestone-task relationships. Removes links not in task_ids, adds new links, preserves existing. Used during MS Project reimport.
+      operationId: syncMilestoneTasks
+      tags:
+        - Milestones
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/VersionParam'
+        - $ref: '#/components/parameters/MilestoneIdPathParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MilestoneTaskLink'
+            example:
+              task_ids:
+                - b2c3d4e5-f6a7-4b5c-9d0e-1f2a3b4c5d6e
+                - f7a8b9c0-d1e2-4f3a-5b6c-7d8e9f0a1b2c
+      responses:
+        '200':
+          description: Milestone-task links synchronized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MilestoneTaskLinkResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /{version}/resources:
+    post:
+      summary: Create resource
+      description: Create a new resource (company-scoped, shared across projects). Company ID from JWT token.
+      operationId: createResource
+      tags:
+        - Resources
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/VersionParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResourceCreate'
+            examples:
+              labor_resource:
+                summary: Labor resource (personnel)
+                value:
+                  name: Jean Dupont
+                  type: labor
+                  standard_rate: 85
+                  overtime_rate: 127.5
+                  email: jean.dupont@example.com
+              material_resource:
+                summary: Material resource (equipment)
+                value:
+                  name: Excavator CAT 320
+                  type: material
+                  standard_rate: 150
+      responses:
+        '201':
+          description: Resource created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResourceResponse'
+              example:
+                data:
+                  id: f6a7b8c9-d0e1-4f5a-3b4c-5d6e7f8a9b0c
+                  company_id: 550e8400-e29b-41d4-a716-446655440000
+                  ms_project_uid: null
+                  name: Jean Dupont
+                  type: labor
+                  standard_rate: 85
+                  overtime_rate: 127.5
+                  email: jean.dupont@example.com
+                  is_active: true
+                  created_at: '2026-01-11T10:00:00Z'
+                  updated_at: '2026-01-11T10:00:00Z'
+                message: Resource created successfully
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          description: Resource name already exists for this company
+          headers:
+            X-Correlation-ID:
+              schema:
+                type: string
+              description: Correlation ID for tracing
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    get:
+      summary: List resources
+      description: Retrieve all resources for the authenticated user's company (from JWT company_id)
+      operationId: listResources
+      tags:
+        - Resources
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/VersionParam'
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PerPageParam'
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum:
+              - labor
+              - material
+              - cost
+          description: Filter by resource type
+        - name: is_active
+          in: query
+          schema:
+            type: boolean
+          description: Filter by active status
+        - $ref: '#/components/parameters/SearchParam'
+        - $ref: '#/components/parameters/SortByParam'
+        - $ref: '#/components/parameters/SortOrderParam'
+      responses:
+        '200':
+          description: Resources retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResourceList'
+              example:
+                data:
+                  - id: f6a7b8c9-d0e1-4f5a-3b4c-5d6e7f8a9b0c
+                    company_id: 550e8400-e29b-41d4-a716-446655440000
+                    name: Jean Dupont
+                    type: labor
+                    standard_rate: 85
+                    is_active: true
+                  - id: a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d
+                    company_id: 550e8400-e29b-41d4-a716-446655440000
+                    name: Marie Martin
+                    type: labor
+                    standard_rate: 95
+                    is_active: true
+                page: 1
+                per_page: 20
+                total: 45
+                total_pages: 3
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /{version}/resources/{id}:
+    get:
+      summary: Get resource by ID
+      description: Retrieve a single resource
+      operationId: getResource
+      tags:
+        - Resources
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/VersionParam'
+        - $ref: '#/components/parameters/ResourceIdParam'
+      responses:
+        '200':
+          description: Resource retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResourceResponse'
+              example:
+                data:
+                  id: f6a7b8c9-d0e1-4f5a-3b4c-5d6e7f8a9b0c
+                  company_id: 550e8400-e29b-41d4-a716-446655440000
+                  ms_project_uid: 1
+                  name: Jean Dupont
+                  type: labor
+                  standard_rate: 85
+                  overtime_rate: 127.5
+                  email: jean.dupont@example.com
+                  is_active: true
+                  created_at: '2026-01-11T10:00:00Z'
+                  updated_at: '2026-01-11T10:00:00Z'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    patch:
+      summary: Update resource
+      description: Update resource fields
+      operationId: updateResource
+      tags:
+        - Resources
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/VersionParam'
+        - $ref: '#/components/parameters/ResourceIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResourceUpdate'
+            examples:
+              update_rate:
+                summary: Update hourly rates
+                value:
+                  standard_rate: 90
+                  overtime_rate: 135
+              deactivate:
+                summary: Deactivate resource
+                value:
+                  is_active: false
+      responses:
+        '200':
+          description: Resource updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResourceResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    delete:
+      summary: Delete resource
+      description: Delete a resource. Cannot delete if resource has active assignments.
+      operationId: deleteResource
+      tags:
+        - Resources
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/VersionParam'
+        - $ref: '#/components/parameters/ResourceIdParam'
+      responses:
+        '204':
+          description: Resource deleted successfully
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Cannot delete resource with active assignments
+          headers:
+            X-Correlation-ID:
+              schema:
+                type: string
+              description: Correlation ID for tracing
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Cannot delete resource with 5 active assignments
+                correlation_id: 123e4567-e89b-12d3-a456-426614174000
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /{version}/projects/{project_id}/assignments:
+    post:
+      summary: Create assignment
+      description: Create task-resource assignment. Validates task+resource combination uniqueness and company isolation (resource and task must belong to same company).
+      operationId: createAssignment
+      tags:
+        - Assignments
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/VersionParam'
+        - $ref: '#/components/parameters/ProjectIdQueryParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssignmentCreate'
+            examples:
+              full_time:
+                summary: Full-time assignment
+                value:
+                  task_id: b2c3d4e5-f6a7-4b5c-9d0e-1f2a3b4c5d6e
+                  resource_id: f6a7b8c9-d0e1-4f5a-3b4c-5d6e7f8a9b0c
+                  work_hours: PT40H0M0S
+                  percent_allocation: 100
+                  cost: 3400
+              part_time:
+                summary: Part-time assignment
+                value:
+                  task_id: b2c3d4e5-f6a7-4b5c-9d0e-1f2a3b4c5d6e
+                  resource_id: a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d
+                  percent_allocation: 50
+      responses:
+        '201':
+          description: Assignment created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AssignmentResponse'
+              example:
+                data:
+                  id: a7b8c9d0-e1f2-4a5b-4c5d-6e7f8a9b0c1d
+                  project_id: a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d
+                  task_id: b2c3d4e5-f6a7-4b5c-9d0e-1f2a3b4c5d6e
+                  resource_id: f6a7b8c9-d0e1-4f5a-3b4c-5d6e7f8a9b0c
+                  work_hours: PT40H0M0S
+                  percent_allocation: 100
+                  cost: 3400
+                  actual_work: PT0H0M0S
+                  actual_cost: 0
+                  created_at: '2026-01-11T11:00:00Z'
+                  updated_at: '2026-01-11T11:00:00Z'
+                message: Assignment created successfully
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: Task or resource not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Duplicate assignment (same task + resource combination)
+          headers:
+            X-Correlation-ID:
+              schema:
+                type: string
+              description: Correlation ID for tracing
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Assignment already exists for this task and resource
+                correlation_id: 123e4567-e89b-12d3-a456-426614174000
+        '422':
+          description: Resource and task belong to different companies
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Resource and task must belong to the same company
+                correlation_id: 123e4567-e89b-12d3-a456-426614174000
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    get:
+      summary: List assignments
+      description: Retrieve all assignments for a project
+      operationId: listAssignments
+      tags:
+        - Assignments
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/VersionParam'
+        - $ref: '#/components/parameters/ProjectIdQueryParam'
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PerPageParam'
+        - name: task_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+          description: Filter by task
+        - name: resource_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+          description: Filter by resource
+      responses:
+        '200':
+          description: Assignments retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AssignmentList'
+              example:
+                data:
+                  - id: a7b8c9d0-e1f2-4a5b-4c5d-6e7f8a9b0c1d
+                    project_id: a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d
+                    task_id: b2c3d4e5-f6a7-4b5c-9d0e-1f2a3b4c5d6e
+                    resource_id: f6a7b8c9-d0e1-4f5a-3b4c-5d6e7f8a9b0c
+                    work_hours: PT40H0M0S
+                    cost: 3400
+                page: 1
+                per_page: 20
+                total: 150
+                total_pages: 8
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /{version}/projects/{project_id}/assignments/{id}:
+    get:
+      summary: Get assignment by ID
+      description: Retrieve a single assignment
+      operationId: getAssignment
+      tags:
+        - Assignments
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/VersionParam'
+        - $ref: '#/components/parameters/ProjectIdQueryParam'
+        - $ref: '#/components/parameters/AssignmentIdParam'
+      responses:
+        '200':
+          description: Assignment retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AssignmentResponse'
+              example:
+                data:
+                  id: a7b8c9d0-e1f2-4a5b-4c5d-6e7f8a9b0c1d
+                  project_id: a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d
+                  task_id: b2c3d4e5-f6a7-4b5c-9d0e-1f2a3b4c5d6e
+                  resource_id: f6a7b8c9-d0e1-4f5a-3b4c-5d6e7f8a9b0c
+                  work_hours: PT40H0M0S
+                  percent_allocation: 100
+                  cost: 3400
+                  actual_work: PT32H0M0S
+                  actual_cost: 2720
+                  created_at: '2026-01-11T11:00:00Z'
+                  updated_at: '2026-01-11T11:30:00Z'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    patch:
+      summary: Update assignment
+      description: Update assignment fields (work hours, allocation, costs)
+      operationId: updateAssignment
+      tags:
+        - Assignments
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/VersionParam'
+        - $ref: '#/components/parameters/ProjectIdQueryParam'
+        - $ref: '#/components/parameters/AssignmentIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssignmentUpdate'
+            examples:
+              update_actuals:
+                summary: Update actual work and cost
+                value:
+                  actual_work: PT32H0M0S
+                  actual_cost: 2720
+              update_allocation:
+                summary: Adjust resource allocation
+                value:
+                  percent_allocation: 75
+      responses:
+        '200':
+          description: Assignment updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AssignmentResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    delete:
+      summary: Delete assignment
+      description: Delete an assignment
+      operationId: deleteAssignment
+      tags:
+        - Assignments
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/VersionParam'
+        - $ref: '#/components/parameters/ProjectIdQueryParam'
+        - $ref: '#/components/parameters/AssignmentIdParam'
+      responses:
+        '204':
+          description: Assignment deleted successfully
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /{version}/projects/{project_id}/expenses:
+    post:
+      summary: Create expense
+      description: Create expense with ERP fields. Milestone is auto-assigned based on expense date falling between milestone target dates.
+      operationId: createExpense
+      tags:
+        - Expenses
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/VersionParam'
+        - $ref: '#/components/parameters/ProjectIdQueryParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExpenseCreate'
+            examples:
+              subcontracting:
+                summary: Subcontracting expense from ERP
+                value:
+                  date: '2025-04-25T00:00:00Z'
+                  amount: 3820
+                  category: subcontracting
+                  description: REMISE EN ETAT ET RETOUR DES TIROIRS
+                  reference_number: '5129412025'
+                  purchase_document: '24337010'
+                  fiscal_year: 2025
+                  period: 5
+                  otp_element: G.PRJ.12345/13984
+                  accounting_nature: '60510000'
+                  vendor_name: ARELIS
+                  origin_group: STOR
+              labor:
+                summary: Labor expense
+                value:
+                  resource_id: f6a7b8c9-d0e1-4f5a-3b4c-5d6e7f8a9b0c
+                  date: '2025-03-15T00:00:00Z'
+                  amount: 2720
+                  category: labor
+                  description: Development work - March
+      responses:
+        '201':
+          description: Expense created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExpenseResponse'
+              example:
+                data:
+                  id: b8c9d0e1-f2a3-4b5c-5d6e-7f8a9b0c1d2e
+                  project_id: a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d
+                  milestone_id: d4e5f6a7-b8c9-4d5e-1f2a-3b4c5d6e7f8a
+                  resource_id: null
+                  date: '2025-04-25T00:00:00Z'
+                  amount: 3820
+                  category: subcontracting
+                  description: REMISE EN ETAT ET RETOUR DES TIROIRS
+                  reference_number: '5129412025'
+                  vendor_name: ARELIS
+                  created_at: '2026-01-11T12:00:00Z'
+                  updated_at: '2026-01-11T12:00:00Z'
+                message: Expense created and allocated to milestone
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Duplicate expense (same reference_number + date + amount)
+          headers:
+            X-Correlation-ID:
+              schema:
+                type: string
+              description: Correlation ID for tracing
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Duplicate expense detected
+                correlation_id: 123e4567-e89b-12d3-a456-426614174000
+        '422':
+          description: Expense date outside milestone range
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Expense date must fall between project milestone dates
+                correlation_id: 123e4567-e89b-12d3-a456-426614174000
+        '429':
+          description: Rate limit exceeded (standard 100 rpm; bulk endpoints 10 rpm)
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    get:
+      summary: List expenses
+      description: Retrieve all expenses for a project with filters
+      operationId: listExpenses
+      tags:
+        - Expenses
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/VersionParam'
+        - $ref: '#/components/parameters/ProjectIdQueryParam'
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PerPageParam'
+        - name: category
+          in: query
+          schema:
+            type: string
+            enum:
+              - labor
+              - procurement
+              - subcontracting
+              - overhead
+          description: Filter by expense category
+        - name: milestone_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+          description: Filter by milestone
+        - name: resource_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+          description: Filter by resource
+        - name: date_from
+          in: query
+          schema:
+            type: string
+            format: date-time
+          description: Start date for range filter
+        - name: date_to
+          in: query
+          schema:
+            type: string
+            format: date-time
+          description: End date for range filter
+        - $ref: '#/components/parameters/SortByParam'
+        - $ref: '#/components/parameters/SortOrderParam'
+      responses:
+        '200':
+          description: Expenses retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExpenseList'
+              example:
+                data:
+                  - id: b8c9d0e1-f2a3-4b5c-5d6e-7f8a9b0c1d2e
+                    project_id: a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d
+                    milestone_id: d4e5f6a7-b8c9-4d5e-1f2a-3b4c5d6e7f8a
+                    date: '2025-04-25T00:00:00Z'
+                    amount: 3820
+                    category: subcontracting
+                    vendor_name: ARELIS
+                page: 1
+                per_page: 20
+                total: 458
+                total_pages: 23
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /{version}/projects/{project_id}/expenses/bulk:
+    post:
+      summary: Bulk create expenses
+      description: Create multiple expenses in one request (max 1000). Used by poc-import service for ERP data imports.
+      operationId: bulkCreateExpenses
+      tags:
+        - Expenses
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/VersionParam'
+        - $ref: '#/components/parameters/ProjectIdQueryParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExpenseBulkCreate'
+            example:
+              expenses:
+                - date: '2025-04-25T00:00:00Z'
+                  amount: 3820
+                  category: subcontracting
+                  reference_number: '5129412025'
+                  vendor_name: ARELIS
+                - date: '2025-03-15T00:00:00Z'
+                  amount: 2500
+                  category: labor
+                  description: Development work
+      responses:
+        '201':
+          description: Bulk creation completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExpenseBulkResponse'
+              example:
+                data:
+                  created_count: 250
+                  failed_count: 3
+                  expenses:
+                    - id: b8c9d0e1-f2a3-4b5c-5d6e-7f8a9b0c1d2e
+                      project_id: a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d
+                      milestone_id: d4e5f6a7-b8c9-4d5e-1f2a-3b4c5d6e7f8a
+                      resource_id: null
+                      date: '2025-04-25T00:00:00Z'
+                      amount: 3820
+                      category: subcontracting
+                      description: Bulk import expense
+                      reference_number: '5129412025'
+                      vendor_name: ARELIS
+                      created_at: '2026-01-11T12:00:00Z'
+                      updated_at: '2026-01-11T12:00:00Z'
+                  errors:
+                    - index: 5
+                      error: Expense date outside milestone range
+                    - index: 42
+                      error: Amount must be >= 0
+                message: 250 expenses created, 3 failed
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /{version}/projects/{project_id}/expenses/{id}:
+    get:
+      summary: Get expense by ID
+      description: Retrieve a single expense
+      operationId: getExpense
+      tags:
+        - Expenses
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/VersionParam'
+        - $ref: '#/components/parameters/ProjectIdQueryParam'
+        - $ref: '#/components/parameters/ExpenseIdParam'
+      responses:
+        '200':
+          description: Expense retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExpenseResponse'
+              example:
+                data:
+                  id: b8c9d0e1-f2a3-4b5c-5d6e-7f8a9b0c1d2e
+                  project_id: a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d
+                  milestone_id: d4e5f6a7-b8c9-4d5e-1f2a-3b4c5d6e7f8a
+                  resource_id: null
+                  date: '2025-04-25T00:00:00Z'
+                  amount: 3820
+                  category: subcontracting
+                  description: REMISE EN ETAT ET RETOUR DES TIROIRS
+                  reference_number: '5129412025'
+                  purchase_document: '24337010'
+                  fiscal_year: 2025
+                  period: 5
+                  otp_element: G.PRJ.12345/13984
+                  accounting_nature: '60510000'
+                  vendor_name: ARELIS
+                  origin_group: STOR
+                  created_at: '2026-01-11T12:00:00Z'
+                  updated_at: '2026-01-11T12:00:00Z'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    patch:
+      summary: Update expense
+      description: Update expense fields. Updating date may trigger milestone_id reassignment.
+      operationId: updateExpense
+      tags:
+        - Expenses
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/VersionParam'
+        - $ref: '#/components/parameters/ProjectIdQueryParam'
+        - $ref: '#/components/parameters/ExpenseIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExpenseUpdate'
+            examples:
+              update_amount:
+                summary: Correct expense amount
+                value:
+                  amount: 4000
+              update_date:
+                summary: Correct expense date (may change milestone)
+                value:
+                  date: '2025-05-01T00:00:00Z'
+      responses:
+        '200':
+          description: Expense updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExpenseResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          description: Updated date outside milestone range
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    delete:
+      summary: Delete expense
+      description: Delete an expense
+      operationId: deleteExpense
+      tags:
+        - Expenses
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/VersionParam'
+        - $ref: '#/components/parameters/ProjectIdQueryParam'
+        - $ref: '#/components/parameters/ExpenseIdParam'
+      responses:
+        '204':
+          description: Expense deleted successfully
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /{version}/projects/{project_id}/progress:
+    post:
+      summary: Bulk update task progress
+      description: |
+        Bulk update percent_complete for multiple tasks on a given reporting date.
+        Automatically updates task status (0=not_started, 1-99=in_progress, 100=completed)
+        and records history entries for trend analysis. Partial success is allowed.
+      operationId: updateProjectProgress
+      tags:
+        - Progress
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/VersionParam'
+        - $ref: '#/components/parameters/ProjectIdQueryParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProgressUpdateRequest'
+            example:
+              date: '2026-01-10T10:00:00Z'
+              updates:
+                - task_id: 8b0f5a1c-5b68-4b15-9b7c-1234567890ab
+                  percent_complete: 75
+                  comment: Design phase completed
+                - task_id: 4f9e2c3d-6a7b-4c5d-8e9f-abcdef012345
+                  percent_complete: 100
+                  comment: Testing completed
+      responses:
+        '200':
+          description: Progress updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProgressUpdateResponse'
+              example:
+                data:
+                  project_id: a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d
+                  date: '2026-01-10T10:00:00Z'
+                  updated_count: 2
+                  failed_count: 0
+                  updates:
+                    - task_id: 8b0f5a1c-5b68-4b15-9b7c-1234567890ab
+                      task_name: Design Phase
+                      previous_percent_complete: 50
+                      new_percent_complete: 75
+                      status_changed: true
+                      new_status: in_progress
+                    - task_id: 4f9e2c3d-6a7b-4c5d-8e9f-abcdef012345
+                      task_name: Testing
+                      previous_percent_complete: 90
+                      new_percent_complete: 100
+                      status_changed: true
+                      new_status: completed
+                  errors: []
+                message: Progress updated successfully
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /{version}/projects/{project_id}/progress/history:
+    get:
+      summary: Get progress history
+      description: Retrieve progress update history for a project, optionally filtered by task and date range.
+      operationId: getProgressHistory
+      tags:
+        - Progress
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/VersionParam'
+        - $ref: '#/components/parameters/ProjectIdQueryParam'
+        - name: task_id
+          in: query
+          required: false
+          description: Filter by task identifier
+          schema:
+            type: string
+            format: uuid
+        - name: start_date
+          in: query
+          required: false
+          description: Start of date range filter (inclusive)
+          schema:
+            type: string
+            format: date-time
+        - name: end_date
+          in: query
+          required: false
+          description: End of date range filter (inclusive)
+          schema:
+            type: string
+            format: date-time
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PerPageParam'
+        - $ref: '#/components/parameters/SortOrderParam'
+      responses:
+        '200':
+          description: Progress history
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProgressHistoryResponse'
+              example:
+                data:
+                  - id: 11111111-2222-3333-4444-555555555555
+                    project_id: a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d
+                    task_id: 8b0f5a1c-5b68-4b15-9b7c-1234567890ab
+                    task_name: Design Phase
+                    date: '2026-01-10T10:00:00Z'
+                    previous_percent_complete: 50
+                    new_percent_complete: 75
+                    delta: 25
+                    comment: Design phase completed
+                    updated_by: 77777777-8888-9999-aaaa-bbbbbbbbbbbb
+                    created_at: '2026-01-10T10:05:00Z'
+                  - id: 66666666-7777-8888-9999-000000000000
+                    project_id: a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d
+                    task_id: 4f9e2c3d-6a7b-4c5d-8e9f-abcdef012345
+                    task_name: Testing
+                    date: '2026-01-10T10:00:00Z'
+                    previous_percent_complete: 90
+                    new_percent_complete: 100
+                    delta: 10
+                    comment: Testing completed
+                    updated_by: 77777777-8888-9999-aaaa-bbbbbbbbbbbb
+                    created_at: '2026-01-10T10:05:00Z'
+                page: 1
+                per_page: 20
+                total: 156
+                total_pages: 8
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /{version}/milestones/{milestone_id}/rae:
+    post:
+      summary: Update milestone RAE
+      description: Record a new RAE (Remaining At End) value for a milestone. Updates milestone.current_rae and recalculates EV_physical.
+      operationId: updateMilestoneRAE
+      tags:
+        - RAE
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/VersionParam'
+        - name: milestone_id
+          in: path
+          required: true
+          description: Milestone unique identifier
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RAECreate'
+      responses:
+        '201':
+          description: RAE updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RAEResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /{version}/milestones/{milestone_id}/rae/history:
+    get:
+      summary: Get milestone RAE history
+      description: Retrieve historical RAE values for a milestone (time series for trend analysis)
+      operationId: getMilestoneRAEHistory
+      tags:
+        - RAE
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/VersionParam'
+        - name: milestone_id
+          in: path
+          required: true
+          description: Milestone unique identifier
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PerPageParam'
+        - name: date_from
+          in: query
+          schema:
+            type: string
+            format: date-time
+          description: Filter from date
+        - name: date_to
+          in: query
+          schema:
+            type: string
+            format: date-time
+          description: Filter to date
+        - $ref: '#/components/parameters/SortOrderParam'
+      responses:
+        '200':
+          description: RAE history retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RAEHistory'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /{version}/projects/{project_id}/rae/summary:
+    get:
+      summary: Get project-wide RAE summary
+      description: Get current RAE values for all milestones in a project (aggregated view)
+      operationId: getProjectRAESummary
+      tags:
+        - RAE
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/VersionParam'
+        - $ref: '#/components/parameters/ProjectIdQueryParam'
+        - name: as_of_date
+          in: query
+          schema:
+            type: string
+            format: date-time
+          description: Get RAE values as of specific date (default latest)
+      responses:
+        '200':
+          description: Project RAE summary retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RAESummary'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /{version}/projects/{project_id}/evm:
+    get:
+      summary: Get project EVM indicators
+      description: Calculate and retrieve Earned Value Management indicators
+      operationId: getProjectEVMIndicators
+      tags:
+        - EVM
+      parameters:
+        - $ref: '#/components/parameters/VersionParam'
+        - $ref: '#/components/parameters/ProjectIdQueryParam'
+        - name: as_of_date
+          in: query
+          schema:
+            type: string
+            format: date-time
+          description: Calculate EVM as of this date (default current date)
+        - name: ev_method
+          in: query
+          schema:
+            type: string
+            enum:
+              - physical
+              - milestone
+              - both
+            default: both
+          description: EV calculation method
+      responses:
+        '200':
+          description: EVM indicators calculated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EVMIndicators'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /{version}/projects/{project_id}/evm/timeseries:
+    get:
+      summary: Get EVM time series
+      description: Retrieve historical EVM data for visualization
+      operationId: getEVMTimeSeries
+      tags:
+        - EVM
+      parameters:
+        - $ref: '#/components/parameters/VersionParam'
+        - $ref: '#/components/parameters/ProjectIdQueryParam'
+        - name: start_date
+          in: query
+          schema:
+            type: string
+            format: date-time
+          description: Start date for time series
+        - name: end_date
+          in: query
+          schema:
+            type: string
+            format: date-time
+          description: End date for time series
+        - name: granularity
+          in: query
+          schema:
+            type: string
+            enum:
+              - month
+              - week
+              - day
+            default: month
+          description: Time series granularity
+        - name: ev_method
+          in: query
+          schema:
+            type: string
+            enum:
+              - physical
+              - milestone
+            default: physical
+          description: EV calculation method
+        - name: cumulative
+          in: query
+          schema:
+            type: boolean
+            default: true
+          description: Return cumulative values (true) or period values (false)
+      responses:
+        '200':
+          description: Time series data retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EVMTimeSeries'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /{version}/projects/{project_id}/evm/forecasts:
+    get:
+      summary: Get EVM forecasts
+      description: Calculate project completion forecasts using multiple methods
+      operationId: getEVMForecasts
+      tags:
+        - EVM
+      parameters:
+        - $ref: '#/components/parameters/VersionParam'
+        - $ref: '#/components/parameters/ProjectIdQueryParam'
+      responses:
+        '200':
+          description: Forecasts calculated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EVMForecasts'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /{version}/projects/{project_id}/statistics/expenses/by-category:
+    get:
+      summary: Get expense breakdown by category
+      description: Retrieve pie chart data of expenses by category (labor, procurement, subcontracting, overhead)
+      operationId: getExpenseBreakdownByCategory
+      tags:
+        - Statistics
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/VersionParam'
+        - $ref: '#/components/parameters/ProjectIdQueryParam'
+        - name: start_date
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+          description: Filter from date
+        - name: end_date
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+          description: Filter to date
+        - name: milestone_id
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+          description: Filter by milestone
+      responses:
+        '200':
+          description: Expense breakdown retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExpenseBreakdown'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /{version}/projects/{project_id}/statistics/labor/by-resource:
+    get:
+      summary: Get labor cost by resource
+      description: Retrieve labor cost distribution by resource for bar chart visualization (top N resources)
+      operationId: getLaborByResource
+      tags:
+        - Statistics
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/VersionParam'
+        - $ref: '#/components/parameters/ProjectIdQueryParam'
+        - name: start_date
+          in: query
+          schema:
+            type: string
+            format: date-time
+          description: Filter from date
+        - name: end_date
+          in: query
+          schema:
+            type: string
+            format: date-time
+          description: Filter to date
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+          description: Max resources to return (top N by cost)
+        - $ref: '#/components/parameters/SortOrderParam'
+      responses:
+        '200':
+          description: Labor cost breakdown retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LaborByResource'
+              example:
+                data:
+                  project_id: a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d
+                  total_labor_cost: 450000
+                  resource_count: 25
+                  breakdown:
+                    - resource_id: f6a7b8c9-d0e1-4f5a-3b4c-5d6e7f8a9b0c
+                      resource_name: Jean Dupont
+                      amount: 85000
+                      percentage: 18.89
+                      hours: 1000
+                      average_rate: 85
+                    - resource_id: a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d
+                      resource_name: Marie Martin
+                      amount: 72000
+                      percentage: 16
+                      hours: 900
+                      average_rate: 80
+                  echarts_format:
+                    xAxis:
+                      type: category
+                      data:
+                        - Jean Dupont
+                        - Marie Martin
+                        - Pierre Bernard
+                    yAxis:
+                      type: value
+                      name: Cost (€)
+                    series:
+                      - name: Labor Cost
+                        type: bar
+                        data:
+                          - 85000
+                          - 72000
+                          - 65000
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /{version}/projects/{project_id}/statistics/expenses/monthly:
+    get:
+      summary: Get monthly expense distribution
+      description: Retrieve monthly expense trends for stacked bar/line chart visualization
+      operationId: getMonthlyExpenses
+      tags:
+        - Statistics
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/VersionParam'
+        - $ref: '#/components/parameters/ProjectIdQueryParam'
+        - name: start_date
+          in: query
+          schema:
+            type: string
+            format: date-time
+          description: Filter from date
+        - name: end_date
+          in: query
+          schema:
+            type: string
+            format: date-time
+          description: Filter to date
+        - name: category
+          in: query
+          schema:
+            type: string
+            enum:
+              - labor
+              - procurement
+              - subcontracting
+              - overhead
+          description: Filter by expense category
+        - name: cumulative
+          in: query
+          schema:
+            type: boolean
+            default: false
+          description: Return cumulative values (true) or period values (false)
+      responses:
+        '200':
+          description: Monthly expense distribution retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MonthlyExpenses'
+              example:
+                data:
+                  project_id: a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d
+                  start_date: '2024-11-01T00:00:00Z'
+                  end_date: '2026-01-31T23:59:59Z'
+                  cumulative: false
+                  monthly_data:
+                    - month: 2024-11
+                      total: 48000
+                      labor: 25000
+                      subcontracting: 15000
+                      procurement: 6000
+                      overhead: 2000
+                    - month: 2024-12
+                      total: 77000
+                      labor: 42000
+                      subcontracting: 20000
+                      procurement: 12000
+                      overhead: 3000
+                  echarts_format:
+                    xAxis:
+                      type: category
+                      data:
+                        - 2024-11
+                        - 2024-12
+                        - 2025-01
+                    yAxis:
+                      type: value
+                      name: Expenses (€)
+                    series:
+                      - name: Labor
+                        type: bar
+                        stack: total
+                        data:
+                          - 25000
+                          - 42000
+                          - 45000
+                      - name: Subcontracting
+                        type: bar
+                        stack: total
+                        data:
+                          - 15000
+                          - 20000
+                          - 25000
+                      - name: Procurement
+                        type: bar
+                        stack: total
+                        data:
+                          - 6000
+                          - 12000
+                          - 11000
+                      - name: Overhead
+                        type: bar
+                        stack: total
+                        data:
+                          - 2000
+                          - 3000
+                          - 4000
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        JWT token obtained from Identity service authentication endpoint.
+        Include in Authorization header as: Bearer <token>
+
+        Required claims: user_id, company_id, email
+
+        Guardian permissions required:
+        - Service: wfp-poc
+        - Operations: READ, CREATE, UPDATE, DELETE
+        - Context: {company_id: <uuid>, project_id: <uuid>}
+    metricsAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: APIKey
+      description: |
+        Metrics endpoint API key.
+        Include in Authorization header as: Bearer <METRICS_API_KEY>
+  parameters:
+    VersionParam:
+      name: version
+      in: path
+      required: true
+      description: API version
+      schema:
+        type: string
+        enum:
+          - v0
+          - v1
+        default: v0
+    PageParam:
+      name: page
+      in: query
+      description: Page number for pagination
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+    PerPageParam:
+      name: per_page
+      in: query
+      description: Items per page
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+    ProjectIdParam:
+      name: id
+      in: path
+      required: true
+      description: Project unique identifier
+      schema:
+        type: string
+        format: uuid
+      example: a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d
+    ProjectIdQueryParam:
+      name: project_id
+      in: path
+      required: true
+      description: Project unique identifier
+      schema:
+        type: string
+        format: uuid
+      example: a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d
+    TaskIdParam:
+      name: id
+      in: path
+      required: true
+      description: Task unique identifier
+      schema:
+        type: string
+        format: uuid
+    MilestoneIdParam:
+      name: id
+      in: path
+      required: true
+      description: Milestone unique identifier
+      schema:
+        type: string
+        format: uuid
+    MilestoneIdPathParam:
+      name: milestone_id
+      in: path
+      required: true
+      description: Milestone unique identifier
+      schema:
+        type: string
+        format: uuid
+    ResourceIdParam:
+      name: id
+      in: path
+      required: true
+      description: Resource unique identifier
+      schema:
+        type: string
+        format: uuid
+    AssignmentIdParam:
+      name: id
+      in: path
+      required: true
+      description: Assignment unique identifier
+      schema:
+        type: string
+        format: uuid
+    ExpenseIdParam:
+      name: id
+      in: path
+      required: true
+      description: Expense unique identifier
+      schema:
+        type: string
+        format: uuid
+    SearchParam:
+      name: search
+      in: query
+      description: Search term for filtering
+      required: false
+      schema:
+        type: string
+    SortByParam:
+      name: sort_by
+      in: query
+      description: Field to sort by
+      required: false
+      schema:
+        type: string
+    SortOrderParam:
+      name: sort_order
+      in: query
+      description: Sort direction
+      required: false
+      schema:
+        type: string
+        enum:
+          - asc
+          - desc
+        default: desc
+  responses:
+    BadRequest:
+      description: Invalid request parameters or body
+      headers:
+        X-Correlation-ID:
+          schema:
+            type: string
+          description: Correlation ID for tracing
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            message: Validation failed
+            errors:
+              start_date:
+                - Start date must be before finish date
+    Unauthorized:
+      description: Authentication required or invalid token
+      headers:
+        X-Correlation-ID:
+          schema:
+            type: string
+          description: Correlation ID for tracing
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            message: Invalid or expired token
+    Forbidden:
+      description: Insufficient permissions
+      headers:
+        X-Correlation-ID:
+          schema:
+            type: string
+          description: Correlation ID for tracing
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            message: Insufficient Guardian permissions for this operation
+    NotFound:
+      description: Resource not found
+      headers:
+        X-Correlation-ID:
+          schema:
+            type: string
+          description: Correlation ID for tracing
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            message: Resource not found
+    UnprocessableEntity:
+      description: Business logic error
+      headers:
+        X-Correlation-ID:
+          schema:
+            type: string
+          description: Correlation ID for tracing
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            message: Start date must be before finish date
+    TooManyRequests:
+      description: Rate limit exceeded
+      headers:
+        X-Correlation-ID:
+          schema:
+            type: string
+          description: Correlation ID for tracing
+        Retry-After:
+          schema:
+            type: integer
+          description: Seconds until rate limit resets
+        X-RateLimit-Reset:
+          schema:
+            type: integer
+          description: Unix timestamp when rate limit resets
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            message: Rate limit exceeded. Maximum 10 requests per minute.
+    InternalServerError:
+      description: Internal server error
+      headers:
+        X-Correlation-ID:
+          schema:
+            type: string
+          description: Correlation ID for tracing
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            message: An unexpected error occurred
+            correlation_id: 123e4567-e89b-12d3-a456-426614174000
+  schemas:
+    Project:
+      type: object
+      required:
+        - id
+        - company_id
+        - name
+        - start_date
+        - finish_date
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique identifier (UUID v4), auto-generated
+          readOnly: true
+        company_id:
+          type: string
+          format: uuid
+          description: Tenant identifier for multi-tenant isolation
+          readOnly: true
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+          description: Project name
+        code:
+          anyOf:
+            - type: string
+            - type: 'null'
+          maxLength: 50
+          description: Project code or identifier (e.g., G.PRJ.12345)
+        title:
+          anyOf:
+            - type: string
+            - type: 'null'
+          maxLength: 255
+          description: MS Project Title field
+        start_date:
+          type: string
+          format: date-time
+          description: Project start date (ISO 8601)
+        planned_start_date:
+          type: string
+          format: date-time
+          deprecated: true
+          description: Alias for start_date (ERD terminology)
+        finish_date:
+          type: string
+          format: date-time
+          description: Project finish date (ISO 8601)
+        planned_finish_date:
+          type: string
+          format: date-time
+          deprecated: true
+          description: Alias for finish_date (ERD terminology)
+        budget:
+          anyOf:
+            - type: number
+            - type: 'null'
+          format: decimal
+          minimum: 0
+          description: Total project budget (BAC)
+        currency_code:
+          type: string
+          maxLength: 3
+          default: EUR
+          description: ISO 4217 currency code
+        status:
+          type: string
+          enum:
+            - active
+            - completed
+            - cancelled
+            - on_hold
+          default: active
+          description: Project status
+        ms_project_uid:
+          anyOf:
+            - type: string
+            - type: integer
+          description: MS Project UID (import reconciliation key)
+        ms_project_guid:
+          anyOf:
+            - type: string
+            - type: 'null'
+          maxLength: 50
+          description: MS Project GUID for round-trip compatibility
+        ms_project_save_version:
+          anyOf:
+            - type: integer
+            - type: 'null'
+          description: MS Project SaveVersion field
+        creation_date:
+          anyOf:
+            - type: string
+            - type: 'null'
+          format: date-time
+          description: Original MS Project creation date
+        last_saved_date:
+          anyOf:
+            - type: string
+            - type: 'null'
+          format: date-time
+          description: MS Project last saved date
+        calendar_uid:
+          anyOf:
+            - type: integer
+            - type: 'null'
+          description: MS Project calendar UID
+        minutes_per_day:
+          type: integer
+          default: 420
+          description: Working minutes per day (420 = 7 hours)
+        minutes_per_week:
+          type: integer
+          default: 2100
+          description: Working minutes per week (2100 = 35 hours)
+        days_per_month:
+          type: integer
+          default: 20
+          description: Working days per month
+        week_start_day:
+          type: integer
+          default: 1
+          description: First day of week (0=Sunday, 1=Monday)
+        default_start_time:
+          type: string
+          pattern: ^\d{2}:\d{2}:\d{2}$
+          default: '09:00:00'
+          description: Default task start time (HH:MM:SS)
+        default_finish_time:
+          type: string
+          pattern: ^\d{2}:\d{2}:\d{2}$
+          default: '18:00:00'
+          description: Default task finish time (HH:MM:SS)
+        created_at:
+          type: string
+          format: date-time
+          description: Record creation timestamp
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          description: Record last update timestamp
+          readOnly: true
+      example:
+        id: a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d
+        company_id: 550e8400-e29b-41d4-a716-446655440000
+        name: Enterprise Modernization Project 2025
+        code: G.PRJ.12345
+        title: Infrastructure Upgrade
+        start_date: '2024-11-25T09:00:00Z'
+        finish_date: '2027-02-19T18:00:00Z'
+        ms_project_uid: WR-2026-001
+        budget: 1500000
+        currency_code: EUR
+        status: active
+        ms_project_guid: 264A1861-0FAB-EF11-934B-F4EE08B24B68
+        created_at: '2026-01-10T10:00:00Z'
+        updated_at: '2026-01-10T10:00:00Z'
+    ProjectCreate:
+      type: object
+      required:
+        - name
+        - start_date
+        - finish_date
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+        code:
+          type: string
+          maxLength: 50
+        title:
+          type: string
+          maxLength: 255
+        start_date:
+          type: string
+          format: date-time
+          description: Must be before finish_date
+        planned_start_date:
+          type: string
+          format: date-time
+          deprecated: true
+          description: Alias for start_date (ERD terminology)
+        finish_date:
+          type: string
+          format: date-time
+          description: Must be after start_date
+        planned_finish_date:
+          type: string
+          format: date-time
+          deprecated: true
+          description: Alias for finish_date (ERD terminology)
+        budget:
+          type: number
+          format: decimal
+          minimum: 0
+        currency_code:
+          type: string
+          maxLength: 3
+          default: EUR
+        status:
+          type: string
+          enum:
+            - active
+            - completed
+            - cancelled
+            - on_hold
+          default: active
+        ms_project_uid:
+          anyOf:
+            - type: string
+            - type: integer
+        ms_project_guid:
+          type: string
+          maxLength: 50
+        ms_project_save_version:
+          type: integer
+        creation_date:
+          type: string
+          format: date-time
+        last_saved_date:
+          type: string
+          format: date-time
+        calendar_uid:
+          type: integer
+        minutes_per_day:
+          type: integer
+          default: 420
+        minutes_per_week:
+          type: integer
+          default: 2100
+        days_per_month:
+          type: integer
+          default: 20
+        week_start_day:
+          type: integer
+          default: 1
+        default_start_time:
+          type: string
+          pattern: ^\d{2}:\d{2}:\d{2}$
+          default: '09:00:00'
+        default_finish_time:
+          type: string
+          pattern: ^\d{2}:\d{2}:\d{2}$
+          default: '18:00:00'
+      example:
+        name: Enterprise Modernization Project 2025
+        code: G.PRJ.12345
+        title: Infrastructure Upgrade
+        start_date: '2024-11-25T09:00:00Z'
+        finish_date: '2027-02-19T18:00:00Z'
+        ms_project_uid: WR-2026-001
+        budget: 1500000
+        currency_code: EUR
+    ProjectUpdate:
+      type: object
+      minProperties: 1
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+        code:
+          type: string
+          maxLength: 50
+        title:
+          type: string
+          maxLength: 255
+        start_date:
+          type: string
+          format: date-time
+        finish_date:
+          type: string
+          format: date-time
+        ms_project_uid:
+          anyOf:
+            - type: string
+            - type: integer
+        budget:
+          type: number
+          format: decimal
+          minimum: 0
+        currency_code:
+          type: string
+          maxLength: 3
+        status:
+          type: string
+          enum:
+            - active
+            - completed
+            - cancelled
+            - on_hold
+        last_saved_date:
+          type: string
+          format: date-time
+    ProjectResponse:
+      type: object
+      required:
+        - data
+      properties:
+        data:
+          $ref: '#/components/schemas/Project'
+        message:
+          type: string
+      example:
+        data:
+          id: a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d
+          company_id: 550e8400-e29b-41d4-a716-446655440000
+          name: Enterprise Modernization Project 2025
+          code: G.PRJ.12345
+          start_date: '2024-11-25T09:00:00Z'
+          finish_date: '2027-02-19T18:00:00Z'
+          budget: 1500000
+          status: active
+          created_at: '2026-01-10T10:00:00Z'
+          updated_at: '2026-01-10T10:00:00Z'
+        message: Project created successfully
+    ProjectList:
+      type: object
+      required:
+        - data
+        - page
+        - per_page
+        - total
+        - total_pages
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Project'
+        page:
+          type: integer
+          minimum: 1
+        per_page:
+          type: integer
+          minimum: 1
+          maximum: 100
+        total:
+          type: integer
+          minimum: 0
+        total_pages:
+          type: integer
+          minimum: 0
+    Task:
+      type: object
+      required:
+        - id
+        - project_id
+        - name
+        - start
+        - finish
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique identifier (UUID v4), auto-generated
+          readOnly: true
+        project_id:
+          type: string
+          format: uuid
+          description: Parent project reference
+        parent_id:
+          anyOf:
+            - type: string
+              format: uuid
+            - type: 'null'
+          description: Parent task for WBS hierarchy (null for top-level tasks)
+        ms_project_guid:
+          type: string
+          maxLength: 50
+          description: MS Project GUID (stable UUID for upsert reconciliation)
+        ms_project_uid:
+          anyOf:
+            - type: integer
+            - type: string
+          description: MS Project UID (reconciliation key)
+        ms_project_id:
+          type: integer
+          description: MS Project ID (display order, changes frequently)
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+          description: Task name
+        wbs:
+          type: string
+          maxLength: 50
+          description: Work Breakdown Structure code (e.g., 5.6, 1.2.3)
+        outline_number:
+          type: string
+          maxLength: 50
+          description: MS Project OutlineNumber (e.g., 5.6)
+        outline_level:
+          type: integer
+          minimum: 0
+          description: Hierarchical level (0=top, 1=child, 2=grandchild...)
+        start:
+          type: string
+          format: date-time
+          description: Task start date/time
+        planned_start_date:
+          type: string
+          format: date-time
+          deprecated: true
+          description: Alias for start (ERD/sync terminology)
+        finish:
+          type: string
+          format: date-time
+          description: Task finish date/time
+        planned_finish_date:
+          type: string
+          format: date-time
+          deprecated: true
+          description: Alias for finish (ERD/sync terminology)
+        duration:
+          type: string
+          description: Task duration in ISO 8601 format (e.g., PT8H0M0S for 8 hours)
+          example: PT8H0M0S
+        work:
+          type: string
+          description: Total work effort (hours) in ISO 8601 format
+          example: PT40H0M0S
+        cost:
+          type: number
+          format: decimal
+          minimum: 0
+          description: Planned task cost
+        fixed_cost:
+          type: number
+          format: decimal
+          default: 0
+          description: Fixed cost not related to resources
+        is_milestone:
+          type: boolean
+          default: false
+          description: True if task is a milestone (zero duration)
+        is_summary:
+          type: boolean
+          default: false
+          description: True if task is a summary (parent) task
+        is_deliverable:
+          type: boolean
+          default: false
+          description: True if task produces a deliverable
+        is_critical:
+          type: boolean
+          default: false
+          description: True if task is on critical path
+        status:
+          type: string
+          enum:
+            - not_started
+            - in_progress
+            - completed
+            - cancelled
+          default: not_started
+          description: Task status
+        percent_complete:
+          type: integer
+          minimum: 0
+          maximum: 100
+          default: 0
+          description: Percentage complete (0-100)
+        percent_work_complete:
+          type: integer
+          minimum: 0
+          maximum: 100
+          default: 0
+          description: Work percentage complete (0-100)
+        early_start:
+          type: string
+          format: date-time
+          description: Earliest possible start (critical path calculation)
+        early_finish:
+          type: string
+          format: date-time
+          description: Earliest possible finish
+        late_start:
+          type: string
+          format: date-time
+          description: Latest allowable start without delaying project
+        late_finish:
+          type: string
+          format: date-time
+          description: Latest allowable finish
+        total_slack:
+          type: integer
+          default: 0
+          description: Total slack/float in minutes
+        free_slack:
+          type: integer
+          default: 0
+          description: Free slack in minutes (delay without affecting successors)
+        manual_scheduling:
+          type: boolean
+          default: false
+          description: True if task uses manual scheduling (MS Project)
+        actual_start:
+          anyOf:
+            - type: string
+              format: date-time
+            - type: 'null'
+          description: Actual start date (when work began)
+        actual_finish:
+          anyOf:
+            - type: string
+              format: date-time
+            - type: 'null'
+          description: Actual finish date (when completed)
+        actual_cost:
+          type: number
+          format: decimal
+          default: 0
+          description: Actual cost incurred (from expenses)
+        actual_work:
+          type: string
+          description: Actual work performed (ISO 8601 duration)
+        remaining_cost:
+          type: number
+          format: decimal
+          description: RAE - Remaining cost to complete (latest value)
+        remaining_work:
+          type: string
+          description: Remaining work to complete (ISO 8601 duration)
+        predecessors:
+          type: array
+          items:
+            type: object
+            required:
+              - predecessor_task_id
+              - type
+            properties:
+              predecessor_task_id:
+                type: string
+                format: uuid
+                description: Predecessor task reference
+              type:
+                type: string
+                enum:
+                  - FS
+                  - SS
+                  - FF
+                  - SF
+                description: |
+                  Relationship type:
+                  - FS: Finish-to-Start (most common)
+                  - SS: Start-to-Start
+                  - FF: Finish-to-Finish
+                  - SF: Start-to-Finish
+              lag:
+                type: integer
+                default: 0
+                description: Lag time in minutes (positive=delay, negative=lead)
+          description: Array of predecessor relationships
+        created_at:
+          type: string
+          format: date-time
+          description: Record creation timestamp
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          description: Record last update timestamp
+          readOnly: true
+      example:
+        id: b2c3d4e5-f6a7-4b5c-9d0e-1f2a3b4c5d6e
+        project_id: a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d
+        parent_id: null
+        ms_project_uid: 42
+        ms_project_id: 39
+        ms_project_guid: 7225FBCF-D0AC-EF11-934C-F4EE08B24B68
+        name: RQF
+        wbs: '5.6'
+        outline_number: '5.6'
+        outline_level: 2
+        start: '2027-01-22T18:00:00Z'
+        finish: '2027-01-22T18:00:00Z'
+        duration: PT0H0M0S
+        work: PT0H0M0S
+        cost: 0
+        is_milestone: true
+        is_critical: true
+        status: not_started
+        percent_complete: 0
+        created_at: '2026-01-10T10:00:00Z'
+        updated_at: '2026-01-10T10:00:00Z'
+    TaskCreate:
+      type: object
+      required:
+        - name
+        - start
+        - finish
+      properties:
+        parent_id:
+          type: string
+          format: uuid
+          description: Parent task for WBS hierarchy
+        ms_project_uid:
+          anyOf:
+            - type: integer
+            - type: string
+        ms_project_id:
+          type: integer
+        ms_project_guid:
+          type: string
+          maxLength: 50
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+        wbs:
+          type: string
+          maxLength: 50
+        outline_number:
+          type: string
+          maxLength: 50
+        outline_level:
+          type: integer
+          minimum: 0
+        start:
+          type: string
+          format: date-time
+        planned_start_date:
+          type: string
+          format: date-time
+          deprecated: true
+          description: Alias for start (ERD/sync terminology)
+        finish:
+          type: string
+          format: date-time
+        planned_finish_date:
+          type: string
+          format: date-time
+          deprecated: true
+          description: Alias for finish (ERD/sync terminology)
+        duration:
+          type: string
+        work:
+          type: string
+        cost:
+          type: number
+          format: decimal
+          minimum: 0
+        fixed_cost:
+          type: number
+          format: decimal
+          default: 0
+        is_milestone:
+          type: boolean
+          default: false
+        is_summary:
+          type: boolean
+          default: false
+        is_deliverable:
+          type: boolean
+          default: false
+        status:
+          type: string
+          enum:
+            - not_started
+            - in_progress
+            - completed
+            - cancelled
+          default: not_started
+        percent_complete:
+          type: integer
+          minimum: 0
+          maximum: 100
+          default: 0
+        manual_scheduling:
+          type: boolean
+          default: false
+        predecessors:
+          type: array
+          items:
+            type: object
+            properties:
+              predecessor_task_id:
+                type: string
+                format: uuid
+              type:
+                type: string
+                enum:
+                  - FS
+                  - SS
+                  - FF
+                  - SF
+              lag:
+                type: integer
+    TaskUpdate:
+      type: object
+      minProperties: 1
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+        ms_project_uid:
+          anyOf:
+            - type: integer
+            - type: string
+        start:
+          type: string
+          format: date-time
+        planned_start_date:
+          type: string
+          format: date-time
+          deprecated: true
+          description: Alias for start (ERD/sync terminology)
+        finish:
+          type: string
+          format: date-time
+        planned_finish_date:
+          type: string
+          format: date-time
+          deprecated: true
+          description: Alias for finish (ERD/sync terminology)
+        status:
+          type: string
+          enum:
+            - not_started
+            - in_progress
+            - completed
+            - cancelled
+        percent_complete:
+          type: integer
+          minimum: 0
+          maximum: 100
+        actual_start:
+          type: string
+          format: date-time
+        actual_finish:
+          type: string
+          format: date-time
+        remaining_cost:
+          type: number
+          format: decimal
+        predecessors:
+          type: array
+          items:
+            type: object
+    TaskResponse:
+      type: object
+      required:
+        - data
+      properties:
+        data:
+          $ref: '#/components/schemas/Task'
+        message:
+          type: string
+    TaskList:
+      type: object
+      required:
+        - data
+        - page
+        - per_page
+        - total
+        - total_pages
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Task'
+        page:
+          type: integer
+          minimum: 1
+        per_page:
+          type: integer
+          minimum: 1
+          maximum: 100
+        total:
+          type: integer
+          minimum: 0
+        total_pages:
+          type: integer
+          minimum: 0
+    TaskBulkCreate:
+      type: object
+      required:
+        - tasks
+      properties:
+        tasks:
+          type: array
+          items:
+            $ref: '#/components/schemas/TaskCreate'
+          minItems: 1
+          maxItems: 500
+      example:
+        tasks:
+          - name: Requirements Analysis
+            start: '2026-02-01T09:00:00Z'
+            finish: '2026-02-15T18:00:00Z'
+            wbs: '1.1'
+          - name: Design Phase
+            start: '2026-02-16T09:00:00Z'
+            finish: '2026-03-15T18:00:00Z'
+            wbs: '1.2'
+    TaskSync:
+      type: object
+      required:
+        - tasks
+      properties:
+        tasks:
+          type: array
+          items:
+            type: object
+            required:
+              - ms_project_uid
+            properties:
+              ms_project_uid:
+                anyOf:
+                  - type: integer
+                  - type: string
+                description: Reconciliation key (MS Project UID)
+              name:
+                type: string
+              planned_start_date:
+                type: string
+                format: date-time
+                description: Planned start date (preferred field name)
+              planned_finish_date:
+                type: string
+                format: date-time
+                description: Planned finish date (preferred field name)
+              start:
+                type: string
+                format: date-time
+                deprecated: true
+                description: Legacy alias for planned_start_date
+              finish:
+                type: string
+                format: date-time
+                deprecated: true
+                description: Legacy alias for planned_finish_date
+              duration:
+                anyOf:
+                  - type: integer
+                  - type: string
+                description: Duration (days as integer, or ISO 8601 duration string)
+              predecessors:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    predecessor_ms_project_uid:
+                      anyOf:
+                        - type: integer
+                        - type: string
+                      description: Legacy alias for predecessor_task_uid
+                    predecessor_task_uid:
+                      anyOf:
+                        - type: integer
+                        - type: string
+                      description: Predecessor task UID from MS Project
+                    type:
+                      type: string
+                      enum:
+                        - FS
+                        - SS
+                        - FF
+                        - SF
+                    lag:
+                      type: integer
+    Milestone:
+      type: object
+      required:
+        - id
+        - project_id
+        - name
+        - target_date
+        - budget_weight
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique identifier (auto-generated)
+          readOnly: true
+        project_id:
+          type: string
+          format: uuid
+          description: Parent project reference
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+          description: Milestone name
+          example: RQF - Requirements Qualification Review
+        description:
+          anyOf:
+            - type: string
+            - type: 'null'
+          maxLength: 1000
+          description: Milestone description
+          example: Formal review of requirements specification
+        target_date:
+          type: string
+          format: date-time
+          description: Target completion date - Auto-calculated as MAX(predecessor_tasks.planned_finish_date) if tasks linked
+          example: '2027-01-22T18:00:00Z'
+        actual_date:
+          anyOf:
+            - type: string
+              format: date-time
+            - type: 'null'
+          description: Actual completion date (null if not achieved)
+        status:
+          type: string
+          enum:
+            - upcoming
+            - achieved
+            - missed
+          default: upcoming
+          description: Milestone status (auto-updated based on actual_date vs target_date)
+          example: upcoming
+        budget_weight:
+          type: number
+          format: double
+          minimum: 0
+          maximum: 1
+          description: Weight for EV milestone calculation (sum across project must equal 1.0)
+          example: 0.15
+        is_achieved:
+          type: boolean
+          default: false
+          description: True if milestone has been achieved
+        achieved_date:
+          anyOf:
+            - type: string
+              format: date-time
+            - type: 'null'
+          description: Date when milestone was achieved (for EV milestone method)
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+    MilestoneCreate:
+      type: object
+      required:
+        - name
+        - target_date
+        - budget_weight
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+          example: RQF - Requirements Qualification Review
+        description:
+          type: string
+          maxLength: 1000
+          example: Formal review of requirements specification
+        target_date:
+          type: string
+          format: date-time
+          example: '2027-01-22T18:00:00Z'
+        budget_weight:
+          type: number
+          format: double
+          minimum: 0
+          maximum: 1
+          example: 0.15
+    MilestoneUpdate:
+      type: object
+      minProperties: 1
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+        description:
+          anyOf:
+            - type: string
+            - type: 'null'
+          maxLength: 1000
+        target_date:
+          type: string
+          format: date-time
+        actual_date:
+          anyOf:
+            - type: string
+              format: date-time
+            - type: 'null'
+        budget_weight:
+          type: number
+          format: double
+          minimum: 0
+          maximum: 1
+        is_achieved:
+          type: boolean
+        achieved_date:
+          anyOf:
+            - type: string
+              format: date-time
+            - type: 'null'
+    MilestoneResponse:
+      type: object
+      properties:
+        data:
+          $ref: '#/components/schemas/Milestone'
+        message:
+          type: string
+          example: Milestone created successfully
+    MilestoneList:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Milestone'
+        page:
+          type: integer
+          example: 1
+        per_page:
+          type: integer
+          example: 20
+        total:
+          type: integer
+          example: 8
+        total_pages:
+          type: integer
+          example: 1
+    HealthStatusCheck:
+      type: object
+      required:
+        - status
+        - response_time_ms
+      properties:
+        status:
+          type: string
+          enum:
+            - ok
+            - error
+        response_time_ms:
+          type: integer
+          minimum: 0
+        error:
+          type: string
+          description: Error details when status=error
+    HealthResponse:
+      type: object
+      required:
+        - status
+        - timestamp
+        - checks
+      properties:
+        status:
+          type: string
+          enum:
+            - ok
+            - degraded
+        timestamp:
+          type: string
+          format: date-time
+        checks:
+          type: object
+          required:
+            - database
+          properties:
+            database:
+              $ref: '#/components/schemas/HealthStatusCheck'
+    HealthErrorResponse:
+      type: object
+      required:
+        - status
+        - timestamp
+        - error
+      properties:
+        status:
+          type: string
+          enum:
+            - error
+        timestamp:
+          type: string
+          format: date-time
+        error:
+          type: string
+    ReadyResponse:
+      type: object
+      required:
+        - status
+        - timestamp
+        - checks
+      properties:
+        status:
+          type: string
+          enum:
+            - ready
+        timestamp:
+          type: string
+          format: date-time
+        checks:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/HealthStatusCheck'
+    NotReadyResponse:
+      type: object
+      required:
+        - status
+        - timestamp
+        - checks
+      properties:
+        status:
+          type: string
+          enum:
+            - not_ready
+        timestamp:
+          type: string
+          format: date-time
+        checks:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/HealthStatusCheck'
+    VersionResponse:
+      type: object
+      required:
+        - version
+        - git_commit
+        - build_date
+        - environment
+      properties:
+        version:
+          type: string
+        git_commit:
+          type: string
+        build_date:
+          type: string
+          format: date-time
+        environment:
+          type: string
+    VersionErrorResponse:
+      type: object
+      required:
+        - error
+        - timestamp
+      properties:
+        error:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+    Resource:
+      type: object
+      required:
+        - id
+        - company_id
+        - name
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique identifier (auto-generated)
+          readOnly: true
+        company_id:
+          type: string
+          format: uuid
+          description: Tenant identifier (multi-tenant isolation, from JWT)
+          readOnly: true
+        ms_project_uid:
+          anyOf:
+            - type: integer
+            - type: string
+            - type: 'null'
+          description: MS Project resource UID
+          example: 1
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+          description: Resource name
+          example: Jean Dupont
+        type:
+          type: string
+          enum:
+            - labor
+            - material
+            - cost
+          default: labor
+          description: Resource type (labor=personnel, material=equipment, cost=fixed)
+          example: labor
+        standard_rate:
+          type: number
+          format: double
+          minimum: 0
+          default: 0
+          description: Standard hourly rate for labor resources
+          example: 85
+        overtime_rate:
+          type: number
+          format: double
+          minimum: 0
+          default: 0
+          description: Overtime hourly rate
+          example: 127.5
+        email:
+          anyOf:
+            - type: string
+              format: email
+            - type: 'null'
+          maxLength: 255
+          description: Resource email address
+          example: jean.dupont@example.com
+        is_active:
+          type: boolean
+          default: true
+          description: True if resource is currently active/available
+          example: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+    ResourceCreate:
+      type: object
+      required:
+        - name
+      properties:
+        ms_project_uid:
+          anyOf:
+            - type: integer
+            - type: string
+          example: 1
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+          example: Jean Dupont
+        type:
+          type: string
+          enum:
+            - labor
+            - material
+            - cost
+          default: labor
+          example: labor
+        standard_rate:
+          type: number
+          format: double
+          minimum: 0
+          example: 85
+        overtime_rate:
+          type: number
+          format: double
+          minimum: 0
+          example: 127.5
+        email:
+          type: string
+          format: email
+          maxLength: 255
+          example: jean.dupont@example.com
+        is_active:
+          type: boolean
+          default: true
+          example: true
+    ResourceUpdate:
+      type: object
+      minProperties: 1
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+        standard_rate:
+          type: number
+          format: double
+          minimum: 0
+        overtime_rate:
+          type: number
+          format: double
+          minimum: 0
+        email:
+          anyOf:
+            - type: string
+              format: email
+            - type: 'null'
+          maxLength: 255
+        is_active:
+          type: boolean
+    ResourceResponse:
+      type: object
+      properties:
+        data:
+          $ref: '#/components/schemas/Resource'
+        message:
+          type: string
+          example: Resource created successfully
+    ResourceList:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Resource'
+        page:
+          type: integer
+          example: 1
+        per_page:
+          type: integer
+          example: 20
+        total:
+          type: integer
+          example: 45
+        total_pages:
+          type: integer
+          example: 3
+    Assignment:
+      type: object
+      required:
+        - id
+        - project_id
+        - task_id
+        - resource_id
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+          description: Unique identifier (UUID v4), auto-generated
+        project_id:
+          type: string
+          format: uuid
+          readOnly: true
+          description: Parent project reference
+        task_id:
+          type: string
+          format: uuid
+          description: Assigned task reference
+        resource_id:
+          type: string
+          format: uuid
+          description: Assigned resource reference
+        ms_project_uid:
+          anyOf:
+            - type: integer
+            - type: 'null'
+          description: MS Project assignment UID (unstable, for display only)
+        work_hours:
+          anyOf:
+            - type: string
+              format: duration
+              pattern: ^PT\d+H\d+M\d+S$
+            - type: 'null'
+          description: Planned work hours for this assignment
+          example: PT40H0M0S
+        percent_allocation:
+          type: integer
+          minimum: 0
+          maximum: 100
+          default: 100
+          description: Resource allocation percentage (100 = full-time on this task)
+        cost:
+          anyOf:
+            - type: number
+              format: double
+              minimum: 0
+            - type: 'null'
+          description: Planned cost for this assignment (calculated from work_hours × rate)
+          example: 3400
+        actual_work:
+          anyOf:
+            - type: string
+              format: duration
+              pattern: ^PT\d+H\d+M\d+S$
+            - type: 'null'
+          description: Actual work performed
+          example: PT32H0M0S
+        actual_cost:
+          type: number
+          format: double
+          minimum: 0
+          default: 0
+          description: Actual cost incurred
+          example: 2720
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+          description: Record creation timestamp
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+          description: Record last update timestamp
+    AssignmentCreate:
+      type: object
+      required:
+        - task_id
+        - resource_id
+      properties:
+        task_id:
+          type: string
+          format: uuid
+          description: Assigned task reference
+        resource_id:
+          type: string
+          format: uuid
+          description: Assigned resource reference
+        ms_project_uid:
+          anyOf:
+            - type: integer
+            - type: 'null'
+          description: MS Project assignment UID
+        work_hours:
+          anyOf:
+            - type: string
+              format: duration
+              pattern: ^PT\d+H\d+M\d+S$
+            - type: 'null'
+          description: Planned work hours
+          example: PT40H0M0S
+        percent_allocation:
+          type: integer
+          minimum: 0
+          maximum: 100
+          default: 100
+          description: Resource allocation percentage
+        cost:
+          anyOf:
+            - type: number
+              format: double
+              minimum: 0
+            - type: 'null'
+          description: Planned cost (auto-calculated if omitted)
+    AssignmentUpdate:
+      type: object
+      minProperties: 1
+      properties:
+        work_hours:
+          anyOf:
+            - type: string
+              format: duration
+              pattern: ^PT\d+H\d+M\d+S$
+            - type: 'null'
+          description: Planned work hours
+        percent_allocation:
+          type: integer
+          minimum: 0
+          maximum: 100
+          description: Resource allocation percentage
+        cost:
+          anyOf:
+            - type: number
+              format: double
+              minimum: 0
+            - type: 'null'
+          description: Planned cost
+        actual_work:
+          anyOf:
+            - type: string
+              format: duration
+              pattern: ^PT\d+H\d+M\d+S$
+            - type: 'null'
+          description: Actual work performed
+        actual_cost:
+          type: number
+          format: double
+          minimum: 0
+          description: Actual cost incurred
+    AssignmentResponse:
+      type: object
+      required:
+        - data
+      properties:
+        data:
+          $ref: '#/components/schemas/Assignment'
+        message:
+          type: string
+          description: Optional success message
+          example: Assignment created successfully
+    AssignmentList:
+      type: object
+      required:
+        - data
+        - page
+        - per_page
+        - total
+        - total_pages
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Assignment'
+        page:
+          type: integer
+          minimum: 1
+          description: Current page number
+        per_page:
+          type: integer
+          minimum: 1
+          maximum: 100
+          description: Items per page
+        total:
+          type: integer
+          minimum: 0
+          description: Total number of assignments
+        total_pages:
+          type: integer
+          minimum: 0
+          description: Total number of pages
+    Expense:
+      type: object
+      required:
+        - id
+        - project_id
+        - date
+        - amount
+        - category
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+          description: Unique identifier (UUID v4), auto-generated
+        project_id:
+          type: string
+          format: uuid
+          readOnly: true
+          description: Parent project reference
+        milestone_id:
+          anyOf:
+            - type: string
+              format: uuid
+            - type: 'null'
+          description: Allocated milestone (auto-assigned based on expense date falling between milestone target dates)
+        resource_id:
+          anyOf:
+            - type: string
+              format: uuid
+            - type: 'null'
+          description: Associated resource (for labor expenses)
+        date:
+          type: string
+          format: date-time
+          description: Expense date (Date de la pièce from ERP)
+        amount:
+          type: number
+          format: double
+          minimum: 0
+          description: Expense amount
+          example: 3820
+        category:
+          type: string
+          enum:
+            - labor
+            - procurement
+            - subcontracting
+            - overhead
+          description: Expense category (labor=MO, procurement=Achat, subcontracting=ST, overhead=Frais)
+        description:
+          type: string
+          maxLength: 500
+          description: Expense description
+        reference_number:
+          type: string
+          maxLength: 50
+          description: ERP reference number (Nº pièce référence)
+        purchase_document:
+          type: string
+          maxLength: 50
+          description: Document d'achat from ERP
+        fiscal_year:
+          type: integer
+          description: Exercice comptable from ERP
+          example: 2025
+        period:
+          type: integer
+          minimum: 1
+          maximum: 12
+          description: Période from ERP (month)
+          example: 5
+        otp_element:
+          type: string
+          maxLength: 50
+          description: Elément d'OTP from ERP (project code)
+          example: G.PRJ.12345/13984
+        accounting_nature:
+          type: string
+          maxLength: 50
+          description: Nature comptable from ERP
+          example: '60510000'
+        vendor_name:
+          type: string
+          maxLength: 255
+          description: Nom 1 from ERP (vendor or resource name)
+          example: ARELIS
+        origin_group:
+          type: string
+          maxLength: 50
+          description: Groupe d'origine from ERP
+          example: STOR
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+          description: Record creation timestamp
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+          description: Record last update timestamp
+    ExpenseCreate:
+      type: object
+      required:
+        - date
+        - amount
+        - category
+      properties:
+        resource_id:
+          anyOf:
+            - type: string
+              format: uuid
+            - type: 'null'
+          description: Associated resource (for labor expenses)
+        date:
+          type: string
+          format: date-time
+          description: Expense date (must fall between project milestone dates)
+        amount:
+          type: number
+          format: double
+          minimum: 0
+          description: Expense amount
+        category:
+          type: string
+          enum:
+            - labor
+            - procurement
+            - subcontracting
+            - overhead
+          description: Expense category
+        description:
+          type: string
+          maxLength: 500
+          description: Expense description
+        reference_number:
+          type: string
+          maxLength: 50
+          description: ERP reference number
+        purchase_document:
+          type: string
+          maxLength: 50
+          description: Document d'achat from ERP
+        fiscal_year:
+          type: integer
+          description: Exercice comptable
+        period:
+          type: integer
+          minimum: 1
+          maximum: 12
+          description: Période (month)
+        otp_element:
+          type: string
+          maxLength: 50
+          description: Elément d'OTP (project code)
+        accounting_nature:
+          type: string
+          maxLength: 50
+          description: Nature comptable
+        vendor_name:
+          type: string
+          maxLength: 255
+          description: Vendor or resource name
+        origin_group:
+          type: string
+          maxLength: 50
+          description: Groupe d'origine
+    ExpenseUpdate:
+      type: object
+      minProperties: 1
+      properties:
+        date:
+          type: string
+          format: date-time
+          description: Expense date (updating may trigger milestone_id reassignment)
+        amount:
+          type: number
+          format: double
+          minimum: 0
+          description: Expense amount
+        category:
+          type: string
+          enum:
+            - labor
+            - procurement
+            - subcontracting
+            - overhead
+          description: Expense category
+        description:
+          type: string
+          maxLength: 500
+          description: Expense description
+    ExpenseBulkCreate:
+      type: object
+      required:
+        - expenses
+      properties:
+        expenses:
+          type: array
+          items:
+            $ref: '#/components/schemas/ExpenseCreate'
+          minItems: 1
+          maxItems: 1000
+          description: Array of expenses to create (max 1000 for ERP imports)
+    ExpenseBulkResponse:
+      type: object
+      required:
+        - data
+        - message
+      properties:
+        data:
+          type: object
+          required:
+            - created_count
+            - failed_count
+          properties:
+            created_count:
+              type: integer
+              minimum: 0
+              description: Number of expenses successfully created
+            failed_count:
+              type: integer
+              minimum: 0
+              description: Number of expenses that failed validation
+            expenses:
+              type: array
+              items:
+                $ref: '#/components/schemas/Expense'
+              description: Successfully created expenses
+            errors:
+              type: array
+              items:
+                type: object
+                properties:
+                  index:
+                    type: integer
+                    description: Array index of failed expense
+                  error:
+                    type: string
+                    description: Error message
+              description: Validation errors for failed expenses
+        message:
+          type: string
+          description: Summary message
+          example: 250 expenses created, 3 failed
+    ExpenseResponse:
+      type: object
+      required:
+        - data
+      properties:
+        data:
+          $ref: '#/components/schemas/Expense'
+        message:
+          type: string
+          description: Optional success message
+          example: Expense created successfully
+    ExpenseList:
+      type: object
+      required:
+        - data
+        - page
+        - per_page
+        - total
+        - total_pages
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Expense'
+        page:
+          type: integer
+          minimum: 1
+          description: Current page number
+        per_page:
+          type: integer
+          minimum: 1
+          maximum: 100
+          description: Items per page
+        total:
+          type: integer
+          minimum: 0
+          description: Total number of expenses
+        total_pages:
+          type: integer
+          minimum: 0
+          description: Total number of pages
+    RAE:
+      type: object
+      required:
+        - id
+        - milestone_id
+        - date
+        - amount
+        - updated_by
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+          description: Unique identifier (UUID v4), auto-generated
+        milestone_id:
+          type: string
+          format: uuid
+          readOnly: true
+          description: Reference to the milestone
+        date:
+          type: string
+          format: date-time
+          description: Date of RAE measurement (typically month-end)
+        amount:
+          type: number
+          format: double
+          minimum: 0
+          description: Estimated remaining cost to complete the milestone
+          example: 75000
+        comment:
+          anyOf:
+            - type: string
+              maxLength: 500
+            - type: 'null'
+          description: Optional explanation for this RAE estimate
+        details:
+          anyOf:
+            - type: object
+              properties:
+                task_estimates:
+                  type: array
+                  items:
+                    type: object
+                    required:
+                      - task_id
+                      - task_name
+                      - status
+                      - budget
+                      - estimate_to_complete
+                    properties:
+                      task_id:
+                        type: string
+                        format: uuid
+                      task_name:
+                        type: string
+                      status:
+                        type: string
+                        enum:
+                          - not_started
+                          - in_progress
+                          - completed
+                      budget:
+                        type: number
+                        format: double
+                      estimate_to_complete:
+                        type: number
+                        format: double
+            - type: 'null'
+          description: Optional task-level breakdown used for bottom-up calculation
+        updated_by:
+          type: string
+          format: uuid
+          readOnly: true
+          description: User ID who recorded this RAE (from JWT claims)
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+          description: Record creation timestamp
+    RAECreate:
+      type: object
+      required:
+        - date
+        - amount
+      properties:
+        date:
+          type: string
+          format: date-time
+          description: Date of RAE measurement (typically month-end)
+        amount:
+          type: number
+          format: double
+          minimum: 0
+          description: Estimated remaining cost
+        comment:
+          type: string
+          maxLength: 500
+          description: Optional explanation
+        details:
+          type: object
+          properties:
+            task_estimates:
+              type: array
+              items:
+                type: object
+                required:
+                  - task_id
+                  - task_name
+                  - remaining_cost
+                properties:
+                  task_id:
+                    type: string
+                    format: uuid
+                  task_name:
+                    type: string
+                  remaining_cost:
+                    type: number
+                    format: double
+                  comment:
+                    type: string
+    RAEResponse:
+      type: object
+      required:
+        - data
+      properties:
+        data:
+          $ref: '#/components/schemas/RAE'
+        message:
+          type: string
+          description: Optional success message
+          example: RAE updated successfully
+    RAEHistory:
+      type: object
+      required:
+        - data
+        - page
+        - per_page
+        - total
+        - total_pages
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/RAE'
+        page:
+          type: integer
+          minimum: 1
+          description: Current page number
+        per_page:
+          type: integer
+          minimum: 1
+          maximum: 100
+          description: Items per page
+        total:
+          type: integer
+          minimum: 0
+          description: Total number of RAE records
+        total_pages:
+          type: integer
+          minimum: 0
+          description: Total number of pages
+    RAESummary:
+      type: object
+      required:
+        - data
+      properties:
+        data:
+          type: object
+          required:
+            - project_id
+            - as_of_date
+            - total_rae
+            - milestones
+          properties:
+            project_id:
+              type: string
+              format: uuid
+            as_of_date:
+              type: string
+              format: date-time
+              description: Date for which RAE values are retrieved
+            total_rae:
+              type: number
+              format: double
+              description: Sum of RAE across all milestones
+              example: 170000
+            milestones:
+              type: array
+              items:
+                type: object
+                required:
+                  - milestone_id
+                  - name
+                  - budget_weight
+                  - rae
+                  - achieved
+                properties:
+                  milestone_id:
+                    type: string
+                    format: uuid
+                  name:
+                    type: string
+                    example: Phase 1 Complete
+                  budget_weight:
+                    type: number
+                    format: double
+                    minimum: 0
+                    maximum: 1
+                    description: Milestone budget weight (sum must = 1.0)
+                    example: 0.28
+                  rae:
+                    type: number
+                    format: double
+                    description: Current RAE for this milestone
+                    example: 15000
+                  rae_date:
+                    type: string
+                    format: date-time
+                    description: Date of last RAE update
+                  achieved:
+                    type: boolean
+                    description: Whether milestone is completed
+                  comment:
+                    type: string
+                    description: Latest RAE comment
+                    example: Backend delay
+    EVMIndicators:
+      type: object
+      properties:
+        project_id:
+          type: string
+          format: uuid
+        as_of_date:
+          type: string
+          format: date-time
+          description: Date for which EVM indicators are calculated
+        bac:
+          type: number
+          format: double
+          description: Budget At Completion
+        pv:
+          type: number
+          format: double
+          description: Planned Value / BCWS
+        ac:
+          type: number
+          format: double
+          description: Actual Cost / ACWP
+        ev_physical:
+          type: number
+          format: double
+          description: Earned Value (physical progress method - RAE-based)
+        ev_milestone:
+          type: number
+          format: double
+          description: Earned Value (milestone completion method)
+        cv_physical:
+          type: number
+          format: double
+          description: Cost Variance (EV - AC) using physical method
+        sv_physical:
+          type: number
+          format: double
+          description: Schedule Variance (EV - PV) using physical method
+        cpi_physical:
+          type: number
+          format: double
+          description: Cost Performance Index (EV / AC) using physical method
+        spi_physical:
+          type: number
+          format: double
+          description: Schedule Performance Index (EV / PV) using physical method
+        eac_cpi_physical:
+          type: number
+          format: double
+          description: Estimate At Completion using CPI method (BAC / CPI)
+        etc_physical:
+          type: number
+          format: double
+          description: Estimate To Complete (EAC - AC)
+        vac_physical:
+          type: number
+          format: double
+          description: Variance At Completion (BAC - EAC)
+    EVMTimeSeries:
+      type: object
+      properties:
+        project_id:
+          type: string
+          format: uuid
+        start_date:
+          type: string
+          format: date-time
+        end_date:
+          type: string
+          format: date-time
+        granularity:
+          type: string
+          enum:
+            - monthly
+            - quarterly
+            - yearly
+        data:
+          type: object
+          description: ECharts-compatible time series data
+          properties:
+            dates:
+              type: array
+              items:
+                type: string
+                format: date
+              description: Date labels (YYYY-MM-DD)
+            pv:
+              type: array
+              items:
+                type: number
+              description: Planned Value over time
+            ac:
+              type: array
+              items:
+                type: number
+              description: Actual Cost over time
+            ev:
+              type: array
+              items:
+                type: number
+              description: Earned Value over time
+    EVMForecasts:
+      type: object
+      properties:
+        project_id:
+          type: string
+          format: uuid
+        as_of_date:
+          type: string
+          format: date-time
+        bac:
+          type: number
+          format: double
+        ac:
+          type: number
+          format: double
+        forecasts:
+          type: object
+          description: Multiple EAC calculation methods
+          properties:
+            cpi_method:
+              type: object
+              properties:
+                eac:
+                  type: number
+                  format: double
+                  description: EAC = BAC / CPI
+                etc:
+                  type: number
+                  format: double
+                  description: ETC = EAC - AC
+                vac:
+                  type: number
+                  format: double
+                  description: VAC = BAC - EAC
+            cpi_spi_method:
+              type: object
+              properties:
+                eac:
+                  type: number
+                  format: double
+                  description: EAC = AC + (BAC - EV) / (CPI × SPI)
+                etc:
+                  type: number
+                  format: double
+                vac:
+                  type: number
+                  format: double
+            plan_based:
+              type: object
+              properties:
+                eac:
+                  type: number
+                  format: double
+                  description: EAC = AC + Remaining_PV
+                etc:
+                  type: number
+                  format: double
+                vac:
+                  type: number
+                  format: double
+    ExpenseBreakdown:
+      type: object
+      required:
+        - data
+      properties:
+        data:
+          type: object
+          required:
+            - project_id
+            - total_expenses
+            - breakdown
+          properties:
+            project_id:
+              type: string
+              format: uuid
+            start_date:
+              type: string
+              format: date-time
+            end_date:
+              type: string
+              format: date-time
+            total_expenses:
+              type: number
+              format: double
+              description: Total expenses across all categories
+            breakdown:
+              type: array
+              items:
+                type: object
+                required:
+                  - category
+                  - amount
+                  - percentage
+                properties:
+                  category:
+                    type: string
+                    enum:
+                      - labor
+                      - procurement
+                      - subcontracting
+                      - overhead
+                  amount:
+                    type: number
+                    format: double
+                  percentage:
+                    type: number
+                    format: double
+                  count:
+                    type: integer
+                    description: Number of expense records
+    LaborByResource:
+      type: object
+      required:
+        - data
+      properties:
+        data:
+          type: object
+          required:
+            - project_id
+            - total_labor_cost
+            - resource_count
+            - breakdown
+          properties:
+            project_id:
+              type: string
+              format: uuid
+            total_labor_cost:
+              type: number
+              format: double
+              description: Total labor cost across all resources
+              example: 450000
+            resource_count:
+              type: integer
+              minimum: 0
+              description: Total number of resources
+              example: 25
+            breakdown:
+              type: array
+              items:
+                type: object
+                required:
+                  - resource_id
+                  - resource_name
+                  - amount
+                  - percentage
+                properties:
+                  resource_id:
+                    type: string
+                    format: uuid
+                  resource_name:
+                    type: string
+                    example: Jean Dupont
+                  amount:
+                    type: number
+                    format: double
+                    description: Total labor cost for this resource
+                    example: 85000
+                  percentage:
+                    type: number
+                    format: double
+                    description: Percentage of total labor cost
+                    example: 18.89
+                  hours:
+                    type: number
+                    format: double
+                    description: Total hours worked
+                    example: 1000
+                  average_rate:
+                    type: number
+                    format: double
+                    description: Average hourly rate
+                    example: 85
+            echarts_format:
+              type: object
+              description: ECharts-compatible bar chart configuration
+              properties:
+                xAxis:
+                  type: object
+                  properties:
+                    type:
+                      type: string
+                      enum:
+                        - category
+                    data:
+                      type: array
+                      items:
+                        type: string
+                      description: Resource names
+                      example:
+                        - Jean Dupont
+                        - Marie Martin
+                        - Pierre Bernard
+                yAxis:
+                  type: object
+                  properties:
+                    type:
+                      type: string
+                      enum:
+                        - value
+                    name:
+                      type: string
+                      example: Cost (€)
+                series:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      name:
+                        type: string
+                        example: Labor Cost
+                      type:
+                        type: string
+                        enum:
+                          - bar
+                      data:
+                        type: array
+                        items:
+                          type: number
+                        example:
+                          - 85000
+                          - 72000
+                          - 65000
+    MonthlyExpenses:
+      type: object
+      required:
+        - data
+      properties:
+        data:
+          type: object
+          required:
+            - project_id
+            - monthly_data
+          properties:
+            project_id:
+              type: string
+              format: uuid
+            start_date:
+              type: string
+              format: date-time
+              description: Start date of the period
+            end_date:
+              type: string
+              format: date-time
+              description: End date of the period
+            cumulative:
+              type: boolean
+              default: false
+              description: Whether values are cumulative or period-based
+            monthly_data:
+              type: array
+              items:
+                type: object
+                required:
+                  - month
+                  - total
+                properties:
+                  month:
+                    type: string
+                    pattern: ^\d{4}-\d{2}$
+                    description: Month in YYYY-MM format
+                    example: 2024-11
+                  total:
+                    type: number
+                    format: double
+                    description: Total expenses for the month
+                    example: 48000
+                  labor:
+                    type: number
+                    format: double
+                    description: Labor expenses
+                    example: 25000
+                  subcontracting:
+                    type: number
+                    format: double
+                    description: Subcontracting expenses
+                    example: 15000
+                  procurement:
+                    type: number
+                    format: double
+                    description: Procurement expenses
+                    example: 6000
+                  overhead:
+                    type: number
+                    format: double
+                    description: Overhead expenses
+                    example: 2000
+            echarts_format:
+              type: object
+              description: ECharts-compatible stacked bar chart configuration
+              properties:
+                xAxis:
+                  type: object
+                  properties:
+                    type:
+                      type: string
+                      enum:
+                        - category
+                    data:
+                      type: array
+                      items:
+                        type: string
+                      description: Months in YYYY-MM format
+                      example:
+                        - 2024-11
+                        - 2024-12
+                        - 2025-01
+                yAxis:
+                  type: object
+                  properties:
+                    type:
+                      type: string
+                      enum:
+                        - value
+                    name:
+                      type: string
+                      example: Expenses (€)
+                series:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      name:
+                        type: string
+                        enum:
+                          - Labor
+                          - Subcontracting
+                          - Procurement
+                          - Overhead
+                      type:
+                        type: string
+                        enum:
+                          - bar
+                          - line
+                      stack:
+                        type: string
+                        example: total
+                      data:
+                        type: array
+                        items:
+                          type: number
+                        example:
+                          - 25000
+                          - 42000
+                          - 45000
+    ProgressUpdateEntry:
+      type: object
+      required:
+        - task_id
+        - percent_complete
+      properties:
+        task_id:
+          type: string
+          format: uuid
+          description: Task identifier to update
+        percent_complete:
+          type: integer
+          minimum: 0
+          maximum: 100
+          description: Progress percentage (0-100)
+        comment:
+          type: string
+          maxLength: 255
+          description: Optional progress comment
+    ProgressUpdateRequest:
+      type: object
+      required:
+        - date
+        - updates
+      properties:
+        date:
+          type: string
+          format: date-time
+          description: Progress reporting date (supports backdated entries)
+        updates:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/ProgressUpdateEntry'
+          description: List of task progress updates
+    ProgressUpdateResultItem:
+      type: object
+      required:
+        - task_id
+        - task_name
+        - previous_percent_complete
+        - new_percent_complete
+        - status_changed
+      properties:
+        task_id:
+          type: string
+          format: uuid
+          description: Updated task identifier
+        task_name:
+          type: string
+          description: Task name
+        previous_percent_complete:
+          type: integer
+          minimum: 0
+          maximum: 100
+          description: Percent complete before update
+        new_percent_complete:
+          type: integer
+          minimum: 0
+          maximum: 100
+          description: Percent complete after update
+        status_changed:
+          type: boolean
+          description: Indicates if status changed based on percent_complete
+        new_status:
+          type: string
+          enum:
+            - not_started
+            - in_progress
+            - completed
+            - cancelled
+          description: New status when status_changed is true
+    ProgressUpdateError:
+      type: object
+      required:
+        - task_id
+        - error
+      properties:
+        task_id:
+          type: string
+          format: uuid
+          description: Task that failed to update
+        error:
+          type: string
+          description: Reason for failure
+    ProgressUpdateData:
+      type: object
+      required:
+        - project_id
+        - date
+        - updated_count
+        - failed_count
+      properties:
+        project_id:
+          type: string
+          format: uuid
+          description: Project identifier
+        date:
+          type: string
+          format: date-time
+          description: Progress reporting date
+        updated_count:
+          type: integer
+          minimum: 0
+          description: Number of successful updates
+        failed_count:
+          type: integer
+          minimum: 0
+          description: Number of failed updates
+        updates:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProgressUpdateResultItem'
+          description: Details for successful updates
+        errors:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProgressUpdateError'
+          description: Errors for failed updates
+    ProgressUpdateResponse:
+      type: object
+      required:
+        - data
+      properties:
+        data:
+          $ref: '#/components/schemas/ProgressUpdateData'
+        message:
+          type: string
+          description: Optional success message
+    ProgressHistoryItem:
+      type: object
+      required:
+        - id
+        - project_id
+        - task_id
+        - task_name
+        - date
+        - previous_percent_complete
+        - new_percent_complete
+        - delta
+        - updated_by
+        - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Progress history entry identifier
+        project_id:
+          type: string
+          format: uuid
+          description: Project identifier
+        task_id:
+          type: string
+          format: uuid
+          description: Task identifier
+        task_name:
+          type: string
+          description: Task name
+        date:
+          type: string
+          format: date-time
+          description: Reporting date for the update
+        previous_percent_complete:
+          type: integer
+          minimum: 0
+          maximum: 100
+          description: Percent complete before update
+        new_percent_complete:
+          type: integer
+          minimum: 0
+          maximum: 100
+          description: Percent complete after update
+        delta:
+          type: integer
+          description: Difference between previous and new percent_complete
+        comment:
+          type: string
+          maxLength: 255
+          description: Optional comment supplied during update
+        updated_by:
+          type: string
+          format: uuid
+          description: User who performed the update (from JWT)
+        created_at:
+          type: string
+          format: date-time
+          description: Timestamp when the update was recorded
+    ProgressHistoryResponse:
+      type: object
+      required:
+        - data
+        - page
+        - per_page
+        - total
+        - total_pages
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProgressHistoryItem'
+        page:
+          type: integer
+          minimum: 1
+        per_page:
+          type: integer
+          minimum: 1
+          maximum: 100
+        total:
+          type: integer
+          minimum: 0
+        total_pages:
+          type: integer
+          minimum: 0
+    Error:
+      type: object
+      required:
+        - message
+      properties:
+        message:
+          type: string
+          description: Human-readable error message
+        errors:
+          type: object
+          additionalProperties: true
+          description: Field-specific error details
+        correlation_id:
+          type: string
+          format: uuid
+          description: Correlation ID for tracing
+      example:
+        message: Validation failed
+        errors:
+          name:
+            - Name is required
+        correlation_id: 123e4567-e89b-12d3-a456-426614174000
+    TaskBulkResponse:
+      type: object
+      required:
+        - data
+        - message
+      properties:
+        data:
+          type: object
+          properties:
+            created_count:
+              type: integer
+            failed_count:
+              type: integer
+            tasks:
+              type: array
+              items:
+                $ref: '#/components/schemas/Task'
+            errors:
+              type: array
+              items:
+                type: object
+                properties:
+                  index:
+                    type: integer
+                  task_name:
+                    type: string
+                  errors:
+                    type: object
+        message:
+          type: string
+          example: 150 tasks created, 2 failed
+    TaskSyncResponse:
+      type: object
+      required:
+        - data
+        - message
+      properties:
+        data:
+          type: object
+          properties:
+            updated_count:
+              type: integer
+            not_found_count:
+              type: integer
+            milestone_recalculated_count:
+              type: integer
+            updated_tasks:
+              type: array
+              items:
+                $ref: '#/components/schemas/Task'
+            not_found_guids:
+              type: array
+              items:
+                type: string
+            not_found_uids:
+              type: array
+              items:
+                anyOf:
+                  - type: integer
+                  - type: string
+            recalculated_milestones:
+              type: array
+              items:
+                type: object
+                properties:
+                  milestone_id:
+                    type: string
+                    format: uuid
+                  name:
+                    type: string
+                  old_target_date:
+                    type: string
+                    format: date-time
+                  new_target_date:
+                    type: string
+                    format: date-time
+                  critical_task_id:
+                    type: string
+                    format: uuid
+                  critical_task_name:
+                    type: string
+        message:
+          type: string
+          example: 148 tasks updated, 2 not found, 3 milestones recalculated
+    MilestonePredecessorTasks:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            milestone_id:
+              type: string
+              format: uuid
+            milestone_name:
+              type: string
+            target_date:
+              type: string
+              format: date-time
+            predecessor_tasks:
+              type: array
+              items:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    format: uuid
+                  name:
+                    type: string
+                  wbs:
+                    type: string
+                  planned_finish_date:
+                    type: string
+                    format: date-time
+                  planned_finish:
+                    type: string
+                    format: date-time
+                    deprecated: true
+                    description: Alias for planned_finish_date
+                  is_critical:
+                    type: boolean
+                    description: True if this task determines the milestone date
+                  ms_project_uid:
+                    anyOf:
+                      - type: integer
+                      - type: string
+    MilestoneTaskLink:
+      type: object
+      required:
+        - task_ids
+      properties:
+        task_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+          minItems: 1
+          description: Array of task IDs to link as milestone predecessors
+          example:
+            - b2c3d4e5-f6a7-4b5c-9d0e-1f2a3b4c5d6e
+            - c3d4e5f6-a7b8-4c5d-0e1f-2a3b4c5d6e7f
+        relationship_type:
+          type: string
+          enum:
+            - predecessor
+            - contributor
+          default: predecessor
+          description: Type of relationship
+          example: predecessor
+    MilestoneTaskLinkResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            milestone_id:
+              type: string
+              format: uuid
+            target_date:
+              type: string
+              format: date-time
+              description: Recalculated as MAX(linked tasks planned_finish_date)
+            linked_task_count:
+              type: integer
+            predecessor_tasks:
+              type: array
+              items:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    format: uuid
+                  name:
+                    type: string
+                  planned_finish_date:
+                    type: string
+                    format: date-time
+                  planned_finish:
+                    type: string
+                    format: date-time
+                    deprecated: true
+                    description: Alias for planned_finish_date
+                  is_critical:
+                    type: boolean
+                    description: True if this task's finish date determines milestone target_date
+        message:
+          type: string
+          example: Tasks linked successfully, milestone target_date recalculated
+x-ratelimit-limit: 10
+x-correlation-id: true
