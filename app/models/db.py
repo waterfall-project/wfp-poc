@@ -8,11 +8,12 @@
 # For commercial licensing inquiries, contact: contact@waterfall-project.pro
 """SQLAlchemy database instance.
 
-This module initializes the SQLAlchemy instance (db) for the application.
-The db object is used throughout the application for ORM operations and
-database management.
+This module re-exports the SQLAlchemy instance (db) from app for use
+throughout the models package. This avoids circular imports.
 """
 
-from flask_sqlalchemy import SQLAlchemy
+# Import db from the main app module where it's initialized
+# This ensures we use the same instance that's registered with the Flask app
+from app import db
 
-db = SQLAlchemy()
+__all__ = ["db"]

@@ -48,11 +48,18 @@ def app() -> Generator[Flask, None, None]:
     Yields:
         Flask application configured with TestingConfig.
     """
+    from app import db
+
     os.environ["TESTING"] = "true"
     app = create_app("app.config.TestingConfig")
 
     with app.app_context():
+        # Create all tables for tests
+        db.create_all()
         yield app
+        # Cleanup
+        db.session.remove()
+        db.drop_all()
 
 
 @pytest.fixture(scope="function")
@@ -68,6 +75,29 @@ def client(app: Flask) -> FlaskClient:
         Flask test client for making HTTP requests.
     """
     return app.test_client()
+
+
+@pytest.fixture(scope="function", autouse=True)
+def db_session(app: Flask) -> Generator[None, None, None]:
+    """Setup and teardown database session for each test.
+
+    Automatically rolls back any changes after each test to ensure isolation.
+
+    Args:
+        app: Flask application fixture.
+
+    Yields:
+        None during test execution.
+    """
+    from app import db
+
+    # Don't need to do anything special during test
+    yield
+
+    # Rollback any uncommitted changes after each test
+    with app.app_context():
+        db.session.rollback()
+        db.session.remove()
 
 
 @pytest.fixture
