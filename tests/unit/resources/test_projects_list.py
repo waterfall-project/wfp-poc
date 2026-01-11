@@ -410,7 +410,12 @@ class TestProjectCrud:
         app: Flask,
         company_id: str,
     ) -> None:
-        """Test successful project creation."""
+        """Test successful project creation.
+
+        Given: Valid project data and authentication
+        When: POST /v0/projects is called
+        Then: Returns 201 with created project
+        """
 
         mock_response = MagicMock()
         mock_response.status_code = 200
@@ -444,7 +449,12 @@ class TestProjectCrud:
         app: Flask,
         company_id: str,
     ) -> None:
-        """Test project creation conflict on duplicate code."""
+        """Test project creation conflict on duplicate code.
+
+        Given: Project with code already exists for company
+        When: POST /v0/projects with duplicate code
+        Then: Returns 409 conflict error
+        """
 
         mock_response = MagicMock()
         mock_response.status_code = 200
@@ -483,7 +493,12 @@ class TestProjectCrud:
         app: Flask,
         company_id: str,
     ) -> None:
-        """Test retrieving a single project."""
+        """Test retrieving a single project.
+
+        Given: Project exists in database
+        When: GET /v0/projects/<id> is called
+        Then: Returns 200 with project data
+        """
 
         mock_response = MagicMock()
         mock_response.status_code = 200
@@ -514,7 +529,12 @@ class TestProjectCrud:
         mock_guardian: MagicMock,
         authenticated_client: FlaskClient,
     ) -> None:
-        """Test retrieving a non-existent project returns 404."""
+        """Test retrieving a non-existent project returns 404.
+
+        Given: Project ID does not exist
+        When: GET /v0/projects/<id> is called
+        Then: Returns 404 not found
+        """
 
         mock_response = MagicMock()
         mock_response.status_code = 200
@@ -533,7 +553,12 @@ class TestProjectCrud:
         app: Flask,
         company_id: str,
     ) -> None:
-        """Test partially updating a project."""
+        """Test partially updating a project.
+
+        Given: Project exists and valid update data
+        When: PATCH /v0/projects/<id> is called
+        Then: Returns 200 with updated project
+        """
 
         mock_response = MagicMock()
         mock_response.status_code = 200
@@ -573,7 +598,12 @@ class TestProjectCrud:
         app: Flask,
         company_id: str,
     ) -> None:
-        """Test patch validation when finish_date is before start_date."""
+        """Test patch validation when finish_date is before start_date.
+
+        Given: Project exists with start_date
+        When: PATCH /v0/projects/<id> with finish_date before start_date
+        Then: Returns 400 with validation error
+        """
 
         mock_response = MagicMock()
         mock_response.status_code = 200
@@ -609,7 +639,12 @@ class TestProjectCrud:
         app: Flask,
         company_id: str,
     ) -> None:
-        """Test deleting a project without related entities."""
+        """Test deleting a project without related entities.
+
+        Given: Project exists with no related entities
+        When: DELETE /v0/projects/<id> is called
+        Then: Returns 204 no content and project is deleted
+        """
 
         mock_response = MagicMock()
         mock_response.status_code = 200
@@ -644,7 +679,12 @@ class TestProjectCrud:
         app: Flask,
         company_id: str,
     ) -> None:
-        """Test deleting a project with related tasks returns 409."""
+        """Test deleting a project with related tasks returns 409.
+
+        Given: Project exists with related tasks
+        When: DELETE /v0/projects/<id> is called
+        Then: Returns 409 conflict error
+        """
 
         mock_response = MagicMock()
         mock_response.status_code = 200
