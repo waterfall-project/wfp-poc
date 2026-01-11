@@ -4,6 +4,7 @@
 """wfp-poc REST API client with authentication and retry logic."""
 
 import logging
+import math
 from typing import Any, Optional
 
 import requests
@@ -154,8 +155,9 @@ class WfpApiClient:
             8.333 -> "PT8H20M0S" (rounded)
             8.5 -> "PT8H30M0S"
         """
-        hours = int(duration_hours)
-        fractional_hours = duration_hours - hours
+        # Use math.modf for more reliable extraction of integer and fractional parts
+        fractional_hours, hours_float = math.modf(duration_hours)
+        hours = int(hours_float)
         # Use rounding instead of truncation to avoid precision loss,
         # e.g. 8.333 hours -> 8 hours 20 minutes rather than 19.
         minutes = int(round(fractional_hours * 60))
