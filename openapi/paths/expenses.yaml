@@ -27,7 +27,7 @@
                 purchase_document: "24337010"
                 fiscal_year: 2025
                 period: 5
-                otp_element: "G.DED.00000/00000"
+                otp_element: "G.PRJ.12345/13984"
                 accounting_nature: "60510000"
                 vendor_name: "ARELIS"
                 origin_group: "STOR"
@@ -277,7 +277,7 @@
                 purchase_document: "24337010"
                 fiscal_year: 2025
                 period: 5
-                otp_element: "G.DED.00000/00000"
+                otp_element: "G.PRJ.12345/13984"
                 accounting_nature: "60510000"
                 vendor_name: "ARELIS"
                 origin_group: "STOR"

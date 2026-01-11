@@ -64,7 +64,7 @@ Expense:
       type: string
       maxLength: 50
       description: Elément d'OTP from ERP (project code)
-      example: "G.DED.00000/00000"
+      example: "G.PRJ.12345/13984"
     accounting_nature:
       type: string
       maxLength: 50

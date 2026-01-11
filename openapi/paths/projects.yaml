@@ -80,9 +80,9 @@
             default:
               summary: Example project creation
               value:
-                name: "Planning ALPHA 2025"
-                code: "G.DED.00000"
-                title: "Planning RCD"
+                name: "Enterprise Modernization Project 2025"
+                code: "G.PRJ.12345"
+                title: "Infrastructure Upgrade"
                 start_date: "2024-11-25T09:00:00Z"
                 finish_date: "2027-02-19T18:00:00Z"
                 budget: 1500000.00
@@ -112,7 +112,7 @@
             schema:
               $ref: '../components/schemas/common.yaml#/Error'
             example:
-              message: "Project with code 'G.DED.00000' already exists for this company"
+              message: "Project with code 'G.PRJ.12345' already exists for this company"
       '422':
         $ref: '../components/responses.yaml#/UnprocessableEntity'
       '429':

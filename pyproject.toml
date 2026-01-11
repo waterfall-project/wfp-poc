@@ -109,7 +109,7 @@ force_grid_wrap = 0
 use_parentheses = true
 ensure_newline_before_comments = true
 skip_glob = ["*/migrations/*", "*/__pycache__/*", ".venv/*", "venv/*"]
-known_first_party = ["app"]
+known_first_party = ["app", "poc_import"]
 sections = ["FUTURE", "STDLIB", "THIRDPARTY", "FIRSTPARTY", "LOCALFOLDER"]
 
 # Ruff linter configuration (replaces flake8, pylint, etc.)
@@ -159,6 +159,9 @@ ignore = [
 "tests/*" = ["S101", "D"]  # Allow assert in tests, no docstring requirement
 "scripts/*" = ["D"]         # No docstring requirement for scripts
 
+[tool.ruff.lint.isort]
+known-first-party = ["app", "poc_import"]
+
 [tool.ruff.lint.pydocstyle]
 convention = "google"  # Use Google-style docstrings
 
@@ -207,7 +210,14 @@ ignore-module = false
 ignore-nested-functions = true
 ignore-nested-classes = true
 fail-under = 80  # Minimum 80% docstring coverage
-exclude = ["tests", "scripts", "migrations", ".venv", "venv"]
+exclude = [
+    "tests",
+    "scripts",
+    "migrations",
+    ".venv",
+    "venv",
+    "tools/poc-import/.venv",
+]
 verbose = 1
 quiet = false
 whitelist-regex = []

@@ -340,7 +340,7 @@ Authorization: Bearer <jwt_token>
 
 ```xml
 <Project>
-  <Name>Project ALPHA Phase 1</Name>
+  <Name>Project Alpha Phase 1</Name>
   <Title>Infrastructure Modernization</Title>
   <StartDate>2026-01-15T08:00:00</StartDate>
   <FinishDate>2027-12-31T17:00:00</FinishDate>
@@ -404,8 +404,8 @@ Authorization: Bearer <jwt_token>
 
 | Field | Value | Source |
 |-------|-------|--------|
-| Project Name | Project ALPHA Phase 1 | project.name |
-| Project Code | G.DED.00000 | project.code |
+| Project Name | Project Alpha Phase 1 | project.name |
+| Project Code | G.PRJ.12345 | project.code |
 | Start Date | 2026-01-15 | project.start_date |
 | Finish Date | 2027-12-31 | project.finish_date |
 | Status | In Progress | project.status |
@@ -495,7 +495,7 @@ Authorization: Bearer <jwt_token>
   "export_type": "msproject_xml",
   "project": {
     "id": "a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d",
-    "name": "Project ALPHA Phase 1"
+    "name": "Project Alpha Phase 1"
   },
   "output_file": "/path/to/project_export.xml",
   "file_size_bytes": 2457600,
@@ -526,7 +526,7 @@ Authorization: Bearer <jwt_token>
   "export_type": "excel_evm",
   "project": {
     "id": "a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d",
-    "name": "Project ALPHA Phase 1"
+    "name": "Project Alpha Phase 1"
   },
   "output_file": "/path/to/evm_report.xlsx",
   "file_size_bytes": 1048576,
@@ -726,7 +726,7 @@ poc-export/
 poc-export msproject a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d \
   --token=$WFP_JWT_TOKEN \
   --api-url=https://wfp-poc.example.com \
-  --output=ALPHA_export.xml \
+  --output=project_alpha_export.xml \
   --validate
 
 # Output:
@@ -739,7 +739,7 @@ poc-export msproject a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d \
 # ✅ Exporting dependencies (127 predecessor links)
 # ✅ Validating XML against MS Project schema...
 # ✅ Export completed in 12.5 seconds
-# 📄 File: ALPHA_export.xml (2.4 MB)
+# 📄 File: project_alpha_export.xml (2.4 MB)
 # 📊 Summary: 150 tasks, 5 milestones, 25 resources, 300 assignments
 ```
 
@@ -791,7 +791,7 @@ poc-export charts a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d \
   --format=png
 
 # Output:
-# ✅ Generating charts for project ALPHA Phase 1...
+# ✅ Generating charts for project Alpha Phase 1...
 # ✅ EV Curve Chart → charts/evm_curve_2026-06-30.png (120 KB)
 # ✅ Milestone Status → charts/milestones_2026-06-30.png (85 KB)
 # ✅ Expense Breakdown → charts/expenses_breakdown_2026-06-30.png (95 KB)

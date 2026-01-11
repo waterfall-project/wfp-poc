@@ -293,7 +293,7 @@ poc-import rae <file.xlsx> \
 
 ```xml
 <Project>
-  <Name>Project ALPHA Phase 1</Name>
+  <Name>Project Alpha Phase 1</Name>
   <Title>Infrastructure Modernization</Title>
   <StartDate>2026-01-15T08:00:00</StartDate>
   <FinishDate>2027-12-31T17:00:00</FinishDate>
@@ -463,7 +463,7 @@ POST /v0/projects/{project_id}/assignments/bulk
   "duration_seconds": 45.2,
   "project": {
     "id": "550e8400-e29b-41d4-a716-446655440000",
-    "name": "Project ALPHA Phase 1"
+    "name": "Project Alpha Phase 1"
   },
   "summary": {
     "tasks": {"created": 150, "updated": 0, "failed": 0},
@@ -528,7 +528,7 @@ POST /v0/projects/{project_id}/assignments/bulk
   "duration_seconds": 2.5,
   "project": {
     "id": "550e8400-e29b-41d4-a716-446655440000",
-    "name": "Project ALPHA Phase 1"
+    "name": "Project Alpha Phase 1"
   },
   "summary": {
     "expenses": {
@@ -572,7 +572,7 @@ POST /v0/projects/{project_id}/assignments/bulk
   "duration_seconds": 1.8,
   "project": {
     "id": "550e8400-e29b-41d4-a716-446655440000",
-    "name": "Project ALPHA Phase 1"
+    "name": "Project Alpha Phase 1"
   },
   "summary": {
     "milestones": {
@@ -835,10 +835,10 @@ Alternative approaches considered:
 
 ```bash
 # Step 1: Export MS Project to XML
-# File: project_ALPHA.xml (150 tasks, 5 milestones, 25 resources)
+# File: project_alpha.xml (150 tasks, 5 milestones, 25 resources)
 
 # Step 2: Run import
-poc-import msproject project_ALPHA.xml \
+poc-import msproject project_alpha.xml \
   --mode=initial \
   --company-id=550e8400-e29b-41d4-a716-446655440000 \
   --token=$WFP_JWT_TOKEN \
@@ -846,7 +846,7 @@ poc-import msproject project_ALPHA.xml \
   --output-report=import_report.json
 
 # Output:
-# ✅ Parsing project_ALPHA.xml...
+# ✅ Parsing project_alpha.xml...
 # ✅ Validated: 150 tasks, 5 milestones, 25 resources
 # ✅ Creating project...
 # ✅ Importing tasks (batch 1/2): 100 tasks
@@ -863,14 +863,14 @@ poc-import msproject project_ALPHA.xml \
 ```bash
 # Scenario: PM updated task dates in MS Project, kept milestone structure
 
-poc-import msproject project_ALPHA_v2.xml \
+poc-import msproject project_alpha_v2.xml \
   --mode=sync \
   --project-id=a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d \
   --token=$WFP_JWT_TOKEN \
   --api-url=https://wfp-poc.example.com
 
 # Output:
-# ✅ Parsing project_ALPHA_v2.xml...
+# ✅ Parsing project_alpha_v2.xml...
 # ✅ Fetching existing project...
 # ✅ Validating milestone structure...
 #    Expected: 5 milestones
@@ -887,14 +887,14 @@ poc-import msproject project_ALPHA_v2.xml \
 ```bash
 # Scenario: PM accidentally added new milestone in MS Project
 
-poc-import msproject project_ALPHA_v3.xml \
+poc-import msproject project_alpha_v3.xml \
   --mode=sync \
   --project-id=a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d \
   --token=$WFP_JWT_TOKEN \
   --api-url=https://wfp-poc.example.com
 
 # Output:
-# ✅ Parsing project_ALPHA_v3.xml...
+# ✅ Parsing project_alpha_v3.xml...
 # ✅ Fetching existing project...
 # ❌ Validating milestone structure...
 #    Expected: 5 milestones
@@ -980,7 +980,7 @@ poc-import rae rae_june_2026.xlsx \
 ### Example 6: Dry Run (Validation Only)
 
 ```bash
-poc-import msproject project_ALPHA_v4.xml \
+poc-import msproject project_alpha_v4.xml \
   --mode=sync \
   --project-id=a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d \
   --token=$WFP_JWT_TOKEN \
@@ -988,7 +988,7 @@ poc-import msproject project_ALPHA_v4.xml \
   --dry-run
 
 # Output:
-# ✅ Parsing project_ALPHA_v4.xml...
+# ✅ Parsing project_alpha_v4.xml...
 # ✅ Fetching existing project... (read-only)
 # ✅ Validating milestone structure... ✅
 # ✅ Validating tasks... ✅

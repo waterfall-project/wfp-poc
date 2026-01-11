@@ -842,7 +842,7 @@ erDiagram
     "type": "string",
     "required": false,
     "maxLength": 50,
-    "description": "Project code or identifier (e.g., G.DED.00000)"
+    "description": "Project code or identifier (e.g., G.PRJ.12345)"
   },
   "title": {
     "type": "string",
@@ -971,9 +971,9 @@ erDiagram
 {
   "id": "a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d",
   "company_id": "550e8400-e29b-41d4-a716-446655440000",
-  "name": "Planning ALPHA 2025",
-  "code": "G.DED.00000",
-  "title": "Planning RCD",
+  "name": "Enterprise Modernization Project 2025",
+  "code": "G.PRJ.12345",
+  "title": "Infrastructure Upgrade",
   "start_date": "2024-11-25T09:00:00Z",
   "finish_date": "2027-02-19T18:00:00Z",
   "budget": 1500000.00,
@@ -1999,7 +1999,7 @@ Stores the estimated remaining cost for a milestone at a specific date. The RAE 
   "purchase_document": "24337010",
   "fiscal_year": 2025,
   "period": 5,
-  "otp_element": "G.DED.00000/00000",
+  "otp_element": "G.PRJ.12345/13984",
   "accounting_nature": "60510000",
   "vendor_name": "ARELIS",
   "origin_group": "STOR",
@@ -2250,9 +2250,9 @@ Stores historical EVM metrics at specific points in time for performance trackin
 **Example Request:**
 ```json
 {
-  "name": "Planning ALPHA 2025",
-  "code": "G.DED.00000",
-  "title": "Planning RCD",
+  "name": "Enterprise Modernization Project 2025",
+  "code": "G.PRJ.12345",
+  "title": "Infrastructure Upgrade",
   "start_date": "2024-11-25T09:00:00Z",
   "finish_date": "2027-02-19T18:00:00Z",
   "budget": 1500000.00,
