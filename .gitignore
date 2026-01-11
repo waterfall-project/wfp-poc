@@ -223,4 +223,4 @@ marimo/_lsp/
 __marimo__/
 
 data/
-openapi-bundled.yaml
+openapi/*-bundled.yaml
