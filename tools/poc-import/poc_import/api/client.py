@@ -366,7 +366,7 @@ class WfpApiClient:
     def create_resources_bulk(
         self, project_id: str, resources: list[Resource]
     ) -> dict[str, Any]:
-        """Create resources in bulk (via individual API calls - no bulk endpoint in spec).
+        """Create resources in bulk (individual API calls - no bulk endpoint).
 
         Args:
             project_id: Project UUID (unused - resources are company-scoped)
@@ -409,13 +409,13 @@ class WfpApiClient:
                 resource_ids.append(result.get("data", {}).get("id"))
                 created_count += 1
             except WfpApiError as e:
-                logger.warning(f"Failed to create resource {idx}: {resource.name} - {e}")
+                logger.warning(
+                    f"Failed to create resource {idx}: {resource.name} - {e}"
+                )
                 failed_count += 1
                 errors.append({"index": idx, "name": resource.name, "error": str(e)})
 
-        logger.info(
-            f"Created {created_count} resources, failed {failed_count}"
-        )
+        logger.info(f"Created {created_count} resources, failed {failed_count}")
         return {
             "created_count": created_count,
             "failed_count": failed_count,
@@ -426,7 +426,7 @@ class WfpApiClient:
     def create_assignments_bulk(
         self, project_id: str, assignments: list[Assignment]
     ) -> dict[str, Any]:
-        """Create resource assignments in bulk (via individual API calls - no bulk endpoint in spec).
+        """Create assignments in bulk (individual API calls - no bulk endpoint).
 
         Args:
             project_id: Project UUID
@@ -440,11 +440,6 @@ class WfpApiClient:
         """
         logger.info(f"Creating {len(assignments)} assignments for project {project_id}")
 
-        created_count = 0
-        failed_count = 0
-        assignment_ids = []
-        errors = []
-
         # Transform assignments to API payload and create individually
         # Note: assignments need task_id/resource_id which we don't have yet
         # This is a limitation - we'd need to resolve UIDs to UUIDs first
@@ -454,7 +449,7 @@ class WfpApiClient:
         )
 
         # For now, return empty result
-        # TODO: Implement UID to UUID resolution after tasks/resources are created
+        # TODO: Implement UID to UUID resolution after tasks/resources
         return {
             "created_count": 0,
             "failed_count": len(assignments),
@@ -462,7 +457,7 @@ class WfpApiClient:
             "errors": [
                 {
                     "index": idx,
-                    "error": "UID to UUID mapping not implemented - assignments skipped"
+                    "error": "UID to UUID mapping not implemented - skipped",
                 }
                 for idx in range(len(assignments))
             ],
