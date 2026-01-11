@@ -4,6 +4,7 @@
 """wfp-poc REST API client with authentication and retry logic."""
 
 import logging
+import math
 from typing import Any, Optional
 
 import requests
@@ -140,6 +141,32 @@ class WfpApiClient:
                 response_data=error_data,
             ) from e
 
+    def _convert_hours_to_iso8601_duration(self, duration_hours: float) -> str:
+        """Convert duration in hours to ISO 8601 duration format.
+
+        Args:
+            duration_hours: Duration in hours (can be fractional)
+
+        Returns:
+            ISO 8601 duration string (e.g., "PT8H30M0S")
+
+        Examples:
+            8.0 -> "PT8H0M0S"
+            8.333 -> "PT8H20M0S" (rounded)
+            8.5 -> "PT8H30M0S"
+        """
+        # Use math.modf for more reliable extraction of integer and fractional parts
+        fractional_hours, hours_float = math.modf(duration_hours)
+        hours = int(hours_float)
+        # Use rounding instead of truncation to avoid precision loss,
+        # e.g. 8.333 hours -> 8 hours 20 minutes rather than 19 minutes.
+        minutes = int(round(fractional_hours * 60))
+        # Handle edge case where rounding yields 60 minutes.
+        if minutes == 60:
+            hours += 1
+            minutes = 0
+        return f"PT{hours}H{minutes}M0S"
+
     def validate_token(self) -> dict[str, Any]:
         """Validate JWT token by calling health endpoint.
 
@@ -150,7 +177,7 @@ class WfpApiClient:
             WfpApiError: If token is invalid (401)
         """
         logger.debug("Validating JWT token...")
-        response = self.session.get(f"{self.base_url}/v0/health", timeout=self.timeout)
+        response = self.session.get(f"{self.base_url}/health", timeout=self.timeout)
         return self._handle_response(response)
 
     def create_project(self, project: ProjectMetadata) -> dict[str, Any]:
@@ -256,11 +283,16 @@ class WfpApiClient:
             payload: dict[str, Any] = {
                 "name": task.name,
                 "wbs": task.wbs_code or "",
-                "start_date": start_date.isoformat() if start_date else None,
-                "finish_date": finish_date.isoformat() if finish_date else None,
-                "duration_hours": task.duration_hours or 0,
+                "start": start_date.isoformat() if start_date else None,
+                "finish": finish_date.isoformat() if finish_date else None,
                 "is_milestone": task.is_milestone,
             }
+
+            # Add duration in ISO 8601 format (PT8H0M0S)
+            if task.duration_hours is not None:
+                payload["duration"] = self._convert_hours_to_iso8601_duration(
+                    task.duration_hours
+                )
 
             # Add optional fields
             if task.guid:
@@ -273,8 +305,8 @@ class WfpApiClient:
                 predecessors_list: list[dict[str, Any]] = [
                     {
                         "predecessor_task_uid": pred.predecessor_task_uid,
-                        "dependency_type": pred.type.value,
-                        "lag_hours": pred.lag / 60.0,  # Convert minutes to hours
+                        "type": pred.type.value,
+                        "lag": pred.lag,  # Keep in minutes as per spec
                     }
                     for pred in task.predecessors
                 ]
@@ -318,27 +350,25 @@ class WfpApiClient:
             start_date = task.planned_start_date or task.planned_finish_date
             finish_date = task.planned_finish_date or task.planned_start_date
             payload: dict[str, Any] = {
+                "ms_project_uid": task.uid,  # Required for sync reconciliation
                 "name": task.name,
-                "wbs": task.wbs_code or "",
-                "start_date": start_date.isoformat() if start_date else None,
-                "finish_date": finish_date.isoformat() if finish_date else None,
-                "duration_hours": task.duration_hours or 0,
-                "is_milestone": task.is_milestone,
+                "planned_start_date": start_date.isoformat() if start_date else None,
+                "planned_finish_date": finish_date.isoformat() if finish_date else None,
             }
 
-            # Reconciliation keys (REQ-020, REQ-021)
-            if task.guid:
-                payload["ms_project_guid"] = task.guid
-            if task.uid:
-                payload["ms_project_uid"] = task.uid
+            # Add duration in ISO 8601 format (PT8H0M0S)
+            if task.duration_hours is not None:
+                payload["duration"] = self._convert_hours_to_iso8601_duration(
+                    task.duration_hours
+                )
 
             # Add predecessors if present
             if task.predecessors:
                 predecessors_list: list[dict[str, Any]] = [
                     {
                         "predecessor_task_uid": pred.predecessor_task_uid,
-                        "dependency_type": pred.type.value,
-                        "lag_hours": pred.lag / 60.0,  # Convert minutes to hours
+                        "type": pred.type.value,
+                        "lag": pred.lag,  # Keep in minutes as per spec
                     }
                     for pred in task.predecessors
                 ]
@@ -363,10 +393,10 @@ class WfpApiClient:
     def create_resources_bulk(
         self, project_id: str, resources: list[Resource]
     ) -> dict[str, Any]:
-        """Create resources in bulk.
+        """Create resources in bulk (individual API calls - no bulk endpoint).
 
         Args:
-            project_id: Project UUID
+            project_id: Project UUID (unused - resources are company-scoped)
             resources: List of resources to create
 
         Returns:
@@ -375,41 +405,55 @@ class WfpApiClient:
         Raises:
             WfpApiError: On API error
         """
-        logger.info(f"Creating {len(resources)} resources for project {project_id}")
+        logger.info(f"Creating {len(resources)} resources (company-scoped)")
 
-        # Transform resources to API payload
-        resource_payloads: list[dict[str, Any]] = []
-        for resource in resources:
-            payload: dict[str, Any] = {
-                "name": resource.name,
-                "resource_type": resource.type.value,
-            }
+        created_count = 0
+        failed_count = 0
+        resource_ids = []
+        errors = []
 
-            # Add optional fields
-            if resource.standard_rate is not None:
-                payload["standard_rate"] = float(resource.standard_rate)
-            if resource.uid:
-                payload["ms_project_uid"] = resource.uid
+        # Transform resources to API payload and create individually
+        for idx, resource in enumerate(resources):
+            try:
+                payload: dict[str, Any] = {
+                    "name": resource.name,
+                    "type": resource.type.value,
+                }
 
-            resource_payloads.append(payload)
+                # Add optional fields
+                if resource.standard_rate is not None:
+                    payload["standard_rate"] = float(resource.standard_rate)
+                if resource.uid:
+                    payload["ms_project_uid"] = resource.uid
 
-        response = self.session.post(
-            f"{self.base_url}/v0/projects/{project_id}/resources/bulk",
-            json={"resources": resource_payloads},
-            timeout=self.timeout * 2,
-        )
+                response = self.session.post(
+                    f"{self.base_url}/v0/resources",
+                    json=payload,
+                    timeout=self.timeout,
+                )
 
-        data = self._handle_response(response)
-        logger.info(
-            f"Created {data.get('created_count', 0)} resources, "
-            f"failed {data.get('failed_count', 0)}"
-        )
-        return data
+                result = self._handle_response(response)
+                resource_ids.append(result.get("data", {}).get("id"))
+                created_count += 1
+            except WfpApiError as e:
+                logger.warning(
+                    f"Failed to create resource {idx}: {resource.name} - {e}"
+                )
+                failed_count += 1
+                errors.append({"index": idx, "name": resource.name, "error": str(e)})
+
+        logger.info(f"Created {created_count} resources, failed {failed_count}")
+        return {
+            "created_count": created_count,
+            "failed_count": failed_count,
+            "resource_ids": resource_ids,
+            "errors": errors,
+        }
 
     def create_assignments_bulk(
         self, project_id: str, assignments: list[Assignment]
     ) -> dict[str, Any]:
-        """Create resource assignments in bulk.
+        """Create assignments in bulk (individual API calls - no bulk endpoint).
 
         Args:
             project_id: Project UUID
@@ -423,29 +467,28 @@ class WfpApiClient:
         """
         logger.info(f"Creating {len(assignments)} assignments for project {project_id}")
 
-        # Transform assignments to API payload
-        assignment_payloads = []
-        for assignment in assignments:
-            payload = {
-                "task_uid": assignment.task_uid,
-                "resource_uid": assignment.resource_uid,
-                "work_hours": assignment.work_hours,
-            }
-
-            assignment_payloads.append(payload)
-
-        response = self.session.post(
-            f"{self.base_url}/v0/projects/{project_id}/assignments/bulk",
-            json={"assignments": assignment_payloads},
-            timeout=self.timeout * 2,
+        # Transform assignments to API payload and create individually
+        # Note: assignments need task_id/resource_id which we don't have yet
+        # This is a limitation - we'd need to resolve UIDs to UUIDs first
+        logger.warning(
+            "Assignment creation requires task_id/resource_id mapping "
+            "which is not implemented yet"
         )
 
-        data = self._handle_response(response)
-        logger.info(
-            f"Created {data.get('created_count', 0)} assignments, "
-            f"failed {data.get('failed_count', 0)}"
-        )
-        return data
+        # For now, return empty result
+        # TODO: Implement UID to UUID resolution after tasks/resources
+        return {
+            "created_count": 0,
+            "failed_count": len(assignments),
+            "assignment_ids": [],
+            "errors": [
+                {
+                    "index": idx,
+                    "error": "UID to UUID mapping not implemented - skipped",
+                }
+                for idx in range(len(assignments))
+            ],
+        }
 
     def import_msproject_data(
         self,

@@ -89,7 +89,7 @@ def test_client_initialization(api_client):
 def test_validate_token_success(api_client):
     """Test successful token validation."""
     with requests_mock.Mocker() as m:
-        m.get("http://localhost:5000/v0/health", json={"status": "ok"})
+        m.get("http://localhost:5000/health", json={"status": "ok"})
         result = api_client.validate_token()
         assert result["status"] == "ok"
 
@@ -97,7 +97,7 @@ def test_validate_token_success(api_client):
 def test_validate_token_failure(api_client):
     """Test token validation failure."""
     with requests_mock.Mocker() as m:
-        m.get("http://localhost:5000/v0/health", status_code=401)
+        m.get("http://localhost:5000/health", status_code=401)
         with pytest.raises(WfpApiError) as exc_info:
             api_client.validate_token()
         assert exc_info.value.status_code == 401
@@ -227,12 +227,15 @@ def test_create_resources_bulk_success(api_client, sample_resource):
     resources = [sample_resource]
 
     with requests_mock.Mocker() as m:
+        # Mock individual resource creation
         m.post(
-            f"http://localhost:5000/v0/projects/{project_id}/resources/bulk",
+            "http://localhost:5000/v0/resources",
             json={
-                "created_count": 1,
-                "failed_count": 0,
-                "resource_ids": [str(uuid4())],
+                "data": {
+                    "id": str(uuid4()),
+                    "name": sample_resource.name,
+                },
+                "message": "Resource created successfully",
             },
         )
 
@@ -243,24 +246,16 @@ def test_create_resources_bulk_success(api_client, sample_resource):
 
 
 def test_create_assignments_bulk_success(api_client, sample_assignment):
-    """Test successful bulk assignment creation."""
+    """Test bulk assignment creation (not implemented - returns errors)."""
     project_id = str(uuid4())
     assignments = [sample_assignment]
 
-    with requests_mock.Mocker() as m:
-        m.post(
-            f"http://localhost:5000/v0/projects/{project_id}/assignments/bulk",
-            json={
-                "created_count": 1,
-                "failed_count": 0,
-                "assignment_ids": [str(uuid4())],
-            },
-        )
+    result = api_client.create_assignments_bulk(project_id, assignments)
 
-        result = api_client.create_assignments_bulk(project_id, assignments)
-
-        assert result["created_count"] == 1
-        assert result["failed_count"] == 0
+    # Assignments not implemented - should return failed
+    assert result["created_count"] == 0
+    assert result["failed_count"] == 1
+    assert len(result["errors"]) == 1
 
 
 def test_import_msproject_data_initial(
@@ -282,13 +277,13 @@ def test_import_msproject_data_initial(
             f"http://localhost:5000/v0/projects/{project_id}/tasks/bulk",
             json={"created_count": 1, "failed_count": 0},
         )
+        # Mock individual resource creation
         m.post(
-            f"http://localhost:5000/v0/projects/{project_id}/resources/bulk",
-            json={"created_count": 1, "failed_count": 0},
-        )
-        m.post(
-            f"http://localhost:5000/v0/projects/{project_id}/assignments/bulk",
-            json={"created_count": 1, "failed_count": 0},
+            "http://localhost:5000/v0/resources",
+            json={
+                "data": {"id": str(uuid4()), "name": sample_resource.name},
+                "message": "Resource created",
+            },
         )
 
         result = api_client.import_msproject_data(project_id, data, mode="initial")
@@ -296,7 +291,8 @@ def test_import_msproject_data_initial(
         assert result["mode"] == "initial"
         assert result["tasks_created"] == 1
         assert result["resources_created"] == 1
-        assert result["assignments_created"] == 1
+        assert result["assignments_created"] == 0  # Not implemented
+        assert result["assignments_failed"] == 1  # Skipped
         assert result["tasks_failed"] == 0
 
 
