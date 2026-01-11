@@ -14,7 +14,7 @@ and business logic for the Project entity.
 """
 
 import uuid
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 import pytest
@@ -22,8 +22,8 @@ from sqlalchemy.exc import IntegrityError
 
 from app.models import Project, db
 
-DEFAULT_START_DATE = datetime(2026, 1, 1, 9, 0)
-DEFAULT_FINISH_DATE = datetime(2026, 1, 31, 18, 0)
+DEFAULT_START_DATE = datetime(2026, 1, 1, 9, 0, tzinfo=UTC)
+DEFAULT_FINISH_DATE = datetime(2026, 1, 31, 18, 0, tzinfo=UTC)
 
 
 class TestProjectModel:

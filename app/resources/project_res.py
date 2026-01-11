@@ -269,8 +269,48 @@ class ProjectListResource(Resource):
     def post(self) -> tuple[dict, int]:
         """Create a new project for the authenticated company.
 
+        Request Body:
+            JSON object validated by ProjectCreateSchema:
+                - name (str, required): Project name (max 255 chars)
+                - code (str, optional): Project code (max 100 chars, unique per company)
+                - title (str, optional): Project title (max 255 chars)
+                - start_date (datetime, required): Project start date
+                - finish_date (datetime, required): Project finish date (must be after start_date)
+                - status (str, optional): Project status (active, completed, cancelled, on_hold)
+                - budget (decimal, optional): Project budget (max 18 digits, 2 decimals)
+                - description (str, optional): Project description (max 2000 chars)
+                - MS Project fields (optional): Various UIDs, GUIDs, calendar settings
+
         Returns:
-            Tuple of serialized project and status code.
+            Tuple of (response_dict, status_code):
+                - 201: Project created successfully
+                - 400: Validation failed (invalid data format or finish_date before start_date)
+                - 401: Missing or invalid JWT
+                - 403: Insufficient permissions (missing CREATE permission)
+                - 409: Conflict (duplicate project code for company)
+
+        Examples:
+            Request:
+            >>> POST /v0/projects
+            {
+                "name": "New Project",
+                "code": "PROJ-001",
+                "start_date": "2026-01-01T09:00:00Z",
+                "finish_date": "2026-12-31T18:00:00Z",
+                "status": "active",
+                "budget": "100000.00"
+            }
+
+            Success Response (201):
+            {
+                "data": {
+                    "id": "uuid",
+                    "name": "New Project",
+                    "code": "PROJ-001",
+                    ...
+                },
+                "message": "Project created successfully"
+            }
         """
         json_payload = request.get_json() or {}
 
@@ -321,7 +361,34 @@ class ProjectResource(Resource):
     @require_jwt_auth
     @access_required(Operation.READ, "projects")
     def get(self, project_id: str) -> tuple[dict, int]:
-        """Retrieve a single project by ID."""
+        """Retrieve a single project by ID.
+
+        Path Parameters:
+            project_id (str): UUID of the project to retrieve
+
+        Returns:
+            Tuple of (response_dict, status_code):
+                - 200: Project found and returned successfully
+                - 401: Missing or invalid JWT
+                - 403: Insufficient permissions (missing READ permission)
+                - 404: Project not found or not accessible (wrong company)
+
+        Examples:
+            Request:
+            >>> GET /v0/projects/{uuid}
+
+            Success Response (200):
+            {
+                "data": {
+                    "id": "uuid",
+                    "name": "Project Name",
+                    "code": "PROJ-001",
+                    "start_date": "2026-01-01T09:00:00Z",
+                    "finish_date": "2026-12-31T18:00:00Z",
+                    ...
+                }
+            }
+        """
         project = self._get_project(project_id)
         if project is None:
             return {"error": "Not Found", "message": "Project not found"}, 404
@@ -331,7 +398,51 @@ class ProjectResource(Resource):
     @require_jwt_auth
     @access_required(Operation.UPDATE, "projects")
     def patch(self, project_id: str) -> tuple[dict, int]:
-        """Partially update a project."""
+        """Partially update a project.
+
+        Path Parameters:
+            project_id (str): UUID of the project to update
+
+        Request Body:
+            JSON object with fields to update (all optional):
+                - name (str): Project name (max 255 chars)
+                - code (str): Project code (max 100 chars, unique per company)
+                - title (str): Project title (max 255 chars)
+                - start_date (datetime): Project start date
+                - finish_date (datetime): Project finish date (must be after start_date)
+                - status (str): Project status (active, completed, cancelled, on_hold)
+                - budget (decimal): Project budget (max 18 digits, 2 decimals)
+                - description (str): Project description (max 2000 chars)
+                - MS Project fields: Various UIDs, GUIDs, calendar settings
+
+        Returns:
+            Tuple of (response_dict, status_code):
+                - 200: Project updated successfully
+                - 400: Validation failed (invalid data or finish_date before start_date)
+                - 401: Missing or invalid JWT
+                - 403: Insufficient permissions (missing UPDATE permission)
+                - 404: Project not found or not accessible (wrong company)
+                - 409: Conflict (duplicate project code for company)
+
+        Examples:
+            Request:
+            >>> PATCH /v0/projects/{uuid}
+            {
+                "name": "Updated Name",
+                "status": "completed"
+            }
+
+            Success Response (200):
+            {
+                "data": {
+                    "id": "uuid",
+                    "name": "Updated Name",
+                    "status": "completed",
+                    ...
+                },
+                "message": "Project updated successfully"
+            }
+        """
         project = self._get_project(project_id)
         if project is None:
             return {"error": "Not Found", "message": "Project not found"}, 404
@@ -382,7 +493,40 @@ class ProjectResource(Resource):
     @require_jwt_auth
     @access_required(Operation.DELETE, "projects")
     def delete(self, project_id: str) -> tuple[dict, int]:
-        """Delete a project if it has no related entities."""
+        """Delete a project if it has no related entities.
+
+        Path Parameters:
+            project_id (str): UUID of the project to delete
+
+        Returns:
+            Tuple of (response_dict, status_code):
+                - 204: Project deleted successfully (no content)
+                - 401: Missing or invalid JWT
+                - 403: Insufficient permissions (missing DELETE permission)
+                - 404: Project not found or not accessible (wrong company)
+                - 409: Conflict (project has related tasks, assignments, milestones, or EVM snapshots)
+
+        Business Logic:
+            Projects with related entities cannot be deleted to maintain data integrity.
+            Related entities checked:
+            - Tasks (project.tasks)
+            - Assignments (project.assignments)
+            - Milestones (project.milestones)
+            - EVM Snapshots (project.evm_snapshots)
+
+        Examples:
+            Request:
+            >>> DELETE /v0/projects/{uuid}
+
+            Success Response (204):
+            (No content)
+
+            Conflict Response (409):
+            {
+                "error": "Conflict",
+                "message": "Cannot delete project with related tasks, assignments, milestones, or EVM snapshots"
+            }
+        """
         project = self._get_project(project_id)
         if project is None:
             return {"error": "Not Found", "message": "Project not found"}, 404
