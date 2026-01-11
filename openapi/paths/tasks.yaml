@@ -31,6 +31,11 @@
         $ref: '../components/responses.yaml#/NotFound'
       '409':
         description: Circular dependency in predecessors
+        headers:
+          X-Correlation-ID:
+            schema:
+              type: string
+            description: Correlation ID for tracing
         content:
           application/json:
             schema:
@@ -254,6 +259,11 @@
         $ref: '../components/responses.yaml#/NotFound'
       '409':
         description: Circular dependency in predecessors
+        headers:
+          X-Correlation-ID:
+            schema:
+              type: string
+            description: Correlation ID for tracing
         content:
           application/json:
             schema:
@@ -284,6 +294,11 @@
         $ref: '../components/responses.yaml#/NotFound'
       '409':
         description: Task is referenced by other tasks as predecessor
+        headers:
+          X-Correlation-ID:
+            schema:
+              type: string
+            description: Correlation ID for tracing
         content:
           application/json:
             schema:

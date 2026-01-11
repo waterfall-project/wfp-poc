@@ -65,6 +65,11 @@
               $ref: '../components/schemas/common.yaml#/Error'
       '409':
         description: Duplicate assignment (same task + resource combination)
+        headers:
+          X-Correlation-ID:
+            schema:
+              type: string
+            description: Correlation ID for tracing
         content:
           application/json:
             schema:

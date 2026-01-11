@@ -18,6 +18,7 @@ Resource:
     ms_project_uid:
       anyOf:
         - type: integer
+        - type: string
         - type: "null"
       description: MS Project resource UID
       example: 1
@@ -75,7 +76,9 @@ ResourceCreate:
     - name
   properties:
     ms_project_uid:
-      type: integer
+      anyOf:
+        - type: integer
+        - type: string
       example: 1
     name:
       type: string

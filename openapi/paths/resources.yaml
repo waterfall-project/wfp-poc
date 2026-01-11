@@ -58,6 +58,11 @@
         $ref: '../components/responses.yaml#/Forbidden'
       '409':
         description: Resource name already exists for this company
+        headers:
+          X-Correlation-ID:
+            schema:
+              type: string
+            description: Correlation ID for tracing
         content:
           application/json:
             schema:
@@ -235,6 +240,11 @@
         $ref: '../components/responses.yaml#/NotFound'
       '409':
         description: Cannot delete resource with active assignments
+        headers:
+          X-Correlation-ID:
+            schema:
+              type: string
+            description: Correlation ID for tracing
         content:
           application/json:
             schema:

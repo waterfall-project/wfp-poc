@@ -55,6 +55,11 @@
         $ref: '../components/responses.yaml#/NotFound'
       '409':
         description: Conflict - Milestone overlaps or budget_weight sum exceeds 1.0
+        headers:
+          X-Correlation-ID:
+            schema:
+              type: string
+            description: Correlation ID for tracing
         content:
           application/json:
             schema:
@@ -217,6 +222,11 @@
         $ref: '../components/responses.yaml#/NotFound'
       '409':
         description: Budget weight sum would exceed 1.0
+        headers:
+          X-Correlation-ID:
+            schema:
+              type: string
+            description: Correlation ID for tracing
         content:
           application/json:
             schema:
@@ -250,6 +260,11 @@
         $ref: '../components/responses.yaml#/NotFound'
       '409':
         description: Cannot delete milestone with associated expenses or deliverables
+        headers:
+          X-Correlation-ID:
+            schema:
+              type: string
+            description: Correlation ID for tracing
         content:
           application/json:
             schema:
@@ -265,7 +280,7 @@
 /{version}/milestones/{milestone_id}/tasks:
   post:
     summary: Link tasks to milestone
-    description: Create M2M links between milestone and predecessor tasks. Auto-recalculates milestone target_date as MAX(tasks.planned_finish).
+    description: Create M2M links between milestone and predecessor tasks. Auto-recalculates milestone target_date as MAX(tasks.planned_finish_date).
     operationId: linkMilestoneTasks
     tags: [Milestones]
     security:
@@ -297,11 +312,11 @@
                 predecessor_tasks:
                   - id: "b2c3d4e5-f6a7-4b5c-9d0e-1f2a3b4c5d6e"
                     name: "Requirements validation"
-                    planned_finish: "2027-01-22T18:00:00Z"
+                    planned_finish_date: "2027-01-22T18:00:00Z"
                     is_critical: true
                   - id: "c3d4e5f6-a7b8-4c5d-0e1f-2a3b4c5d6e7f"
                     name: "Documentation review"
-                    planned_finish: "2027-01-20T16:00:00Z"
+                    planned_finish_date: "2027-01-20T16:00:00Z"
                     is_critical: false
               message: "Tasks linked successfully, milestone target_date recalculated"
       '400':
@@ -345,7 +360,7 @@
                   - id: "b2c3d4e5-f6a7-4b5c-9d0e-1f2a3b4c5d6e"
                     name: "Requirements validation"
                     wbs: "1.2.3"
-                    planned_finish: "2027-01-22T18:00:00Z"
+                    planned_finish_date: "2027-01-22T18:00:00Z"
                     is_critical: true
                     ms_project_uid: 123
       '401':

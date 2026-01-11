@@ -183,8 +183,6 @@ components:
       $ref: './components/parameters.yaml#/AssignmentIdParam'
     ExpenseIdParam:
       $ref: './components/parameters.yaml#/ExpenseIdParam'
-    DeliverableIdParam:
-      $ref: './components/parameters.yaml#/DeliverableIdParam'
     SearchParam:
       $ref: './components/parameters.yaml#/SearchParam'
     SortByParam:
@@ -248,16 +246,22 @@ components:
       $ref: './components/schemas/milestone.yaml#/MilestoneResponse'
     MilestoneList:
       $ref: './components/schemas/milestone.yaml#/MilestoneList'
-    Deliverable:
-      $ref: './components/schemas/deliverable.yaml#/Deliverable'
-    DeliverableCreate:
-      $ref: './components/schemas/deliverable.yaml#/DeliverableCreate'
-    DeliverableUpdate:
-      $ref: './components/schemas/deliverable.yaml#/DeliverableUpdate'
-    DeliverableResponse:
-      $ref: './components/schemas/deliverable.yaml#/DeliverableResponse'
-    DeliverableList:
-      $ref: './components/schemas/deliverable.yaml#/DeliverableList'
+
+    # Health schemas
+    HealthStatusCheck:
+      $ref: './components/schemas/health.yaml#/HealthStatusCheck'
+    HealthResponse:
+      $ref: './components/schemas/health.yaml#/HealthResponse'
+    HealthErrorResponse:
+      $ref: './components/schemas/health.yaml#/HealthErrorResponse'
+    ReadyResponse:
+      $ref: './components/schemas/health.yaml#/ReadyResponse'
+    NotReadyResponse:
+      $ref: './components/schemas/health.yaml#/NotReadyResponse'
+    VersionResponse:
+      $ref: './components/schemas/health.yaml#/VersionResponse'
+    VersionErrorResponse:
+      $ref: './components/schemas/health.yaml#/VersionErrorResponse'
     
     # Resource schemas
     Resource:

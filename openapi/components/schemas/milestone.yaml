@@ -32,7 +32,7 @@ Milestone:
     target_date:
       type: string
       format: date-time
-      description: "Target completion date - Auto-calculated as MAX(predecessor_tasks.planned_finish) if tasks linked"
+      description: "Target completion date - Auto-calculated as MAX(predecessor_tasks.planned_finish_date) if tasks linked"
       example: "2027-01-22T18:00:00Z"
     actual_date:
       anyOf:
@@ -194,7 +194,7 @@ MilestoneTaskLinkResponse:
         target_date:
           type: string
           format: date-time
-          description: Recalculated as MAX(linked tasks planned_finish)
+          description: Recalculated as MAX(linked tasks planned_finish_date)
         linked_task_count:
           type: integer
         predecessor_tasks:
@@ -207,9 +207,14 @@ MilestoneTaskLinkResponse:
                 format: uuid
               name:
                 type: string
+              planned_finish_date:
+                type: string
+                format: date-time
               planned_finish:
                 type: string
                 format: date-time
+                deprecated: true
+                description: Alias for planned_finish_date
               is_critical:
                 type: boolean
                 description: True if this task's finish date determines milestone target_date
@@ -243,11 +248,18 @@ MilestonePredecessorTasks:
                 type: string
               wbs:
                 type: string
+              planned_finish_date:
+                type: string
+                format: date-time
               planned_finish:
                 type: string
                 format: date-time
+                deprecated: true
+                description: Alias for planned_finish_date
               is_critical:
                 type: boolean
                 description: True if this task determines the milestone date
               ms_project_uid:
-                type: integer
+                anyOf:
+                  - type: integer
+                  - type: string

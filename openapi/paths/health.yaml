@@ -8,51 +8,26 @@
     responses:
       '200':
         description: Service is alive (ok or degraded)
+        headers:
+          Cache-Control:
+            schema:
+              type: string
+            example: no-cache, no-store, must-revalidate
         content:
           application/json:
             schema:
-              type: object
-              required: [status, timestamp, checks]
-              properties:
-                status:
-                  type: string
-                  enum: [ok, degraded]
-                timestamp:
-                  type: string
-                  format: date-time
-                checks:
-                  type: object
-                  required: [database]
-                  properties:
-                    database:
-                      type: object
-                      required: [status, response_time_ms]
-                      properties:
-                        status:
-                          type: string
-                          enum: [ok, error]
-                        response_time_ms:
-                          type: integer
-                          minimum: 0
-                        error:
-                          type: string
-                          description: Error details when status=error
+              $ref: '../components/schemas/health.yaml#/HealthResponse'
       '500':
         description: Internal server error
+        headers:
+          Cache-Control:
+            schema:
+              type: string
+            example: no-cache, no-store, must-revalidate
         content:
           application/json:
             schema:
-              type: object
-              required: [status, timestamp, error]
-              properties:
-                status:
-                  type: string
-                  enum: [error]
-                timestamp:
-                  type: string
-                  format: date-time
-                error:
-                  type: string
+              $ref: '../components/schemas/health.yaml#/HealthErrorResponse'
 
 /ready:
   get:
@@ -64,62 +39,26 @@
     responses:
       '200':
         description: Ready
+        headers:
+          Cache-Control:
+            schema:
+              type: string
+            example: no-cache, no-store, must-revalidate
         content:
           application/json:
             schema:
-              type: object
-              required: [status, timestamp, checks]
-              properties:
-                status:
-                  type: string
-                  enum: [ready]
-                timestamp:
-                  type: string
-                  format: date-time
-                checks:
-                  type: object
-                  additionalProperties:
-                    type: object
-                    required: [status, response_time_ms]
-                    properties:
-                      status:
-                        type: string
-                        enum: [ok, error]
-                      response_time_ms:
-                        type: integer
-                        minimum: 0
-                      error:
-                        type: string
-                        description: Error details when status=error
+              $ref: '../components/schemas/health.yaml#/ReadyResponse'
       '503':
         description: Not ready
+        headers:
+          Cache-Control:
+            schema:
+              type: string
+            example: no-cache, no-store, must-revalidate
         content:
           application/json:
             schema:
-              type: object
-              required: [status, timestamp, checks]
-              properties:
-                status:
-                  type: string
-                  enum: [not_ready]
-                timestamp:
-                  type: string
-                  format: date-time
-                checks:
-                  type: object
-                  additionalProperties:
-                    type: object
-                    required: [status, response_time_ms]
-                    properties:
-                      status:
-                        type: string
-                        enum: [ok, error]
-                      response_time_ms:
-                        type: integer
-                        minimum: 0
-                      error:
-                        type: string
-                        description: Error details when status=error
+              $ref: '../components/schemas/health.yaml#/NotReadyResponse'
 
 /version:
   get:
@@ -131,31 +70,23 @@
     responses:
       '200':
         description: Version info
+        headers:
+          Cache-Control:
+            schema:
+              type: string
+            example: public, max-age=3600
         content:
           application/json:
             schema:
-              type: object
-              required: [version, git_commit, build_date, environment]
-              properties:
-                version:
-                  type: string
-                git_commit:
-                  type: string
-                build_date:
-                  type: string
-                  format: date-time
-                environment:
-                  type: string
+              $ref: '../components/schemas/health.yaml#/VersionResponse'
       '500':
         description: Internal server error
+        headers:
+          Cache-Control:
+            schema:
+              type: string
+            example: public, max-age=3600
         content:
           application/json:
             schema:
-              type: object
-              required: [error, timestamp]
-              properties:
-                error:
-                  type: string
-                timestamp:
-                  type: string
-                  format: date-time
+              $ref: '../components/schemas/health.yaml#/VersionErrorResponse'

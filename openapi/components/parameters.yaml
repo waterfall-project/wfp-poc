@@ -128,12 +128,3 @@ ExpenseIdParam:
   schema:
     type: string
     format: uuid
-
-DeliverableIdParam:
-  name: id
-  in: path
-  required: true
-  description: Deliverable unique identifier
-  schema:
-    type: string
-    format: uuid

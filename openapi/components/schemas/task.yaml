@@ -29,8 +29,10 @@ Task:
       maxLength: 50
       description: MS Project GUID (stable UUID for upsert reconciliation)
     ms_project_uid:
-      type: integer
-      description: MS Project UID (display ID, unstable - changes on reorder)
+      anyOf:
+        - type: integer
+        - type: string
+      description: MS Project UID (reconciliation key)
     ms_project_id:
       type: integer
       description: MS Project ID (display order, changes frequently)
@@ -55,10 +57,20 @@ Task:
       type: string
       format: date-time
       description: Task start date/time
+    planned_start_date:
+      type: string
+      format: date-time
+      deprecated: true
+      description: Alias for start (ERD/sync terminology)
     finish:
       type: string
       format: date-time
       description: Task finish date/time
+    planned_finish_date:
+      type: string
+      format: date-time
+      deprecated: true
+      description: Alias for finish (ERD/sync terminology)
     duration:
       type: string
       description: Task duration in ISO 8601 format (e.g., PT8H0M0S for 8 hours)
@@ -236,7 +248,9 @@ TaskCreate:
       format: uuid
       description: Parent task for WBS hierarchy
     ms_project_uid:
-      type: integer
+      anyOf:
+        - type: integer
+        - type: string
     ms_project_id:
       type: integer
     ms_project_guid:
@@ -258,9 +272,19 @@ TaskCreate:
     start:
       type: string
       format: date-time
+    planned_start_date:
+      type: string
+      format: date-time
+      deprecated: true
+      description: Alias for start (ERD/sync terminology)
     finish:
       type: string
       format: date-time
+    planned_finish_date:
+      type: string
+      format: date-time
+      deprecated: true
+      description: Alias for finish (ERD/sync terminology)
     duration:
       type: string
     work:
@@ -316,12 +340,26 @@ TaskUpdate:
       type: string
       minLength: 1
       maxLength: 255
+    ms_project_uid:
+      anyOf:
+        - type: integer
+        - type: string
     start:
       type: string
       format: date-time
+    planned_start_date:
+      type: string
+      format: date-time
+      deprecated: true
+      description: Alias for start (ERD/sync terminology)
     finish:
       type: string
       format: date-time
+    planned_finish_date:
+      type: string
+      format: date-time
+      deprecated: true
+      description: Alias for finish (ERD/sync terminology)
     status:
       type: string
       enum: [not_started, in_progress, completed, cancelled]
@@ -447,25 +485,50 @@ TaskSync:
           - ms_project_uid
         properties:
           ms_project_uid:
-            type: integer
-            description: Reconciliation key (stable UID from MS Project)
+            anyOf:
+              - type: integer
+              - type: string
+            description: Reconciliation key (MS Project UID)
           name:
             type: string
+          planned_start_date:
+            type: string
+            format: date-time
+            description: Planned start date (preferred field name)
+          planned_finish_date:
+            type: string
+            format: date-time
+            description: Planned finish date (preferred field name)
           start:
             type: string
             format: date-time
+            deprecated: true
+            description: Legacy alias for planned_start_date
           finish:
             type: string
             format: date-time
+            deprecated: true
+            description: Legacy alias for planned_finish_date
           duration:
-            type: string
+            anyOf:
+              - type: integer
+              - type: string
+            description: Duration (days as integer, or ISO 8601 duration string)
           predecessors:
             type: array
             items:
               type: object
               properties:
                 predecessor_ms_project_uid:
-                  type: integer
+                  anyOf:
+                    - type: integer
+                    - type: string
+                  description: Legacy alias for predecessor_task_uid
+                predecessor_task_uid:
+                  anyOf:
+                    - type: integer
+                    - type: string
+                  description: Predecessor task UID from MS Project
                 type:
                   type: string
                   enum: [FS, SS, FF, SF]
@@ -498,7 +561,9 @@ TaskSyncResponse:
         not_found_uids:
           type: array
           items:
-            type: integer
+            anyOf:
+              - type: integer
+              - type: string
         recalculated_milestones:
           type: array
           items:

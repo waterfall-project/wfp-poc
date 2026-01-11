@@ -71,6 +71,11 @@
         $ref: '../components/responses.yaml#/NotFound'
       '409':
         description: Duplicate expense (same reference_number + date + amount)
+        headers:
+          X-Correlation-ID:
+            schema:
+              type: string
+            description: Correlation ID for tracing
         content:
           application/json:
             schema:

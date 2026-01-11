@@ -1,0 +1,99 @@
+HealthStatusCheck:
+  type: object
+  required:
+    - status
+    - response_time_ms
+  properties:
+    status:
+      type: string
+      enum: [ok, error]
+    response_time_ms:
+      type: integer
+      minimum: 0
+    error:
+      type: string
+      description: Error details when status=error
+
+HealthResponse:
+  type: object
+  required: [status, timestamp, checks]
+  properties:
+    status:
+      type: string
+      enum: [ok, degraded]
+    timestamp:
+      type: string
+      format: date-time
+    checks:
+      type: object
+      required: [database]
+      properties:
+        database:
+          $ref: '#/HealthStatusCheck'
+
+HealthErrorResponse:
+  type: object
+  required: [status, timestamp, error]
+  properties:
+    status:
+      type: string
+      enum: [error]
+    timestamp:
+      type: string
+      format: date-time
+    error:
+      type: string
+
+ReadyResponse:
+  type: object
+  required: [status, timestamp, checks]
+  properties:
+    status:
+      type: string
+      enum: [ready]
+    timestamp:
+      type: string
+      format: date-time
+    checks:
+      type: object
+      additionalProperties:
+        $ref: '#/HealthStatusCheck'
+
+NotReadyResponse:
+  type: object
+  required: [status, timestamp, checks]
+  properties:
+    status:
+      type: string
+      enum: [not_ready]
+    timestamp:
+      type: string
+      format: date-time
+    checks:
+      type: object
+      additionalProperties:
+        $ref: '#/HealthStatusCheck'
+
+VersionResponse:
+  type: object
+  required: [version, git_commit, build_date, environment]
+  properties:
+    version:
+      type: string
+    git_commit:
+      type: string
+    build_date:
+      type: string
+      format: date-time
+    environment:
+      type: string
+
+VersionErrorResponse:
+  type: object
+  required: [error, timestamp]
+  properties:
+    error:
+      type: string
+    timestamp:
+      type: string
+      format: date-time
