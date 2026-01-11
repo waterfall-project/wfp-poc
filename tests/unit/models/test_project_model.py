@@ -82,7 +82,13 @@ class TestProjectModel:
 
             assert project.code == "PROJ-001"
             assert project.description == "A comprehensive test project"
-            assert project.start_date == DEFAULT_START_DATE
+            # Datetimes are stored normalized (naive UTC) in the model
+            expected_start = (
+                DEFAULT_START_DATE.replace(tzinfo=None)
+                if DEFAULT_START_DATE.tzinfo
+                else DEFAULT_START_DATE
+            )
+            assert project.start_date == expected_start
             assert project.finish_date == datetime(2026, 12, 31, 18, 0)
             assert project.budget == Decimal("100000.00")
             assert project.status == "active"
