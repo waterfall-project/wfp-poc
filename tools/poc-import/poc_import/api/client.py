@@ -339,7 +339,14 @@ class WfpApiClient:
             # Add duration in ISO 8601 format (PT8H0M0S)
             if task.duration_hours is not None:
                 hours = int(task.duration_hours)
-                minutes = int((task.duration_hours - hours) * 60)
+                fractional_hours = task.duration_hours - hours
+                # Use rounding instead of truncation to avoid precision loss,
+                # e.g. 8.333 hours -> 8 hours 20 minutes rather than 19.
+                minutes = int(round(fractional_hours * 60))
+                # Handle edge case where rounding yields 60 minutes.
+                if minutes == 60:
+                    hours += 1
+                    minutes = 0
                 payload["duration"] = f"PT{hours}H{minutes}M0S"
 
             # Add predecessors if present
