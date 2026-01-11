@@ -140,6 +140,31 @@ class WfpApiClient:
                 response_data=error_data,
             ) from e
 
+    def _convert_hours_to_iso8601_duration(self, duration_hours: float) -> str:
+        """Convert duration in hours to ISO 8601 duration format.
+
+        Args:
+            duration_hours: Duration in hours (can be fractional)
+
+        Returns:
+            ISO 8601 duration string (e.g., "PT8H30M0S")
+
+        Examples:
+            8.0 -> "PT8H0M0S"
+            8.333 -> "PT8H20M0S" (rounded)
+            8.5 -> "PT8H30M0S"
+        """
+        hours = int(duration_hours)
+        fractional_hours = duration_hours - hours
+        # Use rounding instead of truncation to avoid precision loss,
+        # e.g. 8.333 hours -> 8 hours 20 minutes rather than 19.
+        minutes = int(round(fractional_hours * 60))
+        # Handle edge case where rounding yields 60 minutes.
+        if minutes == 60:
+            hours += 1
+            minutes = 0
+        return f"PT{hours}H{minutes}M0S"
+
     def validate_token(self) -> dict[str, Any]:
         """Validate JWT token by calling health endpoint.
 
@@ -263,16 +288,9 @@ class WfpApiClient:
 
             # Add duration in ISO 8601 format (PT8H0M0S)
             if task.duration_hours is not None:
-                hours = int(task.duration_hours)
-                fractional_hours = task.duration_hours - hours
-                # Use rounding instead of truncation to avoid precision loss,
-                # e.g. 8.333 hours -> 8 hours 20 minutes rather than 19.
-                minutes = int(round(fractional_hours * 60))
-                # Handle edge case where rounding yields 60 minutes.
-                if minutes == 60:
-                    hours += 1
-                    minutes = 0
-                payload["duration"] = f"PT{hours}H{minutes}M0S"
+                payload["duration"] = self._convert_hours_to_iso8601_duration(
+                    task.duration_hours
+                )
 
             # Add optional fields
             if task.guid:
@@ -338,16 +356,9 @@ class WfpApiClient:
 
             # Add duration in ISO 8601 format (PT8H0M0S)
             if task.duration_hours is not None:
-                hours = int(task.duration_hours)
-                fractional_hours = task.duration_hours - hours
-                # Use rounding instead of truncation to avoid precision loss,
-                # e.g. 8.333 hours -> 8 hours 20 minutes rather than 19.
-                minutes = int(round(fractional_hours * 60))
-                # Handle edge case where rounding yields 60 minutes.
-                if minutes == 60:
-                    hours += 1
-                    minutes = 0
-                payload["duration"] = f"PT{hours}H{minutes}M0S"
+                payload["duration"] = self._convert_hours_to_iso8601_duration(
+                    task.duration_hours
+                )
 
             # Add predecessors if present
             if task.predecessors:
