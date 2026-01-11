@@ -1,0 +1,248 @@
+/{version}/resources:
+  post:
+    summary: Create resource
+    description: Create a new resource (company-scoped, shared across projects). Company ID from JWT token.
+    operationId: createResource
+    tags: [Resources]
+    security:
+      - bearerAuth: []
+    parameters:
+      - $ref: '../components/parameters.yaml#/VersionParam'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/resource.yaml#/ResourceCreate'
+          examples:
+            labor_resource:
+              summary: Labor resource (personnel)
+              value:
+                name: "Jean Dupont"
+                type: "labor"
+                standard_rate: 85.00
+                overtime_rate: 127.50
+                email: "jean.dupont@example.com"
+            material_resource:
+              summary: Material resource (equipment)
+              value:
+                name: "Excavator CAT 320"
+                type: "material"
+                standard_rate: 150.00
+    responses:
+      '201':
+        description: Resource created successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/resource.yaml#/ResourceResponse'
+            example:
+              data:
+                id: "f6a7b8c9-d0e1-4f5a-3b4c-5d6e7f8a9b0c"
+                company_id: "550e8400-e29b-41d4-a716-446655440000"
+                ms_project_uid: null
+                name: "Jean Dupont"
+                type: "labor"
+                standard_rate: 85.00
+                overtime_rate: 127.50
+                email: "jean.dupont@example.com"
+                is_active: true
+                created_at: "2026-01-11T10:00:00Z"
+                updated_at: "2026-01-11T10:00:00Z"
+              message: "Resource created successfully"
+      '400':
+        $ref: '../components/responses.yaml#/BadRequest'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses.yaml#/Forbidden'
+      '409':
+        description: Resource name already exists for this company
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/Error'
+      '429':
+        $ref: '../components/responses.yaml#/TooManyRequests'
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+  get:
+    summary: List resources
+    description: Retrieve all resources for the authenticated user's company (from JWT company_id)
+    operationId: listResources
+    tags: [Resources]
+    security:
+      - bearerAuth: []
+    parameters:
+      - $ref: '../components/parameters.yaml#/VersionParam'
+      - $ref: '../components/parameters.yaml#/PageParam'
+      - $ref: '../components/parameters.yaml#/PerPageParam'
+      - name: type
+        in: query
+        schema:
+          type: string
+          enum: [labor, material, cost]
+        description: Filter by resource type
+      - name: is_active
+        in: query
+        schema:
+          type: boolean
+        description: Filter by active status
+      - $ref: '../components/parameters.yaml#/SearchParam'
+      - $ref: '../components/parameters.yaml#/SortByParam'
+      - $ref: '../components/parameters.yaml#/SortOrderParam'
+    responses:
+      '200':
+        description: Resources retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/resource.yaml#/ResourceList'
+            example:
+              data:
+                - id: "f6a7b8c9-d0e1-4f5a-3b4c-5d6e7f8a9b0c"
+                  company_id: "550e8400-e29b-41d4-a716-446655440000"
+                  name: "Jean Dupont"
+                  type: "labor"
+                  standard_rate: 85.00
+                  is_active: true
+                - id: "a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d"
+                  company_id: "550e8400-e29b-41d4-a716-446655440000"
+                  name: "Marie Martin"
+                  type: "labor"
+                  standard_rate: 95.00
+                  is_active: true
+              page: 1
+              per_page: 20
+              total: 45
+              total_pages: 3
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses.yaml#/Forbidden'
+      '429':
+        $ref: '../components/responses.yaml#/TooManyRequests'
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+/{version}/resources/{id}:
+  get:
+    summary: Get resource by ID
+    description: Retrieve a single resource
+    operationId: getResource
+    tags: [Resources]
+    security:
+      - bearerAuth: []
+    parameters:
+      - $ref: '../components/parameters.yaml#/VersionParam'
+      - $ref: '../components/parameters.yaml#/ResourceIdParam'
+    responses:
+      '200':
+        description: Resource retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/resource.yaml#/ResourceResponse'
+            example:
+              data:
+                id: "f6a7b8c9-d0e1-4f5a-3b4c-5d6e7f8a9b0c"
+                company_id: "550e8400-e29b-41d4-a716-446655440000"
+                ms_project_uid: 1
+                name: "Jean Dupont"
+                type: "labor"
+                standard_rate: 85.00
+                overtime_rate: 127.50
+                email: "jean.dupont@example.com"
+                is_active: true
+                created_at: "2026-01-11T10:00:00Z"
+                updated_at: "2026-01-11T10:00:00Z"
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses.yaml#/Forbidden'
+      '404':
+        $ref: '../components/responses.yaml#/NotFound'
+      '429':
+        $ref: '../components/responses.yaml#/TooManyRequests'
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+  patch:
+    summary: Update resource
+    description: Update resource fields
+    operationId: updateResource
+    tags: [Resources]
+    security:
+      - bearerAuth: []
+    parameters:
+      - $ref: '../components/parameters.yaml#/VersionParam'
+      - $ref: '../components/parameters.yaml#/ResourceIdParam'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/resource.yaml#/ResourceUpdate'
+          examples:
+            update_rate:
+              summary: Update hourly rates
+              value:
+                standard_rate: 90.00
+                overtime_rate: 135.00
+            deactivate:
+              summary: Deactivate resource
+              value:
+                is_active: false
+    responses:
+      '200':
+        description: Resource updated successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/resource.yaml#/ResourceResponse'
+      '400':
+        $ref: '../components/responses.yaml#/BadRequest'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses.yaml#/Forbidden'
+      '404':
+        $ref: '../components/responses.yaml#/NotFound'
+      '429':
+        $ref: '../components/responses.yaml#/TooManyRequests'
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+  delete:
+    summary: Delete resource
+    description: Delete a resource. Cannot delete if resource has active assignments.
+    operationId: deleteResource
+    tags: [Resources]
+    security:
+      - bearerAuth: []
+    parameters:
+      - $ref: '../components/parameters.yaml#/VersionParam'
+      - $ref: '../components/parameters.yaml#/ResourceIdParam'
+    responses:
+      '204':
+        description: Resource deleted successfully
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses.yaml#/Forbidden'
+      '404':
+        $ref: '../components/responses.yaml#/NotFound'
+      '409':
+        description: Cannot delete resource with active assignments
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/Error'
+            example:
+              message: "Cannot delete resource with 5 active assignments"
+              correlation_id: "123e4567-e89b-12d3-a456-426614174000"
+      '429':
+        $ref: '../components/responses.yaml#/TooManyRequests'
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'

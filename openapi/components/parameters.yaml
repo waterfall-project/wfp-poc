@@ -1,0 +1,139 @@
+VersionParam:
+  name: version
+  in: path
+  required: true
+  description: API version
+  schema:
+    type: string
+    enum: [v0, v1]
+    default: v0
+
+PageParam:
+  name: page
+  in: query
+  description: Page number for pagination
+  required: false
+  schema:
+    type: integer
+    minimum: 1
+    default: 1
+
+PerPageParam:
+  name: per_page
+  in: query
+  description: Items per page
+  required: false
+  schema:
+    type: integer
+    minimum: 1
+    maximum: 100
+    default: 20
+
+SearchParam:
+  name: search
+  in: query
+  description: Search term for filtering
+  required: false
+  schema:
+    type: string
+
+SortByParam:
+  name: sort_by
+  in: query
+  description: Field to sort by
+  required: false
+  schema:
+    type: string
+
+SortOrderParam:
+  name: sort_order
+  in: query
+  description: Sort direction
+  required: false
+  schema:
+    type: string
+    enum: [asc, desc]
+    default: desc
+
+ProjectIdParam:
+  name: id
+  in: path
+  required: true
+  description: Project unique identifier
+  schema:
+    type: string
+    format: uuid
+  example: "a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d"
+
+ProjectIdQueryParam:
+  name: project_id
+  in: path
+  required: true
+  description: Project unique identifier
+  schema:
+    type: string
+    format: uuid
+  example: "a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d"
+
+TaskIdParam:
+  name: id
+  in: path
+  required: true
+  description: Task unique identifier
+  schema:
+    type: string
+    format: uuid
+
+MilestoneIdPathParam:
+  name: milestone_id
+  in: path
+  required: true
+  description: Milestone unique identifier
+  schema:
+    type: string
+    format: uuid
+
+MilestoneIdParam:
+  name: id
+  in: path
+  required: true
+  description: Milestone unique identifier
+  schema:
+    type: string
+    format: uuid
+
+ResourceIdParam:
+  name: id
+  in: path
+  required: true
+  description: Resource unique identifier
+  schema:
+    type: string
+    format: uuid
+
+AssignmentIdParam:
+  name: id
+  in: path
+  required: true
+  description: Assignment unique identifier
+  schema:
+    type: string
+    format: uuid
+
+ExpenseIdParam:
+  name: id
+  in: path
+  required: true
+  description: Expense unique identifier
+  schema:
+    type: string
+    format: uuid
+
+DeliverableIdParam:
+  name: id
+  in: path
+  required: true
+  description: Deliverable unique identifier
+  schema:
+    type: string
+    format: uuid

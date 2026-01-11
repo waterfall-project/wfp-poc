@@ -1,0 +1,350 @@
+openapi: 3.1.0
+
+info:
+  title: WFP-POC - Project Management & EVM API
+  version: "1.0"
+  description: |
+    The **wfp-poc** service is a proof-of-concept microservice that provides comprehensive 
+    project management and Earned Value Management (EVM) capabilities for the Waterfall suite.
+    
+    This service enables:
+    - **Project planning data** imported from Microsoft Project XML files
+    - **Financial tracking** imported from ERP Excel exports
+    - **EVM indicators** calculated and exposed for dashboard visualization
+    - **Performance forecasts** using multiple projection methods
+    
+    **Architecture Position:**
+    - **Upstream**: Consumes data from `poc-import` service
+    - **Downstream**: Provides data to `poc-export` service and frontend
+    - **Standalone**: Exposes REST API for direct CRUD operations
+    
+  contact:
+    name: Waterfall Project Team
+  license:
+    name: Commercial License
+    url: https://github.com/waterfall/wfp-poc/blob/main/COMMERCIAL-LICENSE.txt
+
+servers:
+  - url: https://wfp-poc.waterfall-services.io
+    description: Production API
+  - url: https://staging-wfp-poc.waterfall-services.io
+    description: Staging API
+  - url: http://127.0.0.1:5000
+    description: Local development
+
+tags:
+  - name: Health
+    description: Health check endpoints
+  - name: Metrics
+    description: Prometheus metrics endpoint
+  - name: Projects
+    description: Project management operations (CRUD, bulk import)
+  - name: Tasks
+    description: Task management with WBS hierarchy and predecessor relationships
+  - name: Milestones
+    description: Milestone tracking and deliverable management
+  - name: Resources
+    description: Resource management (labor, material, cost) - company-scoped
+  - name: Assignments
+    description: Task-resource assignments with work hours and cost tracking
+  - name: Expenses
+    description: Expense tracking with ERP integration (labor, procurement, subcontracting, overhead)
+  - name: RAE
+    description: RAE (Reste À Engager) tracking for milestone cost estimates
+  - name: EVM
+    description: Earned Value Management calculations and indicators
+  - name: Statistics
+    description: Reporting endpoints for chart visualization
+  - name: Progress
+    description: Task progress updates and history
+
+security:
+  - bearerAuth: []
+
+x-ratelimit-limit: 10
+x-correlation-id: true
+
+paths:
+  # Health (non-versioned)
+  /health:
+    $ref: './paths/health.yaml#/~1health'
+  /ready:
+    $ref: './paths/health.yaml#/~1ready'
+  /version:
+    $ref: './paths/health.yaml#/~1version'
+
+  # Metrics (non-versioned)
+  /metrics:
+    $ref: './paths/metrics.yaml#/~1metrics'
+  
+  # Projects
+  /{version}/projects:
+    $ref: './paths/projects.yaml#/~1{version}~1projects'
+  /{version}/projects/{id}:
+    $ref: './paths/projects.yaml#/~1{version}~1projects~1{id}'
+  
+  # Tasks
+  /{version}/projects/{project_id}/tasks:
+    $ref: './paths/tasks.yaml#/~1{version}~1projects~1{project_id}~1tasks'
+  /{version}/projects/{project_id}/tasks/bulk:
+    $ref: './paths/tasks.yaml#/~1{version}~1projects~1{project_id}~1tasks~1bulk'
+  /{version}/projects/{project_id}/tasks/sync:
+    $ref: './paths/tasks.yaml#/~1{version}~1projects~1{project_id}~1tasks~1sync'
+  /{version}/projects/{project_id}/tasks/{id}:
+    $ref: './paths/tasks.yaml#/~1{version}~1projects~1{project_id}~1tasks~1{id}'
+  
+  # Milestones
+  /{version}/projects/{project_id}/milestones:
+    $ref: './paths/milestones.yaml#/~1{version}~1projects~1{project_id}~1milestones'
+  /{version}/projects/{project_id}/milestones/{id}:
+    $ref: './paths/milestones.yaml#/~1{version}~1projects~1{project_id}~1milestones~1{id}'
+  /{version}/milestones/{milestone_id}/tasks:
+    $ref: './paths/milestones.yaml#/~1{version}~1milestones~1{milestone_id}~1tasks'
+  /{version}/milestones/{milestone_id}/tasks/sync:
+    $ref: './paths/milestones.yaml#/~1{version}~1milestones~1{milestone_id}~1tasks~1sync'
+  
+  # Resources
+  /{version}/resources:
+    $ref: './paths/resources.yaml#/~1{version}~1resources'
+  /{version}/resources/{id}:
+    $ref: './paths/resources.yaml#/~1{version}~1resources~1{id}'
+  
+  # Assignments
+  /{version}/projects/{project_id}/assignments:
+    $ref: './paths/assignments.yaml#/~1{version}~1projects~1{project_id}~1assignments'
+  /{version}/projects/{project_id}/assignments/{id}:
+    $ref: './paths/assignments.yaml#/~1{version}~1projects~1{project_id}~1assignments~1{id}'
+  
+  # Expenses
+  /{version}/projects/{project_id}/expenses:
+    $ref: './paths/expenses.yaml#/~1{version}~1projects~1{project_id}~1expenses'
+  /{version}/projects/{project_id}/expenses/bulk:
+    $ref: './paths/expenses.yaml#/~1{version}~1projects~1{project_id}~1expenses~1bulk'
+  /{version}/projects/{project_id}/expenses/{id}:
+    $ref: './paths/expenses.yaml#/~1{version}~1projects~1{project_id}~1expenses~1{id}'
+  
+  # Progress
+  /{version}/projects/{project_id}/progress:
+    $ref: './paths/progress.yaml#/~1{version}~1projects~1{project_id}~1progress'
+  /{version}/projects/{project_id}/progress/history:
+    $ref: './paths/progress.yaml#/~1{version}~1projects~1{project_id}~1progress~1history'
+
+  # RAE
+  /{version}/milestones/{milestone_id}/rae:
+    $ref: './paths/rae.yaml#/~1{version}~1milestones~1{milestone_id}~1rae'
+  /{version}/milestones/{milestone_id}/rae/history:
+    $ref: './paths/rae.yaml#/~1{version}~1milestones~1{milestone_id}~1rae~1history'
+  /{version}/projects/{project_id}/rae/summary:
+    $ref: './paths/rae.yaml#/~1{version}~1projects~1{project_id}~1rae~1summary'
+  
+  # EVM
+  /{version}/projects/{project_id}/evm:
+    $ref: './paths/evm.yaml#/~1{version}~1projects~1{project_id}~1evm'
+  /{version}/projects/{project_id}/evm/timeseries:
+    $ref: './paths/evm.yaml#/~1{version}~1projects~1{project_id}~1evm~1timeseries'
+  /{version}/projects/{project_id}/evm/forecasts:
+    $ref: './paths/evm.yaml#/~1{version}~1projects~1{project_id}~1evm~1forecasts'
+  
+  # Statistics
+  /{version}/projects/{project_id}/statistics/expenses/by-category:
+    $ref: './paths/statistics.yaml#/~1{version}~1projects~1{project_id}~1statistics~1expenses~1by-category'
+  /{version}/projects/{project_id}/statistics/labor/by-resource:
+    $ref: './paths/statistics.yaml#/~1{version}~1projects~1{project_id}~1statistics~1labor~1by-resource'
+  /{version}/projects/{project_id}/statistics/expenses/monthly:
+    $ref: './paths/statistics.yaml#/~1{version}~1projects~1{project_id}~1statistics~1expenses~1monthly'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      $ref: './components/security.yaml#/bearerAuth'
+    metricsAuth:
+      $ref: './components/security.yaml#/metricsAuth'
+  
+  parameters:
+    VersionParam:
+      $ref: './components/parameters.yaml#/VersionParam'
+    PageParam:
+      $ref: './components/parameters.yaml#/PageParam'
+    PerPageParam:
+      $ref: './components/parameters.yaml#/PerPageParam'
+    ProjectIdParam:
+      $ref: './components/parameters.yaml#/ProjectIdParam'
+    ProjectIdQueryParam:
+      $ref: './components/parameters.yaml#/ProjectIdQueryParam'
+    TaskIdParam:
+      $ref: './components/parameters.yaml#/TaskIdParam'
+    MilestoneIdParam:
+      $ref: './components/parameters.yaml#/MilestoneIdParam'
+    MilestoneIdPathParam:
+      $ref: './components/parameters.yaml#/MilestoneIdPathParam'
+    ResourceIdParam:
+      $ref: './components/parameters.yaml#/ResourceIdParam'
+    AssignmentIdParam:
+      $ref: './components/parameters.yaml#/AssignmentIdParam'
+    ExpenseIdParam:
+      $ref: './components/parameters.yaml#/ExpenseIdParam'
+    DeliverableIdParam:
+      $ref: './components/parameters.yaml#/DeliverableIdParam'
+    SearchParam:
+      $ref: './components/parameters.yaml#/SearchParam'
+    SortByParam:
+      $ref: './components/parameters.yaml#/SortByParam'
+    SortOrderParam:
+      $ref: './components/parameters.yaml#/SortOrderParam'
+  
+  responses:
+    BadRequest:
+      $ref: './components/responses.yaml#/BadRequest'
+    Unauthorized:
+      $ref: './components/responses.yaml#/Unauthorized'
+    Forbidden:
+      $ref: './components/responses.yaml#/Forbidden'
+    NotFound:
+      $ref: './components/responses.yaml#/NotFound'
+    UnprocessableEntity:
+      $ref: './components/responses.yaml#/UnprocessableEntity'
+    TooManyRequests:
+      $ref: './components/responses.yaml#/TooManyRequests'
+    InternalServerError:
+      $ref: './components/responses.yaml#/InternalServerError'
+  
+  schemas:
+    # Project schemas
+    Project:
+      $ref: './components/schemas/project.yaml#/Project'
+    ProjectCreate:
+      $ref: './components/schemas/project.yaml#/ProjectCreate'
+    ProjectUpdate:
+      $ref: './components/schemas/project.yaml#/ProjectUpdate'
+    ProjectResponse:
+      $ref: './components/schemas/project.yaml#/ProjectResponse'
+    ProjectList:
+      $ref: './components/schemas/project.yaml#/ProjectList'
+    
+    # Task schemas
+    Task:
+      $ref: './components/schemas/task.yaml#/Task'
+    TaskCreate:
+      $ref: './components/schemas/task.yaml#/TaskCreate'
+    TaskUpdate:
+      $ref: './components/schemas/task.yaml#/TaskUpdate'
+    TaskResponse:
+      $ref: './components/schemas/task.yaml#/TaskResponse'
+    TaskList:
+      $ref: './components/schemas/task.yaml#/TaskList'
+    TaskBulkCreate:
+      $ref: './components/schemas/task.yaml#/TaskBulkCreate'
+    TaskSync:
+      $ref: './components/schemas/task.yaml#/TaskSync'
+    
+    # Milestone schemas
+    Milestone:
+      $ref: './components/schemas/milestone.yaml#/Milestone'
+    MilestoneCreate:
+      $ref: './components/schemas/milestone.yaml#/MilestoneCreate'
+    MilestoneUpdate:
+      $ref: './components/schemas/milestone.yaml#/MilestoneUpdate'
+    MilestoneResponse:
+      $ref: './components/schemas/milestone.yaml#/MilestoneResponse'
+    MilestoneList:
+      $ref: './components/schemas/milestone.yaml#/MilestoneList'
+    Deliverable:
+      $ref: './components/schemas/deliverable.yaml#/Deliverable'
+    DeliverableCreate:
+      $ref: './components/schemas/deliverable.yaml#/DeliverableCreate'
+    DeliverableUpdate:
+      $ref: './components/schemas/deliverable.yaml#/DeliverableUpdate'
+    DeliverableResponse:
+      $ref: './components/schemas/deliverable.yaml#/DeliverableResponse'
+    DeliverableList:
+      $ref: './components/schemas/deliverable.yaml#/DeliverableList'
+    
+    # Resource schemas
+    Resource:
+      $ref: './components/schemas/resource.yaml#/Resource'
+    ResourceCreate:
+      $ref: './components/schemas/resource.yaml#/ResourceCreate'
+    ResourceUpdate:
+      $ref: './components/schemas/resource.yaml#/ResourceUpdate'
+    ResourceResponse:
+      $ref: './components/schemas/resource.yaml#/ResourceResponse'
+    ResourceList:
+      $ref: './components/schemas/resource.yaml#/ResourceList'
+    
+    # Assignment schemas
+    Assignment:
+      $ref: './components/schemas/assignment.yaml#/Assignment'
+    AssignmentCreate:
+      $ref: './components/schemas/assignment.yaml#/AssignmentCreate'
+    AssignmentUpdate:
+      $ref: './components/schemas/assignment.yaml#/AssignmentUpdate'
+    AssignmentResponse:
+      $ref: './components/schemas/assignment.yaml#/AssignmentResponse'
+    AssignmentList:
+      $ref: './components/schemas/assignment.yaml#/AssignmentList'
+    
+    # Expense schemas
+    Expense:
+      $ref: './components/schemas/expense.yaml#/Expense'
+    ExpenseCreate:
+      $ref: './components/schemas/expense.yaml#/ExpenseCreate'
+    ExpenseUpdate:
+      $ref: './components/schemas/expense.yaml#/ExpenseUpdate'
+    ExpenseBulkCreate:
+      $ref: './components/schemas/expense.yaml#/ExpenseBulkCreate'
+    ExpenseBulkResponse:
+      $ref: './components/schemas/expense.yaml#/ExpenseBulkResponse'
+    ExpenseResponse:
+      $ref: './components/schemas/expense.yaml#/ExpenseResponse'
+    ExpenseList:
+      $ref: './components/schemas/expense.yaml#/ExpenseList'
+    
+    # RAE schemas
+    RAE:
+      $ref: './components/schemas/rae.yaml#/RAE'
+    RAECreate:
+      $ref: './components/schemas/rae.yaml#/RAECreate'
+    RAEResponse:
+      $ref: './components/schemas/rae.yaml#/RAEResponse'
+    RAEHistory:
+      $ref: './components/schemas/rae.yaml#/RAEHistory'
+    RAESummary:
+      $ref: './components/schemas/rae.yaml#/RAESummary'
+    
+    # EVM schemas
+    EVMIndicators:
+      $ref: './components/schemas/evm.yaml#/EVMIndicators'
+    EVMTimeSeries:
+      $ref: './components/schemas/evm.yaml#/EVMTimeSeries'
+    EVMForecasts:
+      $ref: './components/schemas/evm.yaml#/EVMForecasts'
+    
+    # Statistics schemas
+    ExpenseBreakdown:
+      $ref: './components/schemas/evm.yaml#/ExpenseBreakdown'
+    LaborByResource:
+      $ref: './components/schemas/evm.yaml#/LaborByResource'
+    MonthlyExpenses:
+      $ref: './components/schemas/evm.yaml#/MonthlyExpenses'
+    
+    # Progress schemas
+    ProgressUpdateEntry:
+      $ref: './components/schemas/progress.yaml#/ProgressUpdateEntry'
+    ProgressUpdateRequest:
+      $ref: './components/schemas/progress.yaml#/ProgressUpdateRequest'
+    ProgressUpdateResultItem:
+      $ref: './components/schemas/progress.yaml#/ProgressUpdateResultItem'
+    ProgressUpdateError:
+      $ref: './components/schemas/progress.yaml#/ProgressUpdateError'
+    ProgressUpdateData:
+      $ref: './components/schemas/progress.yaml#/ProgressUpdateData'
+    ProgressUpdateResponse:
+      $ref: './components/schemas/progress.yaml#/ProgressUpdateResponse'
+    ProgressHistoryItem:
+      $ref: './components/schemas/progress.yaml#/ProgressHistoryItem'
+    ProgressHistoryResponse:
+      $ref: './components/schemas/progress.yaml#/ProgressHistoryResponse'
+    
+    # Common schemas
+    Error:
+      $ref: './components/schemas/common.yaml#/Error'

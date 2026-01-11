@@ -1,0 +1,292 @@
+/{version}/projects/{project_id}/tasks:
+  post:
+    summary: Create task
+    description: Create a new task within a project
+    operationId: createTask
+    tags:
+      - Tasks
+    parameters:
+      - $ref: '../components/parameters.yaml#/VersionParam'
+      - $ref: '../components/parameters.yaml#/ProjectIdQueryParam'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/task.yaml#/TaskCreate'
+    responses:
+      '201':
+        description: Task created successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/task.yaml#/TaskResponse'
+      '400':
+        $ref: '../components/responses.yaml#/BadRequest'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses.yaml#/Forbidden'
+      '404':
+        $ref: '../components/responses.yaml#/NotFound'
+      '409':
+        description: Circular dependency in predecessors
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/Error'
+      '422':
+        $ref: '../components/responses.yaml#/UnprocessableEntity'
+      '429':
+        $ref: '../components/responses.yaml#/TooManyRequests'
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+  
+  get:
+    summary: List tasks
+    description: Retrieve paginated list of tasks for a project
+    operationId: listTasks
+    tags:
+      - Tasks
+    parameters:
+      - $ref: '../components/parameters.yaml#/VersionParam'
+      - $ref: '../components/parameters.yaml#/ProjectIdQueryParam'
+      - $ref: '../components/parameters.yaml#/PageParam'
+      - $ref: '../components/parameters.yaml#/PerPageParam'
+      - name: parent_id
+        in: query
+        description: Filter by parent task (use "null" for top-level tasks)
+        schema:
+          type: string
+          format: uuid
+      - name: is_milestone
+        in: query
+        description: Filter milestones only
+        schema:
+          type: boolean
+      - name: is_summary
+        in: query
+        description: Filter summary tasks only
+        schema:
+          type: boolean
+      - name: is_critical
+        in: query
+        description: Filter critical path tasks only
+        schema:
+          type: boolean
+      - name: status
+        in: query
+        description: Filter by status
+        schema:
+          type: string
+          enum: [not_started, in_progress, completed, cancelled]
+      - name: search
+        in: query
+        description: Search in name field
+        schema:
+          type: string
+      - name: sort_by
+        in: query
+        description: Sort field
+        schema:
+          type: string
+          enum: [wbs, name, start, finish]
+          default: wbs
+      - name: sort_order
+        in: query
+        description: Sort direction
+        schema:
+          type: string
+          enum: [asc, desc]
+          default: asc
+    responses:
+      '200':
+        description: Successful response with task list
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/task.yaml#/TaskList'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses.yaml#/Forbidden'
+      '404':
+        $ref: '../components/responses.yaml#/NotFound'
+      '429':
+        $ref: '../components/responses.yaml#/TooManyRequests'
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+/{version}/projects/{project_id}/tasks/bulk:
+  post:
+    summary: Bulk create tasks
+    description: Create multiple tasks in a single request (for efficient import)
+    operationId: bulkCreateTasks
+    tags:
+      - Tasks
+    parameters:
+      - $ref: '../components/parameters.yaml#/VersionParam'
+      - $ref: '../components/parameters.yaml#/ProjectIdQueryParam'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/task.yaml#/TaskBulkCreate'
+    responses:
+      '201':
+        description: Tasks created successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/task.yaml#/TaskBulkResponse'
+      '400':
+        $ref: '../components/responses.yaml#/BadRequest'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses.yaml#/Forbidden'
+      '404':
+        $ref: '../components/responses.yaml#/NotFound'
+      '429':
+        $ref: '../components/responses.yaml#/TooManyRequests'
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+/{version}/projects/{project_id}/tasks/sync:
+  put:
+    summary: Sync tasks (upsert for reimport)
+    description: |
+      Update existing tasks during MS Project reimport. Uses ms_project_uid as reconciliation key.
+      Only updates planning fields (dates, duration, predecessors), preserves tracking data
+      (actual dates, progress, RAE).
+    operationId: syncTasks
+    tags:
+      - Tasks
+    parameters:
+      - $ref: '../components/parameters.yaml#/VersionParam'
+      - $ref: '../components/parameters.yaml#/ProjectIdQueryParam'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/task.yaml#/TaskSync'
+    responses:
+      '200':
+        description: Tasks synchronized successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/task.yaml#/TaskSyncResponse'
+      '400':
+        $ref: '../components/responses.yaml#/BadRequest'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses.yaml#/Forbidden'
+      '404':
+        $ref: '../components/responses.yaml#/NotFound'
+      '422':
+        $ref: '../components/responses.yaml#/UnprocessableEntity'
+      '429':
+        $ref: '../components/responses.yaml#/TooManyRequests'
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+/{version}/projects/{project_id}/tasks/{id}:
+  get:
+    summary: Get task
+    description: Retrieve a single task by ID
+    operationId: getTask
+    tags:
+      - Tasks
+    parameters:
+      - $ref: '../components/parameters.yaml#/VersionParam'
+      - $ref: '../components/parameters.yaml#/ProjectIdQueryParam'
+      - $ref: '../components/parameters.yaml#/TaskIdParam'
+    responses:
+      '200':
+        description: Successful response with task details
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/task.yaml#/TaskResponse'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses.yaml#/Forbidden'
+      '404':
+        $ref: '../components/responses.yaml#/NotFound'
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+  
+  patch:
+    summary: Update task
+    description: Update an existing task (partial update)
+    operationId: updateTask
+    tags:
+      - Tasks
+    parameters:
+      - $ref: '../components/parameters.yaml#/VersionParam'
+      - $ref: '../components/parameters.yaml#/ProjectIdQueryParam'
+      - $ref: '../components/parameters.yaml#/TaskIdParam'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/task.yaml#/TaskUpdate'
+    responses:
+      '200':
+        description: Task updated successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/task.yaml#/TaskResponse'
+      '400':
+        $ref: '../components/responses.yaml#/BadRequest'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses.yaml#/Forbidden'
+      '404':
+        $ref: '../components/responses.yaml#/NotFound'
+      '409':
+        description: Circular dependency in predecessors
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/Error'
+      '422':
+        $ref: '../components/responses.yaml#/UnprocessableEntity'
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+  
+  delete:
+    summary: Delete task
+    description: Delete a task (cascades to assignments and child tasks)
+    operationId: deleteTask
+    tags:
+      - Tasks
+    parameters:
+      - $ref: '../components/parameters.yaml#/VersionParam'
+      - $ref: '../components/parameters.yaml#/ProjectIdQueryParam'
+      - $ref: '../components/parameters.yaml#/TaskIdParam'
+    responses:
+      '204':
+        description: Task deleted successfully
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses.yaml#/Forbidden'
+      '404':
+        $ref: '../components/responses.yaml#/NotFound'
+      '409':
+        description: Task is referenced by other tasks as predecessor
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/Error'
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'

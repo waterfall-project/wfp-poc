@@ -1,0 +1,274 @@
+/{version}/projects/{project_id}/assignments:
+  post:
+    summary: Create assignment
+    description: Create task-resource assignment. Validates task+resource combination uniqueness and company isolation (resource and task must belong to same company).
+    operationId: createAssignment
+    tags: [Assignments]
+    security:
+      - bearerAuth: []
+    parameters:
+      - $ref: '../components/parameters.yaml#/VersionParam'
+      - $ref: '../components/parameters.yaml#/ProjectIdQueryParam'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/assignment.yaml#/AssignmentCreate'
+          examples:
+            full_time:
+              summary: Full-time assignment
+              value:
+                task_id: "b2c3d4e5-f6a7-4b5c-9d0e-1f2a3b4c5d6e"
+                resource_id: "f6a7b8c9-d0e1-4f5a-3b4c-5d6e7f8a9b0c"
+                work_hours: "PT40H0M0S"
+                percent_allocation: 100
+                cost: 3400.00
+            part_time:
+              summary: Part-time assignment
+              value:
+                task_id: "b2c3d4e5-f6a7-4b5c-9d0e-1f2a3b4c5d6e"
+                resource_id: "a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d"
+                percent_allocation: 50
+    responses:
+      '201':
+        description: Assignment created successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/assignment.yaml#/AssignmentResponse'
+            example:
+              data:
+                id: "a7b8c9d0-e1f2-4a5b-4c5d-6e7f8a9b0c1d"
+                project_id: "a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d"
+                task_id: "b2c3d4e5-f6a7-4b5c-9d0e-1f2a3b4c5d6e"
+                resource_id: "f6a7b8c9-d0e1-4f5a-3b4c-5d6e7f8a9b0c"
+                work_hours: "PT40H0M0S"
+                percent_allocation: 100
+                cost: 3400.00
+                actual_work: "PT0H0M0S"
+                actual_cost: 0.00
+                created_at: "2026-01-11T11:00:00Z"
+                updated_at: "2026-01-11T11:00:00Z"
+              message: "Assignment created successfully"
+      '400':
+        $ref: '../components/responses.yaml#/BadRequest'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses.yaml#/Forbidden'
+      '404':
+        description: Task or resource not found
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/Error'
+      '409':
+        description: Duplicate assignment (same task + resource combination)
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/Error'
+            example:
+              message: "Assignment already exists for this task and resource"
+              correlation_id: "123e4567-e89b-12d3-a456-426614174000"
+      '422':
+        description: Resource and task belong to different companies
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/Error'
+            example:
+              message: "Resource and task must belong to the same company"
+              correlation_id: "123e4567-e89b-12d3-a456-426614174000"
+      '429':
+        $ref: '../components/responses.yaml#/TooManyRequests'
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+  get:
+    summary: List assignments
+    description: Retrieve all assignments for a project
+    operationId: listAssignments
+    tags: [Assignments]
+    security:
+      - bearerAuth: []
+    parameters:
+      - $ref: '../components/parameters.yaml#/VersionParam'
+      - $ref: '../components/parameters.yaml#/ProjectIdQueryParam'
+      - $ref: '../components/parameters.yaml#/PageParam'
+      - $ref: '../components/parameters.yaml#/PerPageParam'
+      - name: task_id
+        in: query
+        schema:
+          type: string
+          format: uuid
+        description: Filter by task
+      - name: resource_id
+        in: query
+        schema:
+          type: string
+          format: uuid
+        description: Filter by resource
+    responses:
+      '200':
+        description: Assignments retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/assignment.yaml#/AssignmentList'
+            example:
+              data:
+                - id: "a7b8c9d0-e1f2-4a5b-4c5d-6e7f8a9b0c1d"
+                  project_id: "a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d"
+                  task_id: "b2c3d4e5-f6a7-4b5c-9d0e-1f2a3b4c5d6e"
+                  resource_id: "f6a7b8c9-d0e1-4f5a-3b4c-5d6e7f8a9b0c"
+                  work_hours: "PT40H0M0S"
+                  cost: 3400.00
+              page: 1
+              per_page: 20
+              total: 150
+              total_pages: 8
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses.yaml#/Forbidden'
+      '404':
+        $ref: '../components/responses.yaml#/NotFound'
+      '429':
+        $ref: '../components/responses.yaml#/TooManyRequests'
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+/{version}/projects/{project_id}/assignments/{id}:
+  get:
+    summary: Get assignment by ID
+    description: Retrieve a single assignment
+    operationId: getAssignment
+    tags: [Assignments]
+    security:
+      - bearerAuth: []
+    parameters:
+      - $ref: '../components/parameters.yaml#/VersionParam'
+      - $ref: '../components/parameters.yaml#/ProjectIdQueryParam'
+      - name: id
+        in: path
+        required: true
+        description: Assignment unique identifier
+        schema:
+          type: string
+          format: uuid
+    responses:
+      '200':
+        description: Assignment retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/assignment.yaml#/AssignmentResponse'
+            example:
+              data:
+                id: "a7b8c9d0-e1f2-4a5b-4c5d-6e7f8a9b0c1d"
+                project_id: "a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d"
+                task_id: "b2c3d4e5-f6a7-4b5c-9d0e-1f2a3b4c5d6e"
+                resource_id: "f6a7b8c9-d0e1-4f5a-3b4c-5d6e7f8a9b0c"
+                work_hours: "PT40H0M0S"
+                percent_allocation: 100
+                cost: 3400.00
+                actual_work: "PT32H0M0S"
+                actual_cost: 2720.00
+                created_at: "2026-01-11T11:00:00Z"
+                updated_at: "2026-01-11T11:30:00Z"
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses.yaml#/Forbidden'
+      '404':
+        $ref: '../components/responses.yaml#/NotFound'
+      '429':
+        $ref: '../components/responses.yaml#/TooManyRequests'
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+  patch:
+    summary: Update assignment
+    description: Update assignment fields (work hours, allocation, costs)
+    operationId: updateAssignment
+    tags: [Assignments]
+    security:
+      - bearerAuth: []
+    parameters:
+      - $ref: '../components/parameters.yaml#/VersionParam'
+      - $ref: '../components/parameters.yaml#/ProjectIdQueryParam'
+      - name: id
+        in: path
+        required: true
+        description: Assignment unique identifier
+        schema:
+          type: string
+          format: uuid
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/assignment.yaml#/AssignmentUpdate'
+          examples:
+            update_actuals:
+              summary: Update actual work and cost
+              value:
+                actual_work: "PT32H0M0S"
+                actual_cost: 2720.00
+            update_allocation:
+              summary: Adjust resource allocation
+              value:
+                percent_allocation: 75
+    responses:
+      '200':
+        description: Assignment updated successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/assignment.yaml#/AssignmentResponse'
+      '400':
+        $ref: '../components/responses.yaml#/BadRequest'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses.yaml#/Forbidden'
+      '404':
+        $ref: '../components/responses.yaml#/NotFound'
+      '429':
+        $ref: '../components/responses.yaml#/TooManyRequests'
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+  delete:
+    summary: Delete assignment
+    description: Delete an assignment
+    operationId: deleteAssignment
+    tags: [Assignments]
+    security:
+      - bearerAuth: []
+    parameters:
+      - $ref: '../components/parameters.yaml#/VersionParam'
+      - $ref: '../components/parameters.yaml#/ProjectIdQueryParam'
+      - name: id
+        in: path
+        required: true
+        description: Assignment unique identifier
+        schema:
+          type: string
+          format: uuid
+    responses:
+      '204':
+        description: Assignment deleted successfully
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses.yaml#/Forbidden'
+      '404':
+        $ref: '../components/responses.yaml#/NotFound'
+      '429':
+        $ref: '../components/responses.yaml#/TooManyRequests'
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'

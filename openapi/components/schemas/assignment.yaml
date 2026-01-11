@@ -1,0 +1,186 @@
+Assignment:
+  type: object
+  required: [id, project_id, task_id, resource_id]
+  properties:
+    id:
+      type: string
+      format: uuid
+      readOnly: true
+      description: Unique identifier (UUID v4), auto-generated
+    project_id:
+      type: string
+      format: uuid
+      readOnly: true
+      description: Parent project reference
+    task_id:
+      type: string
+      format: uuid
+      description: Assigned task reference
+    resource_id:
+      type: string
+      format: uuid
+      description: Assigned resource reference
+    ms_project_uid:
+      anyOf:
+        - type: integer
+        - type: 'null'
+      description: MS Project assignment UID (unstable, for display only)
+    work_hours:
+      anyOf:
+        - type: string
+          format: duration
+          pattern: '^PT\d+H\d+M\d+S$'
+        - type: 'null'
+      description: Planned work hours for this assignment
+      example: "PT40H0M0S"
+    percent_allocation:
+      type: integer
+      minimum: 0
+      maximum: 100
+      default: 100
+      description: Resource allocation percentage (100 = full-time on this task)
+    cost:
+      anyOf:
+        - type: number
+          format: double
+          minimum: 0
+        - type: 'null'
+      description: Planned cost for this assignment (calculated from work_hours × rate)
+      example: 3400.00
+    actual_work:
+      anyOf:
+        - type: string
+          format: duration
+          pattern: '^PT\d+H\d+M\d+S$'
+        - type: 'null'
+      description: Actual work performed
+      example: "PT32H0M0S"
+    actual_cost:
+      type: number
+      format: double
+      minimum: 0
+      default: 0
+      description: Actual cost incurred
+      example: 2720.00
+    created_at:
+      type: string
+      format: date-time
+      readOnly: true
+      description: Record creation timestamp
+    updated_at:
+      type: string
+      format: date-time
+      readOnly: true
+      description: Record last update timestamp
+
+AssignmentCreate:
+  type: object
+  required: [task_id, resource_id]
+  properties:
+    task_id:
+      type: string
+      format: uuid
+      description: Assigned task reference
+    resource_id:
+      type: string
+      format: uuid
+      description: Assigned resource reference
+    ms_project_uid:
+      anyOf:
+        - type: integer
+        - type: 'null'
+      description: MS Project assignment UID
+    work_hours:
+      anyOf:
+        - type: string
+          format: duration
+          pattern: '^PT\d+H\d+M\d+S$'
+        - type: 'null'
+      description: Planned work hours
+      example: "PT40H0M0S"
+    percent_allocation:
+      type: integer
+      minimum: 0
+      maximum: 100
+      default: 100
+      description: Resource allocation percentage
+    cost:
+      anyOf:
+        - type: number
+          format: double
+          minimum: 0
+        - type: 'null'
+      description: Planned cost (auto-calculated if omitted)
+
+AssignmentUpdate:
+  type: object
+  minProperties: 1
+  properties:
+    work_hours:
+      anyOf:
+        - type: string
+          format: duration
+          pattern: '^PT\d+H\d+M\d+S$'
+        - type: 'null'
+      description: Planned work hours
+    percent_allocation:
+      type: integer
+      minimum: 0
+      maximum: 100
+      description: Resource allocation percentage
+    cost:
+      anyOf:
+        - type: number
+          format: double
+          minimum: 0
+        - type: 'null'
+      description: Planned cost
+    actual_work:
+      anyOf:
+        - type: string
+          format: duration
+          pattern: '^PT\d+H\d+M\d+S$'
+        - type: 'null'
+      description: Actual work performed
+    actual_cost:
+      type: number
+      format: double
+      minimum: 0
+      description: Actual cost incurred
+
+AssignmentResponse:
+  type: object
+  required: [data]
+  properties:
+    data:
+      $ref: '#/Assignment'
+    message:
+      type: string
+      description: Optional success message
+      example: "Assignment created successfully"
+
+AssignmentList:
+  type: object
+  required: [data, page, per_page, total, total_pages]
+  properties:
+    data:
+      type: array
+      items:
+        $ref: '#/Assignment'
+    page:
+      type: integer
+      minimum: 1
+      description: Current page number
+    per_page:
+      type: integer
+      minimum: 1
+      maximum: 100
+      description: Items per page
+    total:
+      type: integer
+      minimum: 0
+      description: Total number of assignments
+    total_pages:
+      type: integer
+      minimum: 0
+      description: Total number of pages

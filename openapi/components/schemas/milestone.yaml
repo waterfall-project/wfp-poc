@@ -1,0 +1,253 @@
+Milestone:
+  type: object
+  required:
+    - id
+    - project_id
+    - name
+    - target_date
+    - budget_weight
+  properties:
+    id:
+      type: string
+      format: uuid
+      description: Unique identifier (auto-generated)
+      readOnly: true
+    project_id:
+      type: string
+      format: uuid
+      description: Parent project reference
+    name:
+      type: string
+      minLength: 1
+      maxLength: 255
+      description: Milestone name
+      example: "RQF - Requirements Qualification Review"
+    description:
+      anyOf:
+        - type: string
+        - type: "null"
+      maxLength: 1000
+      description: Milestone description
+      example: "Formal review of requirements specification"
+    target_date:
+      type: string
+      format: date-time
+      description: "Target completion date - Auto-calculated as MAX(predecessor_tasks.planned_finish) if tasks linked"
+      example: "2027-01-22T18:00:00Z"
+    actual_date:
+      anyOf:
+        - type: string
+          format: date-time
+        - type: "null"
+      description: Actual completion date (null if not achieved)
+    status:
+      type: string
+      enum: [upcoming, achieved, missed]
+      default: upcoming
+      description: Milestone status (auto-updated based on actual_date vs target_date)
+      example: "upcoming"
+    budget_weight:
+      type: number
+      format: double
+      minimum: 0
+      maximum: 1
+      description: Weight for EV milestone calculation (sum across project must equal 1.0)
+      example: 0.15
+    is_achieved:
+      type: boolean
+      default: false
+      description: True if milestone has been achieved
+    achieved_date:
+      anyOf:
+        - type: string
+          format: date-time
+        - type: "null"
+      description: Date when milestone was achieved (for EV milestone method)
+    created_at:
+      type: string
+      format: date-time
+      readOnly: true
+    updated_at:
+      type: string
+      format: date-time
+      readOnly: true
+
+MilestoneCreate:
+  type: object
+  required:
+    - name
+    - target_date
+    - budget_weight
+  properties:
+    name:
+      type: string
+      minLength: 1
+      maxLength: 255
+      example: "RQF - Requirements Qualification Review"
+    description:
+      type: string
+      maxLength: 1000
+      example: "Formal review of requirements specification"
+    target_date:
+      type: string
+      format: date-time
+      example: "2027-01-22T18:00:00Z"
+    budget_weight:
+      type: number
+      format: double
+      minimum: 0
+      maximum: 1
+      example: 0.15
+
+MilestoneUpdate:
+  type: object
+  minProperties: 1
+  properties:
+    name:
+      type: string
+      minLength: 1
+      maxLength: 255
+    description:
+      anyOf:
+        - type: string
+        - type: "null"
+      maxLength: 1000
+    target_date:
+      type: string
+      format: date-time
+    actual_date:
+      anyOf:
+        - type: string
+          format: date-time
+        - type: "null"
+    budget_weight:
+      type: number
+      format: double
+      minimum: 0
+      maximum: 1
+    is_achieved:
+      type: boolean
+    achieved_date:
+      anyOf:
+        - type: string
+          format: date-time
+        - type: "null"
+
+MilestoneResponse:
+  type: object
+  properties:
+    data:
+      $ref: '#/Milestone'
+    message:
+      type: string
+      example: "Milestone created successfully"
+
+MilestoneList:
+  type: object
+  properties:
+    data:
+      type: array
+      items:
+        $ref: '#/Milestone'
+    page:
+      type: integer
+      example: 1
+    per_page:
+      type: integer
+      example: 20
+    total:
+      type: integer
+      example: 8
+    total_pages:
+      type: integer
+      example: 1
+
+MilestoneTaskLink:
+  type: object
+  required:
+    - task_ids
+  properties:
+    task_ids:
+      type: array
+      items:
+        type: string
+        format: uuid
+      minItems: 1
+      description: Array of task IDs to link as milestone predecessors
+      example: ["b2c3d4e5-f6a7-4b5c-9d0e-1f2a3b4c5d6e", "c3d4e5f6-a7b8-4c5d-0e1f-2a3b4c5d6e7f"]
+    relationship_type:
+      type: string
+      enum: [predecessor, contributor]
+      default: predecessor
+      description: Type of relationship
+      example: "predecessor"
+
+MilestoneTaskLinkResponse:
+  type: object
+  properties:
+    data:
+      type: object
+      properties:
+        milestone_id:
+          type: string
+          format: uuid
+        target_date:
+          type: string
+          format: date-time
+          description: Recalculated as MAX(linked tasks planned_finish)
+        linked_task_count:
+          type: integer
+        predecessor_tasks:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+                format: uuid
+              name:
+                type: string
+              planned_finish:
+                type: string
+                format: date-time
+              is_critical:
+                type: boolean
+                description: True if this task's finish date determines milestone target_date
+    message:
+      type: string
+      example: "Tasks linked successfully, milestone target_date recalculated"
+
+MilestonePredecessorTasks:
+  type: object
+  properties:
+    data:
+      type: object
+      properties:
+        milestone_id:
+          type: string
+          format: uuid
+        milestone_name:
+          type: string
+        target_date:
+          type: string
+          format: date-time
+        predecessor_tasks:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+                format: uuid
+              name:
+                type: string
+              wbs:
+                type: string
+              planned_finish:
+                type: string
+                format: date-time
+              is_critical:
+                type: boolean
+                description: True if this task determines the milestone date
+              ms_project_uid:
+                type: integer

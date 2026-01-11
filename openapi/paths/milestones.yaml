@@ -1,0 +1,402 @@
+/{version}/projects/{project_id}/milestones:
+  post:
+    summary: Create milestone
+    description: Create a new milestone for a project. The sum of budget_weight across all project milestones must equal 1.0.
+    operationId: createMilestone
+    tags: [Milestones]
+    security:
+      - bearerAuth: []
+    parameters:
+      - $ref: '../components/parameters.yaml#/VersionParam'
+      - $ref: '../components/parameters.yaml#/ProjectIdQueryParam'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/milestone.yaml#/MilestoneCreate'
+          examples:
+            rqf_milestone:
+              summary: Requirements Qualification Review
+              value:
+                name: "RQF - Requirements Qualification Review"
+                description: "Formal review of requirements specification"
+                target_date: "2027-01-22T18:00:00Z"
+                budget_weight: 0.15
+    responses:
+      '201':
+        description: Milestone created successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/milestone.yaml#/MilestoneResponse'
+            example:
+              data:
+                id: "d4e5f6a7-b8c9-4d5e-1f2a-3b4c5d6e7f8a"
+                project_id: "a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d"
+                name: "RQF - Requirements Qualification Review"
+                description: "Formal review of requirements specification"
+                target_date: "2027-01-22T18:00:00Z"
+                actual_date: null
+                status: "upcoming"
+                budget_weight: 0.15
+                is_achieved: false
+                achieved_date: null
+                created_at: "2026-01-11T10:00:00Z"
+                updated_at: "2026-01-11T10:00:00Z"
+              message: "Milestone created successfully"
+      '400':
+        $ref: '../components/responses.yaml#/BadRequest'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses.yaml#/Forbidden'
+      '404':
+        $ref: '../components/responses.yaml#/NotFound'
+      '409':
+        description: Conflict - Milestone overlaps or budget_weight sum exceeds 1.0
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/Error'
+            example:
+              message: "Sum of milestone budget_weight would exceed 1.0 (current: 0.90, adding: 0.15)"
+              correlation_id: "123e4567-e89b-12d3-a456-426614174000"
+      '422':
+        $ref: '../components/responses.yaml#/UnprocessableEntity'
+      '429':
+        $ref: '../components/responses.yaml#/TooManyRequests'
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+  get:
+    summary: List milestones
+    description: Retrieve all milestones for a project with optional filtering
+    operationId: listMilestones
+    tags: [Milestones]
+    security:
+      - bearerAuth: []
+    parameters:
+      - $ref: '../components/parameters.yaml#/VersionParam'
+      - $ref: '../components/parameters.yaml#/ProjectIdQueryParam'
+      - $ref: '../components/parameters.yaml#/PageParam'
+      - $ref: '../components/parameters.yaml#/PerPageParam'
+      - name: status
+        in: query
+        schema:
+          type: string
+          enum: [upcoming, achieved, missed]
+        description: Filter by milestone status
+      - name: target_date_from
+        in: query
+        schema:
+          type: string
+          format: date-time
+        description: Filter milestones with target_date >= this value
+      - name: target_date_to
+        in: query
+        schema:
+          type: string
+          format: date-time
+        description: Filter milestones with target_date <= this value
+      - $ref: '../components/parameters.yaml#/SearchParam'
+      - $ref: '../components/parameters.yaml#/SortByParam'
+      - $ref: '../components/parameters.yaml#/SortOrderParam'
+    responses:
+      '200':
+        description: Milestones retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/milestone.yaml#/MilestoneList'
+            example:
+              data:
+                - id: "d4e5f6a7-b8c9-4d5e-1f2a-3b4c5d6e7f8a"
+                  project_id: "a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d"
+                  name: "RQF"
+                  target_date: "2027-01-22T18:00:00Z"
+                  status: "upcoming"
+                  budget_weight: 0.15
+              page: 1
+              per_page: 20
+              total: 8
+              total_pages: 1
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses.yaml#/Forbidden'
+      '404':
+        $ref: '../components/responses.yaml#/NotFound'
+      '429':
+        $ref: '../components/responses.yaml#/TooManyRequests'
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+/{version}/projects/{project_id}/milestones/{id}:
+  get:
+    summary: Get milestone by ID
+    description: Retrieve a single milestone with all details
+    operationId: getMilestone
+    tags: [Milestones]
+    security:
+      - bearerAuth: []
+    parameters:
+      - $ref: '../components/parameters.yaml#/VersionParam'
+      - $ref: '../components/parameters.yaml#/ProjectIdQueryParam'
+      - $ref: '../components/parameters.yaml#/MilestoneIdParam'
+    responses:
+      '200':
+        description: Milestone retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/milestone.yaml#/MilestoneResponse'
+            example:
+              data:
+                id: "d4e5f6a7-b8c9-4d5e-1f2a-3b4c5d6e7f8a"
+                project_id: "a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d"
+                name: "RQF - Requirements Qualification Review"
+                description: "Formal review of requirements specification"
+                target_date: "2027-01-22T18:00:00Z"
+                actual_date: null
+                status: "upcoming"
+                budget_weight: 0.15
+                is_achieved: false
+                achieved_date: null
+                created_at: "2026-01-11T10:00:00Z"
+                updated_at: "2026-01-11T10:00:00Z"
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses.yaml#/Forbidden'
+      '404':
+        $ref: '../components/responses.yaml#/NotFound'
+      '429':
+        $ref: '../components/responses.yaml#/TooManyRequests'
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+  patch:
+    summary: Update milestone
+    description: Update milestone fields. Warning - manually updating target_date will not affect linked task dates.
+    operationId: updateMilestone
+    tags: [Milestones]
+    security:
+      - bearerAuth: []
+    parameters:
+      - $ref: '../components/parameters.yaml#/VersionParam'
+      - $ref: '../components/parameters.yaml#/ProjectIdQueryParam'
+      - $ref: '../components/parameters.yaml#/MilestoneIdParam'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/milestone.yaml#/MilestoneUpdate'
+          examples:
+            mark_achieved:
+              summary: Mark milestone as achieved
+              value:
+                is_achieved: true
+                achieved_date: "2027-01-20T14:30:00Z"
+                actual_date: "2027-01-20T14:30:00Z"
+    responses:
+      '200':
+        description: Milestone updated successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/milestone.yaml#/MilestoneResponse'
+      '400':
+        $ref: '../components/responses.yaml#/BadRequest'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses.yaml#/Forbidden'
+      '404':
+        $ref: '../components/responses.yaml#/NotFound'
+      '409':
+        description: Budget weight sum would exceed 1.0
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/Error'
+      '422':
+        $ref: '../components/responses.yaml#/UnprocessableEntity'
+      '429':
+        $ref: '../components/responses.yaml#/TooManyRequests'
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+  delete:
+    summary: Delete milestone
+    description: Delete a milestone. Cannot delete if milestone has associated expenses or deliverables.
+    operationId: deleteMilestone
+    tags: [Milestones]
+    security:
+      - bearerAuth: []
+    parameters:
+      - $ref: '../components/parameters.yaml#/VersionParam'
+      - $ref: '../components/parameters.yaml#/ProjectIdQueryParam'
+      - $ref: '../components/parameters.yaml#/MilestoneIdParam'
+    responses:
+      '204':
+        description: Milestone deleted successfully
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses.yaml#/Forbidden'
+      '404':
+        $ref: '../components/responses.yaml#/NotFound'
+      '409':
+        description: Cannot delete milestone with associated expenses or deliverables
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/Error'
+            example:
+              message: "Cannot delete milestone with 3 associated expenses"
+              correlation_id: "123e4567-e89b-12d3-a456-426614174000"
+      '429':
+        $ref: '../components/responses.yaml#/TooManyRequests'
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+/{version}/milestones/{milestone_id}/tasks:
+  post:
+    summary: Link tasks to milestone
+    description: Create M2M links between milestone and predecessor tasks. Auto-recalculates milestone target_date as MAX(tasks.planned_finish).
+    operationId: linkMilestoneTasks
+    tags: [Milestones]
+    security:
+      - bearerAuth: []
+    parameters:
+      - $ref: '../components/parameters.yaml#/VersionParam'
+      - $ref: '../components/parameters.yaml#/MilestoneIdPathParam'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/milestone.yaml#/MilestoneTaskLink'
+          example:
+            task_ids: ["b2c3d4e5-f6a7-4b5c-9d0e-1f2a3b4c5d6e", "c3d4e5f6-a7b8-4c5d-0e1f-2a3b4c5d6e7f"]
+            relationship_type: "predecessor"
+    responses:
+      '200':
+        description: Tasks linked successfully, milestone target_date recalculated
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/milestone.yaml#/MilestoneTaskLinkResponse'
+            example:
+              data:
+                milestone_id: "d4e5f6a7-b8c9-4d5e-1f2a-3b4c5d6e7f8a"
+                target_date: "2027-01-22T18:00:00Z"
+                linked_task_count: 2
+                predecessor_tasks:
+                  - id: "b2c3d4e5-f6a7-4b5c-9d0e-1f2a3b4c5d6e"
+                    name: "Requirements validation"
+                    planned_finish: "2027-01-22T18:00:00Z"
+                    is_critical: true
+                  - id: "c3d4e5f6-a7b8-4c5d-0e1f-2a3b4c5d6e7f"
+                    name: "Documentation review"
+                    planned_finish: "2027-01-20T16:00:00Z"
+                    is_critical: false
+              message: "Tasks linked successfully, milestone target_date recalculated"
+      '400':
+        $ref: '../components/responses.yaml#/BadRequest'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses.yaml#/Forbidden'
+      '404':
+        $ref: '../components/responses.yaml#/NotFound'
+      '422':
+        $ref: '../components/responses.yaml#/UnprocessableEntity'
+      '429':
+        $ref: '../components/responses.yaml#/TooManyRequests'
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+  get:
+    summary: Get milestone predecessor tasks
+    description: Retrieve all tasks that are linked as predecessors to this milestone
+    operationId: getMilestonePredecessorTasks
+    tags: [Milestones]
+    security:
+      - bearerAuth: []
+    parameters:
+      - $ref: '../components/parameters.yaml#/VersionParam'
+      - $ref: '../components/parameters.yaml#/MilestoneIdPathParam'
+    responses:
+      '200':
+        description: Predecessor tasks retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/milestone.yaml#/MilestonePredecessorTasks'
+            example:
+              data:
+                milestone_id: "d4e5f6a7-b8c9-4d5e-1f2a-3b4c5d6e7f8a"
+                milestone_name: "RQF - Requirements Qualification Review"
+                target_date: "2027-01-22T18:00:00Z"
+                predecessor_tasks:
+                  - id: "b2c3d4e5-f6a7-4b5c-9d0e-1f2a3b4c5d6e"
+                    name: "Requirements validation"
+                    wbs: "1.2.3"
+                    planned_finish: "2027-01-22T18:00:00Z"
+                    is_critical: true
+                    ms_project_uid: 123
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses.yaml#/Forbidden'
+      '404':
+        $ref: '../components/responses.yaml#/NotFound'
+      '429':
+        $ref: '../components/responses.yaml#/TooManyRequests'
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+
+/{version}/milestones/{milestone_id}/tasks/sync:
+  put:
+    summary: Sync milestone-task links
+    description: Upsert milestone-task relationships. Removes links not in task_ids, adds new links, preserves existing. Used during MS Project reimport.
+    operationId: syncMilestoneTasks
+    tags: [Milestones]
+    security:
+      - bearerAuth: []
+    parameters:
+      - $ref: '../components/parameters.yaml#/VersionParam'
+      - $ref: '../components/parameters.yaml#/MilestoneIdPathParam'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/milestone.yaml#/MilestoneTaskLink'
+          example:
+            task_ids: ["b2c3d4e5-f6a7-4b5c-9d0e-1f2a3b4c5d6e", "f7a8b9c0-d1e2-4f3a-5b6c-7d8e9f0a1b2c"]
+    responses:
+      '200':
+        description: Milestone-task links synchronized
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/milestone.yaml#/MilestoneTaskLinkResponse'
+      '400':
+        $ref: '../components/responses.yaml#/BadRequest'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses.yaml#/Forbidden'
+      '404':
+        $ref: '../components/responses.yaml#/NotFound'
+      '422':
+        $ref: '../components/responses.yaml#/UnprocessableEntity'
+      '429':
+        $ref: '../components/responses.yaml#/TooManyRequests'
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'

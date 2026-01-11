@@ -1,0 +1,261 @@
+Expense:
+  type: object
+  required: [id, project_id, date, amount, category]
+  properties:
+    id:
+      type: string
+      format: uuid
+      readOnly: true
+      description: Unique identifier (UUID v4), auto-generated
+    project_id:
+      type: string
+      format: uuid
+      readOnly: true
+      description: Parent project reference
+    milestone_id:
+      anyOf:
+        - type: string
+          format: uuid
+        - type: 'null'
+      description: Allocated milestone (auto-assigned based on expense date falling between milestone target dates)
+    resource_id:
+      anyOf:
+        - type: string
+          format: uuid
+        - type: 'null'
+      description: Associated resource (for labor expenses)
+    date:
+      type: string
+      format: date-time
+      description: Expense date (Date de la pièce from ERP)
+    amount:
+      type: number
+      format: double
+      minimum: 0
+      description: Expense amount
+      example: 3820.00
+    category:
+      type: string
+      enum: [labor, procurement, subcontracting, overhead]
+      description: Expense category (labor=MO, procurement=Achat, subcontracting=ST, overhead=Frais)
+    description:
+      type: string
+      maxLength: 500
+      description: Expense description
+    reference_number:
+      type: string
+      maxLength: 50
+      description: ERP reference number (Nº pièce référence)
+    purchase_document:
+      type: string
+      maxLength: 50
+      description: Document d'achat from ERP
+    fiscal_year:
+      type: integer
+      description: Exercice comptable from ERP
+      example: 2025
+    period:
+      type: integer
+      minimum: 1
+      maximum: 12
+      description: Période from ERP (month)
+      example: 5
+    otp_element:
+      type: string
+      maxLength: 50
+      description: Elément d'OTP from ERP (project code)
+      example: "G.DED.22966/13984"
+    accounting_nature:
+      type: string
+      maxLength: 50
+      description: Nature comptable from ERP
+      example: "60510000"
+    vendor_name:
+      type: string
+      maxLength: 255
+      description: Nom 1 from ERP (vendor or resource name)
+      example: "ARELIS"
+    origin_group:
+      type: string
+      maxLength: 50
+      description: Groupe d'origine from ERP
+      example: "STOR"
+    created_at:
+      type: string
+      format: date-time
+      readOnly: true
+      description: Record creation timestamp
+    updated_at:
+      type: string
+      format: date-time
+      readOnly: true
+      description: Record last update timestamp
+
+ExpenseCreate:
+  type: object
+  required: [date, amount, category]
+  properties:
+    resource_id:
+      anyOf:
+        - type: string
+          format: uuid
+        - type: 'null'
+      description: Associated resource (for labor expenses)
+    date:
+      type: string
+      format: date-time
+      description: Expense date (must fall between project milestone dates)
+    amount:
+      type: number
+      format: double
+      minimum: 0
+      description: Expense amount
+    category:
+      type: string
+      enum: [labor, procurement, subcontracting, overhead]
+      description: Expense category
+    description:
+      type: string
+      maxLength: 500
+      description: Expense description
+    reference_number:
+      type: string
+      maxLength: 50
+      description: ERP reference number
+    purchase_document:
+      type: string
+      maxLength: 50
+      description: Document d'achat from ERP
+    fiscal_year:
+      type: integer
+      description: Exercice comptable
+    period:
+      type: integer
+      minimum: 1
+      maximum: 12
+      description: Période (month)
+    otp_element:
+      type: string
+      maxLength: 50
+      description: Elément d'OTP (project code)
+    accounting_nature:
+      type: string
+      maxLength: 50
+      description: Nature comptable
+    vendor_name:
+      type: string
+      maxLength: 255
+      description: Vendor or resource name
+    origin_group:
+      type: string
+      maxLength: 50
+      description: Groupe d'origine
+
+ExpenseUpdate:
+  type: object
+  minProperties: 1
+  properties:
+    date:
+      type: string
+      format: date-time
+      description: Expense date (updating may trigger milestone_id reassignment)
+    amount:
+      type: number
+      format: double
+      minimum: 0
+      description: Expense amount
+    category:
+      type: string
+      enum: [labor, procurement, subcontracting, overhead]
+      description: Expense category
+    description:
+      type: string
+      maxLength: 500
+      description: Expense description
+
+ExpenseBulkCreate:
+  type: object
+  required: [expenses]
+  properties:
+    expenses:
+      type: array
+      items:
+        $ref: '#/ExpenseCreate'
+      minItems: 1
+      maxItems: 1000
+      description: Array of expenses to create (max 1000 for ERP imports)
+
+ExpenseBulkResponse:
+  type: object
+  required: [data, message]
+  properties:
+    data:
+      type: object
+      required: [created_count, failed_count]
+      properties:
+        created_count:
+          type: integer
+          minimum: 0
+          description: Number of expenses successfully created
+        failed_count:
+          type: integer
+          minimum: 0
+          description: Number of expenses that failed validation
+        expenses:
+          type: array
+          items:
+            $ref: '#/Expense'
+          description: Successfully created expenses
+        errors:
+          type: array
+          items:
+            type: object
+            properties:
+              index:
+                type: integer
+                description: Array index of failed expense
+              error:
+                type: string
+                description: Error message
+          description: Validation errors for failed expenses
+    message:
+      type: string
+      description: Summary message
+      example: "250 expenses created, 3 failed"
+
+ExpenseResponse:
+  type: object
+  required: [data]
+  properties:
+    data:
+      $ref: '#/Expense'
+    message:
+      type: string
+      description: Optional success message
+      example: "Expense created successfully"
+
+ExpenseList:
+  type: object
+  required: [data, page, per_page, total, total_pages]
+  properties:
+    data:
+      type: array
+      items:
+        $ref: '#/Expense'
+    page:
+      type: integer
+      minimum: 1
+      description: Current page number
+    per_page:
+      type: integer
+      minimum: 1
+      maximum: 100
+      description: Items per page
+    total:
+      type: integer
+      minimum: 0
+      description: Total number of expenses
+    total_pages:
+      type: integer
+      minimum: 0
+      description: Total number of pages

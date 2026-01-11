@@ -1,0 +1,127 @@
+/{version}/milestones/{milestone_id}/rae:
+  post:
+    summary: Update milestone RAE
+    description: Record a new RAE (Remaining At End) value for a milestone. Updates milestone.current_rae and recalculates EV_physical.
+    operationId: updateMilestoneRAE
+    tags: [RAE]
+    security:
+      - bearerAuth: []
+    parameters:
+      - $ref: '../components/parameters.yaml#/VersionParam'
+      - name: milestone_id
+        in: path
+        required: true
+        description: Milestone unique identifier
+        schema:
+          type: string
+          format: uuid
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/rae.yaml#/RAECreate'
+    responses:
+      '201':
+        description: RAE updated successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/rae.yaml#/RAEResponse'
+      '400':
+        $ref: '../components/responses.yaml#/BadRequest'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses.yaml#/Forbidden'
+      '404':
+        $ref: '../components/responses.yaml#/NotFound'
+      '429':
+        $ref: '../components/responses.yaml#/TooManyRequests'
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+/{version}/milestones/{milestone_id}/rae/history:
+  get:
+    summary: Get milestone RAE history
+    description: Retrieve historical RAE values for a milestone (time series for trend analysis)
+    operationId: getMilestoneRAEHistory
+    tags: [RAE]
+    security:
+      - bearerAuth: []
+    parameters:
+      - $ref: '../components/parameters.yaml#/VersionParam'
+      - name: milestone_id
+        in: path
+        required: true
+        description: Milestone unique identifier
+        schema:
+          type: string
+          format: uuid
+      - $ref: '../components/parameters.yaml#/PageParam'
+      - $ref: '../components/parameters.yaml#/PerPageParam'
+      - name: date_from
+        in: query
+        schema:
+          type: string
+          format: date-time
+        description: Filter from date
+      - name: date_to
+        in: query
+        schema:
+          type: string
+          format: date-time
+        description: Filter to date
+      - $ref: '../components/parameters.yaml#/SortOrderParam'
+    responses:
+      '200':
+        description: RAE history retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/rae.yaml#/RAEHistory'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses.yaml#/Forbidden'
+      '404':
+        $ref: '../components/responses.yaml#/NotFound'
+      '429':
+        $ref: '../components/responses.yaml#/TooManyRequests'
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+/{version}/projects/{project_id}/rae/summary:
+  get:
+    summary: Get project-wide RAE summary
+    description: Get current RAE values for all milestones in a project (aggregated view)
+    operationId: getProjectRAESummary
+    tags: [RAE]
+    security:
+      - bearerAuth: []
+    parameters:
+      - $ref: '../components/parameters.yaml#/VersionParam'
+      - $ref: '../components/parameters.yaml#/ProjectIdQueryParam'
+      - name: as_of_date
+        in: query
+        schema:
+          type: string
+          format: date-time
+        description: Get RAE values as of specific date (default latest)
+    responses:
+      '200':
+        description: Project RAE summary retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/rae.yaml#/RAESummary'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses.yaml#/Forbidden'
+      '404':
+        $ref: '../components/responses.yaml#/NotFound'
+      '429':
+        $ref: '../components/responses.yaml#/TooManyRequests'
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'

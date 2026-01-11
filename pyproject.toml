@@ -50,6 +50,7 @@ dev = [
     "interrogate",
     "genbadge[coverage]",
     "types-requests",
+    "openapi-spec-validator",
 ]
 
 [tool.pytest.ini_options]
