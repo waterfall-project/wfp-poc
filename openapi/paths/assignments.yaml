@@ -156,13 +156,7 @@
     parameters:
       - $ref: '../components/parameters.yaml#/VersionParam'
       - $ref: '../components/parameters.yaml#/ProjectIdQueryParam'
-      - name: id
-        in: path
-        required: true
-        description: Assignment unique identifier
-        schema:
-          type: string
-          format: uuid
+      - $ref: '../components/parameters.yaml#/AssignmentIdParam'
     responses:
       '200':
         description: Assignment retrieved successfully
@@ -204,13 +198,7 @@
     parameters:
       - $ref: '../components/parameters.yaml#/VersionParam'
       - $ref: '../components/parameters.yaml#/ProjectIdQueryParam'
-      - name: id
-        in: path
-        required: true
-        description: Assignment unique identifier
-        schema:
-          type: string
-          format: uuid
+      - $ref: '../components/parameters.yaml#/AssignmentIdParam'
     requestBody:
       required: true
       content:
@@ -257,13 +245,7 @@
     parameters:
       - $ref: '../components/parameters.yaml#/VersionParam'
       - $ref: '../components/parameters.yaml#/ProjectIdQueryParam'
-      - name: id
-        in: path
-        required: true
-        description: Assignment unique identifier
-        schema:
-          type: string
-          format: uuid
+      - $ref: '../components/parameters.yaml#/AssignmentIdParam'
     responses:
       '204':
         description: Assignment deleted successfully

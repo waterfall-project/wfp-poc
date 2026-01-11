@@ -255,13 +255,7 @@
     parameters:
       - $ref: '../components/parameters.yaml#/VersionParam'
       - $ref: '../components/parameters.yaml#/ProjectIdQueryParam'
-      - name: id
-        in: path
-        required: true
-        description: Expense unique identifier
-        schema:
-          type: string
-          format: uuid
+      - $ref: '../components/parameters.yaml#/ExpenseIdParam'
     responses:
       '200':
         description: Expense retrieved successfully
@@ -310,13 +304,7 @@
     parameters:
       - $ref: '../components/parameters.yaml#/VersionParam'
       - $ref: '../components/parameters.yaml#/ProjectIdQueryParam'
-      - name: id
-        in: path
-        required: true
-        description: Expense unique identifier
-        schema:
-          type: string
-          format: uuid
+      - $ref: '../components/parameters.yaml#/ExpenseIdParam'
     requestBody:
       required: true
       content:
@@ -368,13 +356,7 @@
     parameters:
       - $ref: '../components/parameters.yaml#/VersionParam'
       - $ref: '../components/parameters.yaml#/ProjectIdQueryParam'
-      - name: id
-        in: path
-        required: true
-        description: Expense unique identifier
-        schema:
-          type: string
-          format: uuid
+      - $ref: '../components/parameters.yaml#/ExpenseIdParam'
     responses:
       '204':
         description: Expense deleted successfully
