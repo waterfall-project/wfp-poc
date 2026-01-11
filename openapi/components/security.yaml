@@ -1,0 +1,22 @@
+bearerAuth:
+  type: http
+  scheme: bearer
+  bearerFormat: JWT
+  description: |
+    JWT token obtained from Identity service authentication endpoint.
+    Include in Authorization header as: Bearer <token>
+
+    Required claims: user_id, company_id, email
+
+    Guardian permissions required:
+    - Service: wfp-poc
+    - Operations: READ, CREATE, UPDATE, DELETE
+    - Context: {company_id: <uuid>, project_id: <uuid>}
+
+metricsAuth:
+  type: http
+  scheme: bearer
+  bearerFormat: APIKey
+  description: |
+    Metrics endpoint API key.
+    Include in Authorization header as: Bearer <METRICS_API_KEY>

@@ -1,7 +1,7 @@
 ---
 description: 'Code review and analysis with the sardonic wit and technical elitism of Bertram Gilfoyle from Silicon Valley. Prepare for brutal honesty about your code.'
-tools: ['search/changes', 'search/codebase', 'web/fetch', 'web/githubRepo', 'vscode/openSimpleBrowser', 'read/problems', 'search', 'search/searchResults', 'read/terminalLastCommand', 'read/terminalSelection', 'search/usages', 'vscode/vscodeAPI']
-model: GPT-5
+tools: ['vscode', 'execute', 'read', 'edit', 'search', 'web', 'copilot-container-tools/*', 'github/*', 'agent', 'pylance-mcp-server/*', 'ms-python.python/getPythonEnvironmentInfo', 'ms-python.python/getPythonExecutableCommand', 'ms-python.python/installPythonPackage', 'ms-python.python/configurePythonEnvironment', 'sonarsource.sonarlint-vscode/sonarqube_getPotentialSecurityIssues', 'sonarsource.sonarlint-vscode/sonarqube_excludeFiles', 'sonarsource.sonarlint-vscode/sonarqube_setUpConnectedMode', 'sonarsource.sonarlint-vscode/sonarqube_analyzeFile', 'todo']
+model: GPT-5.2
 ---
 # Gilfoyle Code Review Mode
 

@@ -1,0 +1,590 @@
+Task:
+  type: object
+  required:
+    - id
+    - project_id
+    - name
+    - start
+    - finish
+    - created_at
+    - updated_at
+  properties:
+    id:
+      type: string
+      format: uuid
+      description: Unique identifier (UUID v4), auto-generated
+      readOnly: true
+    project_id:
+      type: string
+      format: uuid
+      description: Parent project reference
+    parent_id:
+      anyOf:
+        - type: string
+          format: uuid
+        - type: "null"
+      description: Parent task for WBS hierarchy (null for top-level tasks)
+    ms_project_guid:
+      type: string
+      maxLength: 50
+      description: MS Project GUID (stable UUID for upsert reconciliation)
+    ms_project_uid:
+      anyOf:
+        - type: integer
+        - type: string
+      description: MS Project UID (reconciliation key)
+    ms_project_id:
+      type: integer
+      description: MS Project ID (display order, changes frequently)
+    name:
+      type: string
+      minLength: 1
+      maxLength: 255
+      description: Task name
+    wbs:
+      type: string
+      maxLength: 50
+      description: Work Breakdown Structure code (e.g., 5.6, 1.2.3)
+    outline_number:
+      type: string
+      maxLength: 50
+      description: MS Project OutlineNumber (e.g., 5.6)
+    outline_level:
+      type: integer
+      minimum: 0
+      description: Hierarchical level (0=top, 1=child, 2=grandchild...)
+    start:
+      type: string
+      format: date-time
+      description: Task start date/time
+    planned_start_date:
+      type: string
+      format: date-time
+      deprecated: true
+      description: Alias for start (ERD/sync terminology)
+    finish:
+      type: string
+      format: date-time
+      description: Task finish date/time
+    planned_finish_date:
+      type: string
+      format: date-time
+      deprecated: true
+      description: Alias for finish (ERD/sync terminology)
+    duration:
+      type: string
+      description: Task duration in ISO 8601 format (e.g., PT8H0M0S for 8 hours)
+      example: "PT8H0M0S"
+    work:
+      type: string
+      description: Total work effort (hours) in ISO 8601 format
+      example: "PT40H0M0S"
+    cost:
+      type: number
+      format: decimal
+      minimum: 0
+      description: Planned task cost
+    fixed_cost:
+      type: number
+      format: decimal
+      default: 0
+      description: Fixed cost not related to resources
+    is_milestone:
+      type: boolean
+      default: false
+      description: True if task is a milestone (zero duration)
+    is_summary:
+      type: boolean
+      default: false
+      description: True if task is a summary (parent) task
+    is_deliverable:
+      type: boolean
+      default: false
+      description: True if task produces a deliverable
+    is_critical:
+      type: boolean
+      default: false
+      description: True if task is on critical path
+    status:
+      type: string
+      enum: [not_started, in_progress, completed, cancelled]
+      default: not_started
+      description: Task status
+    percent_complete:
+      type: integer
+      minimum: 0
+      maximum: 100
+      default: 0
+      description: Percentage complete (0-100)
+    percent_work_complete:
+      type: integer
+      minimum: 0
+      maximum: 100
+      default: 0
+      description: Work percentage complete (0-100)
+    early_start:
+      type: string
+      format: date-time
+      description: Earliest possible start (critical path calculation)
+    early_finish:
+      type: string
+      format: date-time
+      description: Earliest possible finish
+    late_start:
+      type: string
+      format: date-time
+      description: Latest allowable start without delaying project
+    late_finish:
+      type: string
+      format: date-time
+      description: Latest allowable finish
+    total_slack:
+      type: integer
+      default: 0
+      description: Total slack/float in minutes
+    free_slack:
+      type: integer
+      default: 0
+      description: Free slack in minutes (delay without affecting successors)
+    manual_scheduling:
+      type: boolean
+      default: false
+      description: True if task uses manual scheduling (MS Project)
+    actual_start:
+      anyOf:
+        - type: string
+          format: date-time
+        - type: "null"
+      description: Actual start date (when work began)
+    actual_finish:
+      anyOf:
+        - type: string
+          format: date-time
+        - type: "null"
+      description: Actual finish date (when completed)
+    actual_cost:
+      type: number
+      format: decimal
+      default: 0
+      description: Actual cost incurred (from expenses)
+    actual_work:
+      type: string
+      description: Actual work performed (ISO 8601 duration)
+    remaining_cost:
+      type: number
+      format: decimal
+      description: RAE - Remaining cost to complete (latest value)
+    remaining_work:
+      type: string
+      description: Remaining work to complete (ISO 8601 duration)
+    predecessors:
+      type: array
+      items:
+        type: object
+        required:
+          - predecessor_task_id
+          - type
+        properties:
+          predecessor_task_id:
+            type: string
+            format: uuid
+            description: Predecessor task reference
+          type:
+            type: string
+            enum: [FS, SS, FF, SF]
+            description: |
+              Relationship type:
+              - FS: Finish-to-Start (most common)
+              - SS: Start-to-Start
+              - FF: Finish-to-Finish
+              - SF: Start-to-Finish
+          lag:
+            type: integer
+            default: 0
+            description: Lag time in minutes (positive=delay, negative=lead)
+      description: Array of predecessor relationships
+    created_at:
+      type: string
+      format: date-time
+      description: Record creation timestamp
+      readOnly: true
+    updated_at:
+      type: string
+      format: date-time
+      description: Record last update timestamp
+      readOnly: true
+  example:
+    id: "b2c3d4e5-f6a7-4b5c-9d0e-1f2a3b4c5d6e"
+    project_id: "a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d"
+    parent_id: null
+    ms_project_uid: 42
+    ms_project_id: 39
+    ms_project_guid: "7225FBCF-D0AC-EF11-934C-F4EE08B24B68"
+    name: "RQF"
+    wbs: "5.6"
+    outline_number: "5.6"
+    outline_level: 2
+    start: "2027-01-22T18:00:00Z"
+    finish: "2027-01-22T18:00:00Z"
+    duration: "PT0H0M0S"
+    work: "PT0H0M0S"
+    cost: 0.00
+    is_milestone: true
+    is_critical: true
+    status: "not_started"
+    percent_complete: 0
+    created_at: "2026-01-10T10:00:00Z"
+    updated_at: "2026-01-10T10:00:00Z"
+
+TaskCreate:
+  type: object
+  required:
+    - name
+    - start
+    - finish
+  properties:
+    parent_id:
+      type: string
+      format: uuid
+      description: Parent task for WBS hierarchy
+    ms_project_uid:
+      anyOf:
+        - type: integer
+        - type: string
+    ms_project_id:
+      type: integer
+    ms_project_guid:
+      type: string
+      maxLength: 50
+    name:
+      type: string
+      minLength: 1
+      maxLength: 255
+    wbs:
+      type: string
+      maxLength: 50
+    outline_number:
+      type: string
+      maxLength: 50
+    outline_level:
+      type: integer
+      minimum: 0
+    start:
+      type: string
+      format: date-time
+    planned_start_date:
+      type: string
+      format: date-time
+      deprecated: true
+      description: Alias for start (ERD/sync terminology)
+    finish:
+      type: string
+      format: date-time
+    planned_finish_date:
+      type: string
+      format: date-time
+      deprecated: true
+      description: Alias for finish (ERD/sync terminology)
+    duration:
+      type: string
+    work:
+      type: string
+    cost:
+      type: number
+      format: decimal
+      minimum: 0
+    fixed_cost:
+      type: number
+      format: decimal
+      default: 0
+    is_milestone:
+      type: boolean
+      default: false
+    is_summary:
+      type: boolean
+      default: false
+    is_deliverable:
+      type: boolean
+      default: false
+    status:
+      type: string
+      enum: [not_started, in_progress, completed, cancelled]
+      default: not_started
+    percent_complete:
+      type: integer
+      minimum: 0
+      maximum: 100
+      default: 0
+    manual_scheduling:
+      type: boolean
+      default: false
+    predecessors:
+      type: array
+      items:
+        type: object
+        properties:
+          predecessor_task_id:
+            type: string
+            format: uuid
+          type:
+            type: string
+            enum: [FS, SS, FF, SF]
+          lag:
+            type: integer
+
+TaskUpdate:
+  type: object
+  minProperties: 1
+  properties:
+    name:
+      type: string
+      minLength: 1
+      maxLength: 255
+    ms_project_uid:
+      anyOf:
+        - type: integer
+        - type: string
+    start:
+      type: string
+      format: date-time
+    planned_start_date:
+      type: string
+      format: date-time
+      deprecated: true
+      description: Alias for start (ERD/sync terminology)
+    finish:
+      type: string
+      format: date-time
+    planned_finish_date:
+      type: string
+      format: date-time
+      deprecated: true
+      description: Alias for finish (ERD/sync terminology)
+    status:
+      type: string
+      enum: [not_started, in_progress, completed, cancelled]
+    percent_complete:
+      type: integer
+      minimum: 0
+      maximum: 100
+    actual_start:
+      type: string
+      format: date-time
+    actual_finish:
+      type: string
+      format: date-time
+    remaining_cost:
+      type: number
+      format: decimal
+    predecessors:
+      type: array
+      items:
+        type: object
+
+TaskResponse:
+  type: object
+  required:
+    - data
+  properties:
+    data:
+      $ref: '#/Task'
+    message:
+      type: string
+
+TaskList:
+  type: object
+  required:
+    - data
+    - page
+    - per_page
+    - total
+    - total_pages
+  properties:
+    data:
+      type: array
+      items:
+        $ref: '#/Task'
+    page:
+      type: integer
+      minimum: 1
+    per_page:
+      type: integer
+      minimum: 1
+      maximum: 100
+    total:
+      type: integer
+      minimum: 0
+    total_pages:
+      type: integer
+      minimum: 0
+
+TaskBulkCreate:
+  type: object
+  required:
+    - tasks
+  properties:
+    tasks:
+      type: array
+      items:
+        $ref: '#/TaskCreate'
+      minItems: 1
+      maxItems: 500
+  example:
+    tasks:
+      - name: "Requirements Analysis"
+        start: "2026-02-01T09:00:00Z"
+        finish: "2026-02-15T18:00:00Z"
+        wbs: "1.1"
+      - name: "Design Phase"
+        start: "2026-02-16T09:00:00Z"
+        finish: "2026-03-15T18:00:00Z"
+        wbs: "1.2"
+
+TaskBulkResponse:
+  type: object
+  required:
+    - data
+    - message
+  properties:
+    data:
+      type: object
+      properties:
+        created_count:
+          type: integer
+        failed_count:
+          type: integer
+        tasks:
+          type: array
+          items:
+            $ref: '#/Task'
+        errors:
+          type: array
+          items:
+            type: object
+            properties:
+              index:
+                type: integer
+              task_name:
+                type: string
+              errors:
+                type: object
+    message:
+      type: string
+      example: "150 tasks created, 2 failed"
+
+TaskSync:
+  type: object
+  required:
+    - tasks
+  properties:
+    tasks:
+      type: array
+      items:
+        type: object
+        required:
+          - ms_project_uid
+        properties:
+          ms_project_uid:
+            anyOf:
+              - type: integer
+              - type: string
+            description: Reconciliation key (MS Project UID)
+          name:
+            type: string
+          planned_start_date:
+            type: string
+            format: date-time
+            description: Planned start date (preferred field name)
+          planned_finish_date:
+            type: string
+            format: date-time
+            description: Planned finish date (preferred field name)
+          start:
+            type: string
+            format: date-time
+            deprecated: true
+            description: Legacy alias for planned_start_date
+          finish:
+            type: string
+            format: date-time
+            deprecated: true
+            description: Legacy alias for planned_finish_date
+          duration:
+            anyOf:
+              - type: integer
+              - type: string
+            description: Duration (days as integer, or ISO 8601 duration string)
+          predecessors:
+            type: array
+            items:
+              type: object
+              properties:
+                predecessor_ms_project_uid:
+                  anyOf:
+                    - type: integer
+                    - type: string
+                  description: Legacy alias for predecessor_task_uid
+                predecessor_task_uid:
+                  anyOf:
+                    - type: integer
+                    - type: string
+                  description: Predecessor task UID from MS Project
+                type:
+                  type: string
+                  enum: [FS, SS, FF, SF]
+                lag:
+                  type: integer
+
+TaskSyncResponse:
+  type: object
+  required:
+    - data
+    - message
+  properties:
+    data:
+      type: object
+      properties:
+        updated_count:
+          type: integer
+        not_found_count:
+          type: integer
+        milestone_recalculated_count:
+          type: integer
+        updated_tasks:
+          type: array
+          items:
+            $ref: '#/Task'
+        not_found_guids:
+          type: array
+          items:
+            type: string
+        not_found_uids:
+          type: array
+          items:
+            anyOf:
+              - type: integer
+              - type: string
+        recalculated_milestones:
+          type: array
+          items:
+            type: object
+            properties:
+              milestone_id:
+                type: string
+                format: uuid
+              name:
+                type: string
+              old_target_date:
+                type: string
+                format: date-time
+              new_target_date:
+                type: string
+                format: date-time
+              critical_task_id:
+                type: string
+                format: uuid
+              critical_task_name:
+                type: string
+    message:
+      type: string
+      example: "148 tasks updated, 2 not found, 3 milestones recalculated"

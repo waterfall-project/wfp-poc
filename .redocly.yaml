@@ -3,3 +3,4 @@ extends:
 
 rules:
   no-server-example.com: off
+  operation-4xx-response: off

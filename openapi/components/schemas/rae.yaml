@@ -1,0 +1,196 @@
+RAE:
+  type: object
+  required: [id, milestone_id, date, amount, updated_by]
+  properties:
+    id:
+      type: string
+      format: uuid
+      readOnly: true
+      description: Unique identifier (UUID v4), auto-generated
+    milestone_id:
+      type: string
+      format: uuid
+      readOnly: true
+      description: Reference to the milestone
+    date:
+      type: string
+      format: date-time
+      description: Date of RAE measurement (typically month-end)
+    amount:
+      type: number
+      format: double
+      minimum: 0
+      description: Estimated remaining cost to complete the milestone
+      example: 75000.00
+    comment:
+      anyOf:
+        - type: string
+          maxLength: 500
+        - type: 'null'
+      description: Optional explanation for this RAE estimate
+    details:
+      anyOf:
+        - type: object
+          properties:
+            task_estimates:
+              type: array
+              items:
+                type: object
+                required: [task_id, task_name, status, budget, estimate_to_complete]
+                properties:
+                  task_id:
+                    type: string
+                    format: uuid
+                  task_name:
+                    type: string
+                  status:
+                    type: string
+                    enum: [not_started, in_progress, completed]
+                  budget:
+                    type: number
+                    format: double
+                  estimate_to_complete:
+                    type: number
+                    format: double
+        - type: 'null'
+      description: Optional task-level breakdown used for bottom-up calculation
+    updated_by:
+      type: string
+      format: uuid
+      readOnly: true
+      description: User ID who recorded this RAE (from JWT claims)
+    created_at:
+      type: string
+      format: date-time
+      readOnly: true
+      description: Record creation timestamp
+
+RAECreate:
+  type: object
+  required: [date, amount]
+  properties:
+    date:
+      type: string
+      format: date-time
+      description: Date of RAE measurement (typically month-end)
+    amount:
+      type: number
+      format: double
+      minimum: 0
+      description: Estimated remaining cost
+    comment:
+      type: string
+      maxLength: 500
+      description: Optional explanation
+    details:
+      type: object
+      properties:
+        task_estimates:
+          type: array
+          items:
+            type: object
+            required: [task_id, task_name, remaining_cost]
+            properties:
+              task_id:
+                type: string
+                format: uuid
+              task_name:
+                type: string
+              remaining_cost:
+                type: number
+                format: double
+              comment:
+                type: string
+
+RAEResponse:
+  type: object
+  required: [data]
+  properties:
+    data:
+      $ref: '#/RAE'
+    message:
+      type: string
+      description: Optional success message
+      example: "RAE updated successfully"
+
+RAEHistory:
+  type: object
+  required: [data, page, per_page, total, total_pages]
+  properties:
+    data:
+      type: array
+      items:
+        $ref: '#/RAE'
+    page:
+      type: integer
+      minimum: 1
+      description: Current page number
+    per_page:
+      type: integer
+      minimum: 1
+      maximum: 100
+      description: Items per page
+    total:
+      type: integer
+      minimum: 0
+      description: Total number of RAE records
+    total_pages:
+      type: integer
+      minimum: 0
+      description: Total number of pages
+
+RAESummary:
+  type: object
+  required: [data]
+  properties:
+    data:
+      type: object
+      required: [project_id, as_of_date, total_rae, milestones]
+      properties:
+        project_id:
+          type: string
+          format: uuid
+        as_of_date:
+          type: string
+          format: date-time
+          description: Date for which RAE values are retrieved
+        total_rae:
+          type: number
+          format: double
+          description: Sum of RAE across all milestones
+          example: 170000.00
+        milestones:
+          type: array
+          items:
+            type: object
+            required: [milestone_id, name, budget_weight, rae, achieved]
+            properties:
+              milestone_id:
+                type: string
+                format: uuid
+              name:
+                type: string
+                example: "Phase 1 Complete"
+              budget_weight:
+                type: number
+                format: double
+                minimum: 0
+                maximum: 1
+                description: Milestone budget weight (sum must = 1.0)
+                example: 0.28
+              rae:
+                type: number
+                format: double
+                description: Current RAE for this milestone
+                example: 15000.00
+              rae_date:
+                type: string
+                format: date-time
+                description: Date of last RAE update
+              achieved:
+                type: boolean
+                description: Whether milestone is completed
+              comment:
+                type: string
+                description: Latest RAE comment
+                example: "Backend delay"

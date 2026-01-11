@@ -1,0 +1,79 @@
+/metrics:
+  get:
+    summary: Prometheus metrics endpoint
+    description: Exposes application metrics in Prometheus text exposition format.
+    operationId: getMetrics
+    tags: [Metrics]
+    security:
+      - metricsAuth: []
+    responses:
+      '200':
+        description: Prometheus metrics
+        headers:
+          Cache-Control:
+            schema:
+              type: string
+            example: no-cache, no-store, must-revalidate
+        content:
+          text/plain; version=0.0.4; charset=utf-8:
+            schema:
+              type: string
+            examples:
+              prometheus:
+                summary: Example metrics payload
+                value: |
+                  # HELP python_info Python platform information
+                  # TYPE python_info gauge
+                  python_info{implementation="CPython",major="3",minor="11",patchlevel="7",version="3.11.7"} 1.0
+      '401':
+        description: Missing or invalid API key
+        headers:
+          Cache-Control:
+            schema:
+              type: string
+            example: no-cache, no-store, must-revalidate
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [message, timestamp]
+              properties:
+                message:
+                  type: string
+                timestamp:
+                  type: string
+                  format: date-time
+            examples:
+              missing:
+                value:
+                  message: Missing Authorization header
+                  timestamp: "2026-01-07T10:30:00Z"
+              invalid:
+                value:
+                  message: Invalid API key
+                  timestamp: "2026-01-07T10:30:00Z"
+      '429':
+        description: Rate limit exceeded
+        headers:
+          Cache-Control:
+            schema:
+              type: string
+            example: no-cache, no-store, must-revalidate
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [message, retry_after]
+              properties:
+                message:
+                  type: string
+                retry_after:
+                  type: integer
+                  minimum: 0
+            examples:
+              rate_limited:
+                value:
+                  message: "Rate limit exceeded: 10 per minute"
+                  retry_after: 45
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'

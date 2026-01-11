@@ -1,0 +1,108 @@
+BadRequest:
+  description: Invalid request parameters or body
+  headers:
+    X-Correlation-ID:
+      schema:
+        type: string
+      description: Correlation ID for tracing
+  content:
+    application/json:
+      schema:
+        $ref: './schemas/common.yaml#/Error'
+      example:
+        message: "Validation failed"
+        errors:
+          start_date: ["Start date must be before finish date"]
+
+Unauthorized:
+  description: Authentication required or invalid token
+  headers:
+    X-Correlation-ID:
+      schema:
+        type: string
+      description: Correlation ID for tracing
+  content:
+    application/json:
+      schema:
+        $ref: './schemas/common.yaml#/Error'
+      example:
+        message: "Invalid or expired token"
+
+Forbidden:
+  description: Insufficient permissions
+  headers:
+    X-Correlation-ID:
+      schema:
+        type: string
+      description: Correlation ID for tracing
+  content:
+    application/json:
+      schema:
+        $ref: './schemas/common.yaml#/Error'
+      example:
+        message: "Insufficient Guardian permissions for this operation"
+
+NotFound:
+  description: Resource not found
+  headers:
+    X-Correlation-ID:
+      schema:
+        type: string
+      description: Correlation ID for tracing
+  content:
+    application/json:
+      schema:
+        $ref: './schemas/common.yaml#/Error'
+      example:
+        message: "Resource not found"
+
+UnprocessableEntity:
+  description: Business logic error
+  headers:
+    X-Correlation-ID:
+      schema:
+        type: string
+      description: Correlation ID for tracing
+  content:
+    application/json:
+      schema:
+        $ref: './schemas/common.yaml#/Error'
+      example:
+        message: "Start date must be before finish date"
+
+TooManyRequests:
+  description: Rate limit exceeded
+  headers:
+    X-Correlation-ID:
+      schema:
+        type: string
+      description: Correlation ID for tracing
+    Retry-After:
+      schema:
+        type: integer
+      description: Seconds until rate limit resets
+    X-RateLimit-Reset:
+      schema:
+        type: integer
+      description: Unix timestamp when rate limit resets
+  content:
+    application/json:
+      schema:
+        $ref: './schemas/common.yaml#/Error'
+      example:
+        message: "Rate limit exceeded. Maximum 10 requests per minute."
+
+InternalServerError:
+  description: Internal server error
+  headers:
+    X-Correlation-ID:
+      schema:
+        type: string
+      description: Correlation ID for tracing
+  content:
+    application/json:
+      schema:
+        $ref: './schemas/common.yaml#/Error'
+      example:
+        message: "An unexpected error occurred"
+        correlation_id: "123e4567-e89b-12d3-a456-426614174000"

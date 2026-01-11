@@ -1,0 +1,219 @@
+/{version}/projects:
+  get:
+    summary: List projects
+    description: Retrieve paginated list of projects for the authenticated user's company
+    operationId: listProjects
+    tags:
+      - Projects
+    parameters:
+      - $ref: '../components/parameters.yaml#/VersionParam'
+      - $ref: '../components/parameters.yaml#/PageParam'
+      - $ref: '../components/parameters.yaml#/PerPageParam'
+      - name: status
+        in: query
+        description: Filter by project status
+        schema:
+          type: string
+          enum: [active, completed, cancelled, on_hold]
+      - name: start_date_from
+        in: query
+        description: Filter projects starting after this date
+        schema:
+          type: string
+          format: date-time
+      - name: start_date_to
+        in: query
+        description: Filter projects starting before this date
+        schema:
+          type: string
+          format: date-time
+      - name: search
+        in: query
+        description: Search in name, code, title fields
+        schema:
+          type: string
+      - name: sort_by
+        in: query
+        description: Field to sort by
+        schema:
+          type: string
+          enum: [name, code, start_date, created_at]
+          default: created_at
+      - name: sort_order
+        in: query
+        description: Sort direction
+        schema:
+          type: string
+          enum: [asc, desc]
+          default: desc
+    responses:
+      '200':
+        description: Successful response with paginated project list
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/project.yaml#/ProjectList'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses.yaml#/Forbidden'
+      '429':
+        $ref: '../components/responses.yaml#/TooManyRequests'
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+  post:
+    summary: Create project
+    description: Create a new project for the authenticated user's company
+    operationId: createProject
+    tags:
+      - Projects
+    parameters:
+      - $ref: '../components/parameters.yaml#/VersionParam'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/project.yaml#/ProjectCreate'
+          examples:
+            default:
+              summary: Example project creation
+              value:
+                name: "Planning ALPHA 2025"
+                code: "G.DED.00000"
+                title: "Planning RCD"
+                start_date: "2024-11-25T09:00:00Z"
+                finish_date: "2027-02-19T18:00:00Z"
+                budget: 1500000.00
+                currency_code: "EUR"
+    responses:
+      '201':
+        description: Project created successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/project.yaml#/ProjectResponse'
+      '400':
+        $ref: '../components/responses.yaml#/BadRequest'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses.yaml#/Forbidden'
+      '409':
+        description: Project code already exists
+        headers:
+          X-Correlation-ID:
+            schema:
+              type: string
+            description: Correlation ID for tracing
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/Error'
+            example:
+              message: "Project with code 'G.DED.00000' already exists for this company"
+      '422':
+        $ref: '../components/responses.yaml#/UnprocessableEntity'
+      '429':
+        $ref: '../components/responses.yaml#/TooManyRequests'
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+/{version}/projects/{id}:
+  get:
+    summary: Get project
+    description: Retrieve a single project by ID
+    operationId: getProject
+    tags:
+      - Projects
+    parameters:
+      - $ref: '../components/parameters.yaml#/VersionParam'
+      - $ref: '../components/parameters.yaml#/ProjectIdParam'
+    responses:
+      '200':
+        description: Successful response with project details
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/project.yaml#/ProjectResponse'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses.yaml#/Forbidden'
+      '404':
+        $ref: '../components/responses.yaml#/NotFound'
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+  patch:
+    summary: Update project
+    description: Update an existing project (partial update)
+    operationId: updateProject
+    tags:
+      - Projects
+    parameters:
+      - $ref: '../components/parameters.yaml#/VersionParam'
+      - $ref: '../components/parameters.yaml#/ProjectIdParam'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/project.yaml#/ProjectUpdate'
+    responses:
+      '200':
+        description: Project updated successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/project.yaml#/ProjectResponse'
+      '400':
+        $ref: '../components/responses.yaml#/BadRequest'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses.yaml#/Forbidden'
+      '404':
+        $ref: '../components/responses.yaml#/NotFound'
+      '422':
+        $ref: '../components/responses.yaml#/UnprocessableEntity'
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+  delete:
+    summary: Delete project
+    description: |
+      Delete a project only if it has no related entities (tasks, milestones, expenses, assignments, resources).
+      If related data exists, the deletion is blocked with a 409 Conflict.
+    operationId: deleteProject
+    tags:
+      - Projects
+    parameters:
+      - $ref: '../components/parameters.yaml#/VersionParam'
+      - $ref: '../components/parameters.yaml#/ProjectIdParam'
+    responses:
+      '204':
+        description: Project deleted successfully
+      '409':
+        description: Project cannot be deleted because related data exists
+        headers:
+          X-Correlation-ID:
+            schema:
+              type: string
+            description: Correlation ID for tracing
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/Error'
+            example:
+              message: "Cannot delete project with existing tasks/milestones/expenses"
+              correlation_id: "123e4567-e89b-12d3-a456-426614174000"
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses.yaml#/Forbidden'
+      '404':
+        $ref: '../components/responses.yaml#/NotFound'
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'

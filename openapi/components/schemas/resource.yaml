@@ -1,0 +1,165 @@
+Resource:
+  type: object
+  required:
+    - id
+    - company_id
+    - name
+  properties:
+    id:
+      type: string
+      format: uuid
+      description: Unique identifier (auto-generated)
+      readOnly: true
+    company_id:
+      type: string
+      format: uuid
+      description: Tenant identifier (multi-tenant isolation, from JWT)
+      readOnly: true
+    ms_project_uid:
+      anyOf:
+        - type: integer
+        - type: string
+        - type: "null"
+      description: MS Project resource UID
+      example: 1
+    name:
+      type: string
+      minLength: 1
+      maxLength: 255
+      description: Resource name
+      example: "Jean Dupont"
+    type:
+      type: string
+      enum: [labor, material, cost]
+      default: labor
+      description: Resource type (labor=personnel, material=equipment, cost=fixed)
+      example: "labor"
+    standard_rate:
+      type: number
+      format: double
+      minimum: 0
+      default: 0
+      description: Standard hourly rate for labor resources
+      example: 85.00
+    overtime_rate:
+      type: number
+      format: double
+      minimum: 0
+      default: 0
+      description: Overtime hourly rate
+      example: 127.50
+    email:
+      anyOf:
+        - type: string
+          format: email
+        - type: "null"
+      maxLength: 255
+      description: Resource email address
+      example: "jean.dupont@example.com"
+    is_active:
+      type: boolean
+      default: true
+      description: True if resource is currently active/available
+      example: true
+    created_at:
+      type: string
+      format: date-time
+      readOnly: true
+    updated_at:
+      type: string
+      format: date-time
+      readOnly: true
+
+ResourceCreate:
+  type: object
+  required:
+    - name
+  properties:
+    ms_project_uid:
+      anyOf:
+        - type: integer
+        - type: string
+      example: 1
+    name:
+      type: string
+      minLength: 1
+      maxLength: 255
+      example: "Jean Dupont"
+    type:
+      type: string
+      enum: [labor, material, cost]
+      default: labor
+      example: "labor"
+    standard_rate:
+      type: number
+      format: double
+      minimum: 0
+      example: 85.00
+    overtime_rate:
+      type: number
+      format: double
+      minimum: 0
+      example: 127.50
+    email:
+      type: string
+      format: email
+      maxLength: 255
+      example: "jean.dupont@example.com"
+    is_active:
+      type: boolean
+      default: true
+      example: true
+
+ResourceUpdate:
+  type: object
+  minProperties: 1
+  properties:
+    name:
+      type: string
+      minLength: 1
+      maxLength: 255
+    standard_rate:
+      type: number
+      format: double
+      minimum: 0
+    overtime_rate:
+      type: number
+      format: double
+      minimum: 0
+    email:
+      anyOf:
+        - type: string
+          format: email
+        - type: "null"
+      maxLength: 255
+    is_active:
+      type: boolean
+
+ResourceResponse:
+  type: object
+  properties:
+    data:
+      $ref: '#/Resource'
+    message:
+      type: string
+      example: "Resource created successfully"
+
+ResourceList:
+  type: object
+  properties:
+    data:
+      type: array
+      items:
+        $ref: '#/Resource'
+    page:
+      type: integer
+      example: 1
+    per_page:
+      type: integer
+      example: 20
+    total:
+      type: integer
+      example: 45
+    total_pages:
+      type: integer
+      example: 3

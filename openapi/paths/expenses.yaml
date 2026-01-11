@@ -1,0 +1,372 @@
+/{version}/projects/{project_id}/expenses:
+  post:
+    summary: Create expense
+    description: Create expense with ERP fields. Milestone is auto-assigned based on expense date falling between milestone target dates.
+    operationId: createExpense
+    tags: [Expenses]
+    security:
+      - bearerAuth: []
+    parameters:
+      - $ref: '../components/parameters.yaml#/VersionParam'
+      - $ref: '../components/parameters.yaml#/ProjectIdQueryParam'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/expense.yaml#/ExpenseCreate'
+          examples:
+            subcontracting:
+              summary: Subcontracting expense from ERP
+              value:
+                date: "2025-04-25T00:00:00Z"
+                amount: 3820.00
+                category: "subcontracting"
+                description: "REMISE EN ETAT ET RETOUR DES TIROIRS"
+                reference_number: "5129412025"
+                purchase_document: "24337010"
+                fiscal_year: 2025
+                period: 5
+                otp_element: "G.DED.00000/00000"
+                accounting_nature: "60510000"
+                vendor_name: "ARELIS"
+                origin_group: "STOR"
+            labor:
+              summary: Labor expense
+              value:
+                resource_id: "f6a7b8c9-d0e1-4f5a-3b4c-5d6e7f8a9b0c"
+                date: "2025-03-15T00:00:00Z"
+                amount: 2720.00
+                category: "labor"
+                description: "Development work - March"
+    responses:
+      '201':
+        description: Expense created successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/expense.yaml#/ExpenseResponse'
+            example:
+              data:
+                id: "b8c9d0e1-f2a3-4b5c-5d6e-7f8a9b0c1d2e"
+                project_id: "a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d"
+                milestone_id: "d4e5f6a7-b8c9-4d5e-1f2a-3b4c5d6e7f8a"
+                resource_id: null
+                date: "2025-04-25T00:00:00Z"
+                amount: 3820.00
+                category: "subcontracting"
+                description: "REMISE EN ETAT ET RETOUR DES TIROIRS"
+                reference_number: "5129412025"
+                vendor_name: "ARELIS"
+                created_at: "2026-01-11T12:00:00Z"
+                updated_at: "2026-01-11T12:00:00Z"
+              message: "Expense created and allocated to milestone"
+      '400':
+        $ref: '../components/responses.yaml#/BadRequest'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses.yaml#/Forbidden'
+      '404':
+        $ref: '../components/responses.yaml#/NotFound'
+      '409':
+        description: Duplicate expense (same reference_number + date + amount)
+        headers:
+          X-Correlation-ID:
+            schema:
+              type: string
+            description: Correlation ID for tracing
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/Error'
+            example:
+              message: "Duplicate expense detected"
+              correlation_id: "123e4567-e89b-12d3-a456-426614174000"
+      '422':
+        description: Expense date outside milestone range
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/Error'
+            example:
+              message: "Expense date must fall between project milestone dates"
+              correlation_id: "123e4567-e89b-12d3-a456-426614174000"
+      '429':
+        description: Rate limit exceeded (standard 100 rpm; bulk endpoints 10 rpm)
+        $ref: '../components/responses.yaml#/TooManyRequests'
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+  get:
+    summary: List expenses
+    description: Retrieve all expenses for a project with filters
+    operationId: listExpenses
+    tags: [Expenses]
+    security:
+      - bearerAuth: []
+    parameters:
+      - $ref: '../components/parameters.yaml#/VersionParam'
+      - $ref: '../components/parameters.yaml#/ProjectIdQueryParam'
+      - $ref: '../components/parameters.yaml#/PageParam'
+      - $ref: '../components/parameters.yaml#/PerPageParam'
+      - name: category
+        in: query
+        schema:
+          type: string
+          enum: [labor, procurement, subcontracting, overhead]
+        description: Filter by expense category
+      - name: milestone_id
+        in: query
+        schema:
+          type: string
+          format: uuid
+        description: Filter by milestone
+      - name: resource_id
+        in: query
+        schema:
+          type: string
+          format: uuid
+        description: Filter by resource
+      - name: date_from
+        in: query
+        schema:
+          type: string
+          format: date-time
+        description: Start date for range filter
+      - name: date_to
+        in: query
+        schema:
+          type: string
+          format: date-time
+        description: End date for range filter
+      - $ref: '../components/parameters.yaml#/SortByParam'
+      - $ref: '../components/parameters.yaml#/SortOrderParam'
+    responses:
+      '200':
+        description: Expenses retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/expense.yaml#/ExpenseList'
+            example:
+              data:
+                - id: "b8c9d0e1-f2a3-4b5c-5d6e-7f8a9b0c1d2e"
+                  project_id: "a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d"
+                  milestone_id: "d4e5f6a7-b8c9-4d5e-1f2a-3b4c5d6e7f8a"
+                  date: "2025-04-25T00:00:00Z"
+                  amount: 3820.00
+                  category: "subcontracting"
+                  vendor_name: "ARELIS"
+              page: 1
+              per_page: 20
+              total: 458
+              total_pages: 23
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses.yaml#/Forbidden'
+      '404':
+        $ref: '../components/responses.yaml#/NotFound'
+      '429':
+        $ref: '../components/responses.yaml#/TooManyRequests'
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+/{version}/projects/{project_id}/expenses/bulk:
+  post:
+    summary: Bulk create expenses
+    description: Create multiple expenses in one request (max 1000). Used by poc-import service for ERP data imports.
+    operationId: bulkCreateExpenses
+    tags: [Expenses]
+    security:
+      - bearerAuth: []
+    parameters:
+      - $ref: '../components/parameters.yaml#/VersionParam'
+      - $ref: '../components/parameters.yaml#/ProjectIdQueryParam'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/expense.yaml#/ExpenseBulkCreate'
+          example:
+            expenses:
+              - date: "2025-04-25T00:00:00Z"
+                amount: 3820.00
+                category: "subcontracting"
+                reference_number: "5129412025"
+                vendor_name: "ARELIS"
+              - date: "2025-03-15T00:00:00Z"
+                amount: 2500.00
+                category: "labor"
+                description: "Development work"
+    responses:
+      '201':
+        description: Bulk creation completed
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/expense.yaml#/ExpenseBulkResponse'
+            example:
+              data:
+                created_count: 250
+                failed_count: 3
+                expenses:
+                  - id: "b8c9d0e1-f2a3-4b5c-5d6e-7f8a9b0c1d2e"
+                    project_id: "a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d"
+                    milestone_id: "d4e5f6a7-b8c9-4d5e-1f2a-3b4c5d6e7f8a"
+                    resource_id: null
+                    date: "2025-04-25T00:00:00Z"
+                    amount: 3820.00
+                    category: "subcontracting"
+                    description: "Bulk import expense"
+                    reference_number: "5129412025"
+                    vendor_name: "ARELIS"
+                    created_at: "2026-01-11T12:00:00Z"
+                    updated_at: "2026-01-11T12:00:00Z"
+                errors:
+                  - index: 5
+                    error: "Expense date outside milestone range"
+                  - index: 42
+                    error: "Amount must be >= 0"
+              message: "250 expenses created, 3 failed"
+      '400':
+        $ref: '../components/responses.yaml#/BadRequest'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses.yaml#/Forbidden'
+      '404':
+        $ref: '../components/responses.yaml#/NotFound'
+      '429':
+        $ref: '../components/responses.yaml#/TooManyRequests'
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+/{version}/projects/{project_id}/expenses/{id}:
+  get:
+    summary: Get expense by ID
+    description: Retrieve a single expense
+    operationId: getExpense
+    tags: [Expenses]
+    security:
+      - bearerAuth: []
+    parameters:
+      - $ref: '../components/parameters.yaml#/VersionParam'
+      - $ref: '../components/parameters.yaml#/ProjectIdQueryParam'
+      - $ref: '../components/parameters.yaml#/ExpenseIdParam'
+    responses:
+      '200':
+        description: Expense retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/expense.yaml#/ExpenseResponse'
+            example:
+              data:
+                id: "b8c9d0e1-f2a3-4b5c-5d6e-7f8a9b0c1d2e"
+                project_id: "a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d"
+                milestone_id: "d4e5f6a7-b8c9-4d5e-1f2a-3b4c5d6e7f8a"
+                resource_id: null
+                date: "2025-04-25T00:00:00Z"
+                amount: 3820.00
+                category: "subcontracting"
+                description: "REMISE EN ETAT ET RETOUR DES TIROIRS"
+                reference_number: "5129412025"
+                purchase_document: "24337010"
+                fiscal_year: 2025
+                period: 5
+                otp_element: "G.DED.00000/00000"
+                accounting_nature: "60510000"
+                vendor_name: "ARELIS"
+                origin_group: "STOR"
+                created_at: "2026-01-11T12:00:00Z"
+                updated_at: "2026-01-11T12:00:00Z"
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses.yaml#/Forbidden'
+      '404':
+        $ref: '../components/responses.yaml#/NotFound'
+      '429':
+        $ref: '../components/responses.yaml#/TooManyRequests'
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+  patch:
+    summary: Update expense
+    description: Update expense fields. Updating date may trigger milestone_id reassignment.
+    operationId: updateExpense
+    tags: [Expenses]
+    security:
+      - bearerAuth: []
+    parameters:
+      - $ref: '../components/parameters.yaml#/VersionParam'
+      - $ref: '../components/parameters.yaml#/ProjectIdQueryParam'
+      - $ref: '../components/parameters.yaml#/ExpenseIdParam'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/expense.yaml#/ExpenseUpdate'
+          examples:
+            update_amount:
+              summary: Correct expense amount
+              value:
+                amount: 4000.00
+            update_date:
+              summary: Correct expense date (may change milestone)
+              value:
+                date: "2025-05-01T00:00:00Z"
+    responses:
+      '200':
+        description: Expense updated successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/expense.yaml#/ExpenseResponse'
+      '400':
+        $ref: '../components/responses.yaml#/BadRequest'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses.yaml#/Forbidden'
+      '404':
+        $ref: '../components/responses.yaml#/NotFound'
+      '422':
+        description: Updated date outside milestone range
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/Error'
+      '429':
+        $ref: '../components/responses.yaml#/TooManyRequests'
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+  delete:
+    summary: Delete expense
+    description: Delete an expense
+    operationId: deleteExpense
+    tags: [Expenses]
+    security:
+      - bearerAuth: []
+    parameters:
+      - $ref: '../components/parameters.yaml#/VersionParam'
+      - $ref: '../components/parameters.yaml#/ProjectIdQueryParam'
+      - $ref: '../components/parameters.yaml#/ExpenseIdParam'
+    responses:
+      '204':
+        description: Expense deleted successfully
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses.yaml#/Forbidden'
+      '404':
+        $ref: '../components/responses.yaml#/NotFound'
+      '429':
+        $ref: '../components/responses.yaml#/TooManyRequests'
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'

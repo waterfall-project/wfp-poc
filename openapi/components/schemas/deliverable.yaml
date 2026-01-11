@@ -1,0 +1,111 @@
+Deliverable:
+  type: object
+  required: [id, milestone_id, name, type, status]
+  properties:
+    id:
+      type: string
+      format: uuid
+      description: Unique identifier
+      readOnly: true
+    milestone_id:
+      type: string
+      format: uuid
+      description: Parent milestone reference
+    name:
+      type: string
+      minLength: 1
+      maxLength: 255
+      description: Deliverable name
+    description:
+      anyOf:
+        - type: string
+        - type: "null"
+      maxLength: 1000
+      description: Deliverable description
+    type:
+      type: string
+      enum: [document, code, system]
+      description: Deliverable type
+    status:
+      type: string
+      enum: [planned, in_progress, delivered, accepted]
+      default: planned
+      description: Deliverable status
+    created_at:
+      type: string
+      format: date-time
+      readOnly: true
+    updated_at:
+      type: string
+      format: date-time
+      readOnly: true
+
+DeliverableCreate:
+  type: object
+  required: [name, type]
+  properties:
+    name:
+      type: string
+      minLength: 1
+      maxLength: 255
+    description:
+      type: string
+      maxLength: 1000
+    type:
+      type: string
+      enum: [document, code, system]
+    status:
+      type: string
+      enum: [planned, in_progress, delivered, accepted]
+      default: planned
+
+DeliverableUpdate:
+  type: object
+  minProperties: 1
+  properties:
+    name:
+      type: string
+      minLength: 1
+      maxLength: 255
+    description:
+      anyOf:
+        - type: string
+        - type: "null"
+      maxLength: 1000
+    type:
+      type: string
+      enum: [document, code, system]
+    status:
+      type: string
+      enum: [planned, in_progress, delivered, accepted]
+
+DeliverableResponse:
+  type: object
+  required: [data]
+  properties:
+    data:
+      $ref: '#/Deliverable'
+    message:
+      type: string
+
+DeliverableList:
+  type: object
+  required: [data, page, per_page, total, total_pages]
+  properties:
+    data:
+      type: array
+      items:
+        $ref: '#/Deliverable'
+    page:
+      type: integer
+      minimum: 1
+    per_page:
+      type: integer
+      minimum: 1
+      maximum: 100
+    total:
+      type: integer
+      minimum: 0
+    total_pages:
+      type: integer
+      minimum: 0

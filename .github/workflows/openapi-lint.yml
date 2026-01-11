@@ -37,5 +37,8 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Lint with Redocly CLI
-        run: npx --yes @redocly/cli@latest lint --config .redocly.yaml openapi/**/*.yaml
+      - name: Bundle OpenAPI spec
+        run: npx --yes @redocly/cli@latest bundle openapi/wfp-poc-api-modular.yaml -o openapi-bundled.yaml
+
+      - name: Lint bundled OpenAPI spec
+        run: npx --yes @redocly/cli@latest lint --config .redocly.yaml openapi-bundled.yaml

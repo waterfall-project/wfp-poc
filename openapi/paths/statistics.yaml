@@ -1,0 +1,224 @@
+/{version}/projects/{project_id}/statistics/expenses/by-category:
+  get:
+    summary: Get expense breakdown by category
+    description: Retrieve pie chart data of expenses by category (labor, procurement, subcontracting, overhead)
+    operationId: getExpenseBreakdownByCategory
+    tags: [Statistics]
+    security:
+      - bearerAuth: []
+    parameters:
+      - $ref: '../components/parameters.yaml#/VersionParam'
+      - $ref: '../components/parameters.yaml#/ProjectIdQueryParam'
+      - name: start_date
+        in: query
+        required: false
+        schema:
+          type: string
+          format: date-time
+        description: Filter from date
+      - name: end_date
+        in: query
+        required: false
+        schema:
+          type: string
+          format: date-time
+        description: Filter to date
+      - name: milestone_id
+        in: query
+        required: false
+        schema:
+          type: string
+          format: uuid
+        description: Filter by milestone
+    responses:
+      '200':
+        description: Expense breakdown retrieved
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/evm.yaml#/ExpenseBreakdown'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses.yaml#/Forbidden'
+      '404':
+        $ref: '../components/responses.yaml#/NotFound'
+      '429':
+        $ref: '../components/responses.yaml#/TooManyRequests'
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+/{version}/projects/{project_id}/statistics/labor/by-resource:
+  get:
+    summary: Get labor cost by resource
+    description: Retrieve labor cost distribution by resource for bar chart visualization (top N resources)
+    operationId: getLaborByResource
+    tags: [Statistics]
+    security:
+      - bearerAuth: []
+    parameters:
+      - $ref: '../components/parameters.yaml#/VersionParam'
+      - $ref: '../components/parameters.yaml#/ProjectIdQueryParam'
+      - name: start_date
+        in: query
+        schema:
+          type: string
+          format: date-time
+        description: Filter from date
+      - name: end_date
+        in: query
+        schema:
+          type: string
+          format: date-time
+        description: Filter to date
+      - name: limit
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+        description: Max resources to return (top N by cost)
+      - $ref: '../components/parameters.yaml#/SortOrderParam'
+    responses:
+      '200':
+        description: Labor cost breakdown retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/evm.yaml#/LaborByResource'
+            example:
+              data:
+                project_id: "a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d"
+                total_labor_cost: 450000.00
+                resource_count: 25
+                breakdown:
+                  - resource_id: "f6a7b8c9-d0e1-4f5a-3b4c-5d6e7f8a9b0c"
+                    resource_name: "Jean Dupont"
+                    amount: 85000.00
+                    percentage: 18.89
+                    hours: 1000.0
+                    average_rate: 85.00
+                  - resource_id: "a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d"
+                    resource_name: "Marie Martin"
+                    amount: 72000.00
+                    percentage: 16.00
+                    hours: 900.0
+                    average_rate: 80.00
+                echarts_format:
+                  xAxis:
+                    type: "category"
+                    data: ["Jean Dupont", "Marie Martin", "Pierre Bernard"]
+                  yAxis:
+                    type: "value"
+                    name: "Cost (€)"
+                  series:
+                    - name: "Labor Cost"
+                      type: "bar"
+                      data: [85000.00, 72000.00, 65000.00]
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses.yaml#/Forbidden'
+      '404':
+        $ref: '../components/responses.yaml#/NotFound'
+      '429':
+        $ref: '../components/responses.yaml#/TooManyRequests'
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+/{version}/projects/{project_id}/statistics/expenses/monthly:
+  get:
+    summary: Get monthly expense distribution
+    description: Retrieve monthly expense trends for stacked bar/line chart visualization
+    operationId: getMonthlyExpenses
+    tags: [Statistics]
+    security:
+      - bearerAuth: []
+    parameters:
+      - $ref: '../components/parameters.yaml#/VersionParam'
+      - $ref: '../components/parameters.yaml#/ProjectIdQueryParam'
+      - name: start_date
+        in: query
+        schema:
+          type: string
+          format: date-time
+        description: Filter from date
+      - name: end_date
+        in: query
+        schema:
+          type: string
+          format: date-time
+        description: Filter to date
+      - name: category
+        in: query
+        schema:
+          type: string
+          enum: [labor, procurement, subcontracting, overhead]
+        description: Filter by expense category
+      - name: cumulative
+        in: query
+        schema:
+          type: boolean
+          default: false
+        description: Return cumulative values (true) or period values (false)
+    responses:
+      '200':
+        description: Monthly expense distribution retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/evm.yaml#/MonthlyExpenses'
+            example:
+              data:
+                project_id: "a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d"
+                start_date: "2024-11-01T00:00:00Z"
+                end_date: "2026-01-31T23:59:59Z"
+                cumulative: false
+                monthly_data:
+                  - month: "2024-11"
+                    total: 48000.00
+                    labor: 25000.00
+                    subcontracting: 15000.00
+                    procurement: 6000.00
+                    overhead: 2000.00
+                  - month: "2024-12"
+                    total: 77000.00
+                    labor: 42000.00
+                    subcontracting: 20000.00
+                    procurement: 12000.00
+                    overhead: 3000.00
+                echarts_format:
+                  xAxis:
+                    type: "category"
+                    data: ["2024-11", "2024-12", "2025-01"]
+                  yAxis:
+                    type: "value"
+                    name: "Expenses (€)"
+                  series:
+                    - name: "Labor"
+                      type: "bar"
+                      stack: "total"
+                      data: [25000, 42000, 45000]
+                    - name: "Subcontracting"
+                      type: "bar"
+                      stack: "total"
+                      data: [15000, 20000, 25000]
+                    - name: "Procurement"
+                      type: "bar"
+                      stack: "total"
+                      data: [6000, 12000, 11000]
+                    - name: "Overhead"
+                      type: "bar"
+                      stack: "total"
+                      data: [2000, 3000, 4000]
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses.yaml#/Forbidden'
+      '404':
+        $ref: '../components/responses.yaml#/NotFound'
+      '429':
+        $ref: '../components/responses.yaml#/TooManyRequests'
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'

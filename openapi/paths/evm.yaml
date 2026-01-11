@@ -1,0 +1,113 @@
+/{version}/projects/{project_id}/evm:
+  get:
+    summary: Get project EVM indicators
+    description: Calculate and retrieve Earned Value Management indicators
+    operationId: getProjectEVMIndicators
+    tags: [EVM]
+    parameters:
+      - $ref: '../components/parameters.yaml#/VersionParam'
+      - $ref: '../components/parameters.yaml#/ProjectIdQueryParam'
+      - name: as_of_date
+        in: query
+        schema:
+          type: string
+          format: date-time
+        description: Calculate EVM as of this date (default current date)
+      - name: ev_method
+        in: query
+        schema:
+          type: string
+          enum: [physical, milestone, both]
+          default: both
+        description: EV calculation method
+    responses:
+      '200':
+        description: EVM indicators calculated
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/evm.yaml#/EVMIndicators'
+      '404':
+        $ref: '../components/responses.yaml#/NotFound'
+      '429':
+        $ref: '../components/responses.yaml#/TooManyRequests'
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+/{version}/projects/{project_id}/evm/timeseries:
+  get:
+    summary: Get EVM time series
+    description: Retrieve historical EVM data for visualization
+    operationId: getEVMTimeSeries
+    tags: [EVM]
+    parameters:
+      - $ref: '../components/parameters.yaml#/VersionParam'
+      - $ref: '../components/parameters.yaml#/ProjectIdQueryParam'
+      - name: start_date
+        in: query
+        schema:
+          type: string
+          format: date-time
+        description: Start date for time series
+      - name: end_date
+        in: query
+        schema:
+          type: string
+          format: date-time
+        description: End date for time series
+      - name: granularity
+        in: query
+        schema:
+          type: string
+          enum: [month, week, day]
+          default: month
+        description: Time series granularity
+      - name: ev_method
+        in: query
+        schema:
+          type: string
+          enum: [physical, milestone]
+          default: physical
+        description: EV calculation method
+      - name: cumulative
+        in: query
+        schema:
+          type: boolean
+          default: true
+        description: Return cumulative values (true) or period values (false)
+    responses:
+      '200':
+        description: Time series data retrieved
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/evm.yaml#/EVMTimeSeries'
+      '404':
+        $ref: '../components/responses.yaml#/NotFound'
+      '429':
+        $ref: '../components/responses.yaml#/TooManyRequests'
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+/{version}/projects/{project_id}/evm/forecasts:
+  get:
+    summary: Get EVM forecasts
+    description: Calculate project completion forecasts using multiple methods
+    operationId: getEVMForecasts
+    tags: [EVM]
+    parameters:
+      - $ref: '../components/parameters.yaml#/VersionParam'
+      - $ref: '../components/parameters.yaml#/ProjectIdQueryParam'
+    responses:
+      '200':
+        description: Forecasts calculated
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/evm.yaml#/EVMForecasts'
+      '404':
+        $ref: '../components/responses.yaml#/NotFound'
+      '429':
+        $ref: '../components/responses.yaml#/TooManyRequests'
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
