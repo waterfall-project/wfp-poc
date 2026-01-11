@@ -85,7 +85,7 @@ The primary purpose of **wfp-poc** is to:
 - **Critical Path**: The longest sequence of dependent tasks that determines the minimum project duration. Tasks on the critical path have zero total slack; any delay impacts the project end date. Calculated using forward/backward pass algorithms considering predecessor relationships.
 
 - **Milestone**: A zero-duration marker representing a significant project checkpoint or decision point (e.g., "Requirements Approved", "Testing Complete"). Milestones are used to track progress and allocate expenses in this system. In MS Project XML, milestones are tasks with `<Milestone>1</Milestone>` and zero duration.
-  
+
   **Milestone-Task Relationship (M2M)**: Each milestone is preceded by one or more tasks. The milestone's `target_date` is automatically calculated as the MAX of all predecessor tasks' `planned_finish_date`. This many-to-many relationship enables:
   - Multiple tasks converging to a single milestone (e.g., "Phase 1 Complete" requires Task A, B, and C)
   - A single task preceding multiple milestones (e.g., "Infrastructure Setup" enables both "Dev Environment Ready" and "Production Ready")
@@ -99,7 +99,7 @@ The primary purpose of **wfp-poc** is to:
   - **SS (Start-to-Start)**: Both tasks start simultaneously
   - **FF (Finish-to-Finish)**: Both tasks finish simultaneously
   - **SF (Start-to-Finish)**: Successor finishes when predecessor starts (rare)
-  
+
   Relationships may include lag (delay) or lead (overlap) time.
 
 - **RAE (Reste À Engager)**: "Remaining to be Committed" - The estimated cost remaining to complete a milestone, updated monthly based on actual progress. Calculated bottom-up from predecessor tasks: sum of remaining costs for non-started tasks plus PM re-estimates for in-progress tasks. Used to calculate EV via physical progress method: `Progress = AC / (AC + RAE)`. Historical RAE values are tracked for time-series analysis.
@@ -131,7 +131,7 @@ The primary purpose of **wfp-poc** is to:
 - **EV (Earned Value / BCWP)**: The value of work actually completed. Represents what you **should have spent** for the work done. Calculated using two methods:
   1. **Physical Progress Method**: `EV = BAC × (AC / (AC + RAE))` - Based on remaining cost estimates
   2. **Milestone Completion Method**: `EV = Sum of BAC for completed milestones` - Based on milestone achievement
-  
+
   Also called Budgeted Cost of Work Performed (BCWP).
 
 - **CV (Cost Variance)**: Difference between earned value and actual cost. Formula: `CV = EV - AC`
@@ -335,7 +335,7 @@ This directed graph shows **formal relationships between requirements** and high
 
 *Edge Types (Relationships):*
 - **Solid arrows (→)**: Containment - parent contains child requirements
-- **Dotted arrows (-.->)**: 
+- **Dotted arrows (-.->)**:
   - `derives` - requirement depends on another for implementation (e.g., REQ-EVM derives from REQ-PM)
   - `refines` - constraint refines a requirement (e.g., CON-DATA refines REQ-MD)
   - `traces` - guideline traces back to requirements (e.g., GUD-DEV traces to REQ-FUNC)
@@ -353,27 +353,27 @@ graph TB
     REQ-EVM[EVM Calculations<br/>REQ-EVM-001-011<br/>Risk: High]
     REQ-ST[Statistics & Reporting<br/>REQ-ST-001-005<br/>Risk: Low]
     REQ-PU[Progress Updates<br/>REQ-PU-001-003<br/>Risk: Medium]
-    
+
     REQ-SEC[Security Requirements<br/>REQ-SEC]
     SEC-AUTH[Authentication<br/>SEC-001-003<br/>Risk: High]
     SEC-AUTHZ[Authorization<br/>SEC-004-006<br/>Risk: High]
     SEC-INPUT[Input Validation<br/>SEC-007-009<br/>Risk: High]
     SEC-RATE[Rate Limiting<br/>SEC-010<br/>Risk: Medium]
-    
+
     REQ-PERF[Performance Requirements<br/>REQ-PERF]
     PERF-RESPONSE[Response Time<br/>PERF-001-003<br/>Risk: Medium]
     PERF-SCALE[Scalability<br/>PERF-004-006<br/>Risk: Medium]
     PERF-PAGINATION[Pagination<br/>PERF-007<br/>Risk: Low]
-    
+
     CON-ALL[Architectural Constraints<br/>CON-ALL]
     CON-SCOPE[POC Limitations<br/>CON-001-009<br/>Risk: Low]
     CON-DATA[Data Constraints<br/>CON-003-004<br/>Risk: Medium]
     CON-TECH[Technical Constraints<br/>CON-005-008<br/>Risk: Low]
-    
+
     GUIDE-ALL[Guidelines & Patterns<br/>GUIDE-ALL]
     GUD-DEV[Development Guidelines<br/>GUD-001-014<br/>Risk: Low]
     PAT-ARCH[Design Patterns<br/>PAT-001-010<br/>Risk: Low]
-    
+
     %% Containment relationships
     REQ-FUNC --> REQ-PM
     REQ-FUNC --> REQ-TM
@@ -385,55 +385,55 @@ graph TB
     REQ-FUNC --> REQ-EVM
     REQ-FUNC --> REQ-ST
     REQ-FUNC --> REQ-PU
-    
+
     REQ-SEC --> SEC-AUTH
     REQ-SEC --> SEC-AUTHZ
     REQ-SEC --> SEC-INPUT
     REQ-SEC --> SEC-RATE
-    
+
     REQ-PERF --> PERF-RESPONSE
     REQ-PERF --> PERF-SCALE
     REQ-PERF --> PERF-PAGINATION
-    
+
     CON-ALL --> CON-SCOPE
     CON-ALL --> CON-DATA
     CON-ALL --> CON-TECH
-    
+
     GUIDE-ALL --> GUD-DEV
     GUIDE-ALL --> PAT-ARCH
-    
+
     %% Derivation relationships (dependencies)
     REQ-EVM -.derives.-> REQ-PM
     REQ-EVM -.derives.-> REQ-TM
     REQ-EVM -.derives.-> REQ-ET
     REQ-EVM -.derives.-> REQ-RAE
-    
+
     REQ-TM -.derives.-> REQ-PM
     REQ-AS -.derives.-> REQ-TM
     REQ-AS -.derives.-> REQ-RM
     REQ-ET -.derives.-> REQ-MD
     REQ-RAE -.derives.-> REQ-PM
-    
+
     REQ-ST -.derives.-> REQ-EVM
     REQ-PU -.derives.-> REQ-TM
     REQ-PU -.derives.-> REQ-MD
-    
+
     SEC-AUTHZ -.derives.-> SEC-AUTH
-    
+
     %% Refinement relationships
     CON-DATA -.refines.-> REQ-MD
     CON-DATA -.refines.-> REQ-ET
-    
+
     %% Tracing relationships
     GUD-DEV -.traces.-> REQ-FUNC
     PAT-ARCH -.traces.-> REQ-FUNC
-    
+
     %% Styling
     classDef highRisk fill:#ffcccc,stroke:#cc0000,stroke-width:2px
     classDef mediumRisk fill:#ffffcc,stroke:#cccc00,stroke-width:2px
     classDef lowRisk fill:#ccffcc,stroke:#00cc00,stroke-width:2px
     classDef category fill:#cce5ff,stroke:#0066cc,stroke-width:3px
-    
+
     class REQ-TM,REQ-RAE,REQ-EVM,SEC-AUTH,SEC-AUTHZ,SEC-INPUT highRisk
     class REQ-PM,REQ-AS,REQ-MD,REQ-ET,REQ-PU,SEC-RATE,PERF-RESPONSE,PERF-SCALE,CON-DATA mediumRisk
     class REQ-RM,REQ-ST,PERF-PAGINATION,CON-SCOPE,CON-TECH,GUD-DEV,PAT-ARCH lowRisk
@@ -671,17 +671,17 @@ erDiagram
     Project ||--o{ Resource : "uses"
     Project ||--o{ Expense : "incurs"
     Project ||--o{ EVMSnapshot : "measures"
-    
+
     Task ||--o{ Task : "parent_of"
     Task ||--o{ Assignment : "assigned_to"
     Task }o--o{ Task : "predecessor_of"
-    
+
     Milestone ||--o{ Deliverable : "delivers_at"
     Milestone ||--o{ Expense : "allocates_to"
     Milestone ||--o{ RAE : "forecasts"
-    
+
     Resource ||--o{ Assignment : "works_on"
-    
+
     Project {
         uuid id PK
         uuid company_id FK
@@ -695,7 +695,7 @@ erDiagram
         timestamp created_at
         timestamp updated_at
     }
-    
+
     Task {
         uuid id PK
         uuid project_id FK
@@ -712,7 +712,7 @@ erDiagram
         enum type
         string ms_project_uid
     }
-    
+
     Milestone {
         uuid id PK
         uuid project_id FK
@@ -723,7 +723,7 @@ erDiagram
         enum status
         string description
     }
-    
+
     Deliverable {
         uuid id PK
         uuid project_id FK
@@ -734,7 +734,7 @@ erDiagram
         enum status
         string document_reference
     }
-    
+
     Resource {
         uuid id PK
         uuid company_id FK
@@ -746,7 +746,7 @@ erDiagram
         decimal max_units
         string email
     }
-    
+
     Assignment {
         uuid id PK
         uuid task_id FK
@@ -757,7 +757,7 @@ erDiagram
         date start_date
         date finish_date
     }
-    
+
     Expense {
         uuid id PK
         uuid project_id FK
@@ -769,7 +769,7 @@ erDiagram
         string invoice_number
         string payment_reference
     }
-    
+
     RAE {
         uuid id PK
         uuid milestone_id FK
@@ -780,7 +780,7 @@ erDiagram
         uuid updated_by FK
         timestamp created_at
     }
-    
+
     EVMSnapshot {
         uuid id PK
         uuid project_id FK
@@ -3362,7 +3362,7 @@ RAE_milestone = sum(
 }
 ```
 
-**Side Effects:** 
+**Side Effects:**
 - Updates `milestone.current_rae` field with latest value
 - Recalculates EV_physical for the milestone
 - Updates project-level EV_physical aggregation
@@ -4883,7 +4883,7 @@ def test_calculate_bac_excludes_summary_tasks():
     task1 = Task(project_id=project.id, budget=10000, is_summary=False)
     task2 = Task(project_id=project.id, budget=15000, is_summary=False)
     summary = Task(project_id=project.id, budget=25000, is_summary=True)
-    
+
     bac = calculate_bac([task1, task2, summary])
     assert bac == 25000  # Summary task excluded
 ```
@@ -4910,17 +4910,17 @@ def test_project_crud_workflow(authenticated_client, api_url):
     response = authenticated_client.post(api_url("projects"), json=payload)
     assert response.status_code == 201
     project_id = response.json["data"]["id"]
-    
+
     # Read
     response = authenticated_client.get(api_url(f"projects/{project_id}"))
     assert response.status_code == 200
     assert response.json["data"]["name"] == "Test Project"
-    
+
     # Update
-    response = authenticated_client.patch(api_url(f"projects/{project_id}"), 
+    response = authenticated_client.patch(api_url(f"projects/{project_id}"),
                                           json={"name": "Updated Name"})
     assert response.status_code == 200
-    
+
     # Delete
     response = authenticated_client.delete(api_url(f"projects/{project_id}"))
     assert response.status_code == 204
@@ -4978,7 +4978,7 @@ def sample_tasks(db_session, sample_project):
 class ProjectFactory(factory.Factory):
     class Meta:
         model = Project
-    
+
     id = factory.LazyFunction(uuid4)
     company_id = COMPANY_A_ID
     name = factory.Faker('catch_phrase')
@@ -5024,7 +5024,7 @@ jobs:
         run: make test-unit
       - name: Upload coverage
         uses: codecov/codecov-action@v4
-  
+
   integration-tests:
     runs-on: ubuntu-latest
     services:
@@ -5095,15 +5095,15 @@ from locust import HttpUser, task, between
 
 class ProjectAPIUser(HttpUser):
     wait_time = between(1, 3)
-    
+
     def on_start(self):
         """Authenticate and get JWT token."""
         self.client.headers['Authorization'] = f'Bearer {get_test_jwt()}'
-    
+
     @task(3)
     def list_projects(self):
         self.client.get("/v0/projects?page=1&per_page=20")
-    
+
     @task(1)
     def get_project_evm(self):
         project_id = self.project_ids[random.randint(0, len(self.project_ids)-1)]
@@ -5799,13 +5799,13 @@ GET /v0/projects/550e8400-e29b-41d4-a716-446655440000/evm/timeseries?from_date=2
 def validate_no_circular_dependencies(task_id, predecessors):
     visited = set()
     stack = [task_id]
-    
+
     while stack:
         current = stack.pop()
         if current in visited:
             raise ValidationError("Circular dependency detected")
         visited.add(current)
-        
+
         # Add all predecessors of current task to stack
         for pred in get_predecessors(current):
             stack.append(pred.predecessor_task_id)

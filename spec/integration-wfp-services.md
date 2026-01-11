@@ -132,38 +132,38 @@ graph TB
         EXCEL[Excel/ERP]
         AI[AI Assistant]
     end
-    
+
     subgraph "Waterfall Ecosystem"
         IMP[poc-import Service]
         CORE[wfp-poc API]
         EXP[poc-export Service]
-        
+
         MCP_IMP[MCP Server<br/>poc-import]
         MCP_EXP[MCP Server<br/>poc-export]
     end
-    
+
     subgraph "Infrastructure"
         DB[(PostgreSQL)]
         IDENTITY[Identity Service]
         GUARDIAN[Guardian Service]
     end
-    
+
     MSP -->|.mpp/.xml| IMP
     EXCEL -->|Expenses| CORE
     AI -->|Tools| MCP_IMP
     AI -->|Tools| MCP_EXP
-    
+
     IMP -->|REST API| CORE
     EXP -->|REST API| CORE
     MCP_IMP -.->|Orchestrates| IMP
     MCP_EXP -.->|Orchestrates| EXP
-    
+
     CORE -->|SQL| DB
     CORE -->|JWT Validation| IDENTITY
     CORE -->|Authorization| GUARDIAN
-    
+
     EXP -->|.xml| MSP
-    
+
     style CORE fill:#4A90E2
     style IMP fill:#7ED321
     style EXP fill:#F5A623
@@ -185,7 +185,7 @@ graph TB
 
 **Actors**: Project Manager, poc-import service, wfp-poc API
 
-**Preconditions**: 
+**Preconditions**:
 - MS Project file exists with complete WBS, tasks, dependencies, resources
 - User has valid JWT token with CREATE permissions
 
@@ -198,7 +198,7 @@ sequenceDiagram
     participant IMP as poc-import Service
     participant API as wfp-poc API
     participant DB as PostgreSQL
-    
+
     PM->>CLI: poc_import.py project.mpp --mode=initial
     CLI->>IMP: Parse XML
     IMP->>IMP: Extract project metadata
@@ -206,34 +206,34 @@ sequenceDiagram
     IMP->>IMP: Extract milestones (from milestone tasks)
     IMP->>IMP: Extract resources
     IMP->>IMP: Extract dependencies
-    
+
     IMP->>API: POST /v0/projects
     API->>DB: INSERT project
     API-->>IMP: 201 {project_id}
-    
+
     IMP->>API: POST /v0/projects/{id}/tasks/bulk
     Note over IMP,API: 50 tasks in single request with ms_project_guid
     API->>DB: INSERT tasks (bulk)
     API-->>IMP: 201 {tasks: [{id, ms_project_guid, ms_project_uid}]}
-    
+
     IMP->>API: POST /v0/projects/{id}/milestones
     API->>DB: INSERT milestone
     API-->>IMP: 201 {milestone_id}
-    
+
     IMP->>API: POST /v0/milestones/{id}/tasks
     Note over IMP,API: Link predecessor tasks to milestone
     API->>DB: INSERT milestone_tasks (M2M)
     API->>DB: UPDATE milestone.target_date (auto-calc)
     API-->>IMP: 200 {linked_count}
-    
+
     IMP->>API: POST /v0/projects/{id}/resources/bulk
     API->>DB: INSERT resources (bulk)
     API-->>IMP: 201 {resources}
-    
+
     IMP->>API: POST /v0/projects/{id}/assignments/bulk
     API->>DB: INSERT assignments (bulk)
     API-->>IMP: 201 {assignments}
-    
+
     IMP-->>CLI: ✅ Import complete: 50 tasks, 3 milestones, 10 resources
     CLI-->>PM: Summary report
 ```
@@ -299,16 +299,16 @@ sequenceDiagram
     participant IMP as poc-import Service
     participant API as wfp-poc API
     participant DB as PostgreSQL
-    
+
     PM->>CLI: poc_import.py project_v2.mpp --mode=sync --project-id={uuid}
     CLI->>IMP: Parse XML
     IMP->>IMP: Extract tasks with ms_project_guid (stable)
     IMP->>IMP: Extract milestone tasks
-    
+
     IMP->>API: GET /v0/projects/{id}/milestones
     API->>DB: SELECT milestones
     API-->>IMP: 200 {milestones: 3}
-    
+
     IMP->>IMP: Validate milestone structure
     alt Milestone count mismatch
         IMP-->>CLI: ❌ ERROR: Milestone count changed (3 → 4)
@@ -323,13 +323,13 @@ sequenceDiagram
         API->>DB: UPDATE milestone.target_date (auto-calc)
         API->>DB: UPDATE pv_timeseries (recalculate)
         API-->>IMP: 200 {updated: 50, milestones_recalculated: 1}
-        
+
         IMP->>API: PUT /v0/milestones/{id}/tasks/sync
         Note over IMP,API: Sync M2M links if needed
         API->>DB: INSERT/DELETE milestone_tasks
         API->>DB: UPDATE milestone.target_date
         API-->>IMP: 200 {linked_count}
-        
+
         IMP-->>CLI: ✅ Sync complete: 50 tasks updated, 1 milestone recalculated
         CLI-->>PM: Report with delay analysis
     end
@@ -613,10 +613,10 @@ ValidationError: Milestone structure changed
   New count: 4
   Missing: []
   Added: ['Phase 2.5 Testing']
-  
+
   REASON: Adding/removing milestones after initial import breaks EVM budget_weight
   constraint (must sum to 1.0). Manual intervention required.
-  
+
   RESOLUTION:
   1. Create new milestone in wfp-poc via API: POST /milestones
   2. Adjust budget_weights to sum to 1.0 (e.g., 0.25, 0.30, 0.20, 0.25)
@@ -664,30 +664,30 @@ sequenceDiagram
     participant API as wfp-poc API
     participant DB as PostgreSQL
     participant MSP as MS Project
-    
+
     PM->>CLI: poc_export.py --project-id={uuid} --output=project_export.xml
     CLI->>EXP: Request export
-    
+
     EXP->>API: GET /v0/projects/{id}
     API->>DB: SELECT project
     API-->>EXP: 200 {project}
-    
+
     EXP->>API: GET /v0/projects/{id}/tasks
     API->>DB: SELECT tasks
     API-->>EXP: 200 {tasks: 50}
-    
+
     EXP->>API: GET /v0/projects/{id}/milestones
     API->>DB: SELECT milestones
     API-->>EXP: 200 {milestones: 3}
-    
+
     EXP->>API: GET /v0/projects/{id}/resources
     API->>DB: SELECT resources
     API-->>EXP: 200 {resources: 10}
-    
+
     EXP->>API: GET /v0/projects/{id}/assignments
     API->>DB: SELECT assignments
     API-->>EXP: 200 {assignments: 15}
-    
+
     EXP->>EXP: Build MS Project XML structure
     EXP->>EXP: Map tasks to Task elements (preserve UID)
     EXP->>EXP: Map milestones to milestone tasks (duration=0)
@@ -695,10 +695,10 @@ sequenceDiagram
     EXP->>EXP: Map assignments to Assignment elements
     EXP->>EXP: Map dependencies to PredecessorLink elements
     EXP->>EXP: Merge planned + actual dates
-    
+
     EXP-->>CLI: project_export.xml (valid MS Project 2010+ XML)
     CLI-->>PM: ✅ Export complete
-    
+
     PM->>MSP: Open project_export.xml
     MSP->>MSP: Parse and display
     MSP-->>PM: Project loaded with tracking data
@@ -758,13 +758,13 @@ sequenceDiagram
     participant EXP as poc-export
     participant API as wfp-poc API
     participant IMP as poc-import
-    
+
     Note over PM,MSP: Phase 1: Export current state
     PM->>EXP: Export project to XML
     EXP->>API: GET /projects/{id} + /tasks + /milestones + /resources
     API-->>EXP: Current project data
     EXP-->>PM: project_current.xml
-    
+
     Note over PM,MSP: Phase 2: Edit in MS Project
     PM->>MSP: Open project_current.xml
     MSP-->>PM: Project loaded
@@ -772,7 +772,7 @@ sequenceDiagram
     MSP->>MSP: Recalculate schedule
     PM->>MSP: Save as project_updated.mpp
     MSP-->>PM: Saved
-    
+
     Note over PM,MSP: Phase 3: Reimport changes
     PM->>IMP: Import project_updated.mpp (mode=sync)
     IMP->>API: GET /milestones (validate structure)
@@ -784,7 +784,7 @@ sequenceDiagram
     API->>API: Recalculate PV timeseries
     API-->>IMP: 200 {updated: 50, milestones_recalculated: 1}
     IMP-->>PM: ✅ Sync complete with delay analysis
-    
+
     Note over PM,API: Phase 4: Verify in wfp-poc
     PM->>API: GET /projects/{id}/evm?date=today
     API-->>PM: Updated EVM with new PV, preserved AC/EV
@@ -842,7 +842,7 @@ sequenceDiagram
     IMP->>API: GET /v0/projects/{id}/milestones
     API-->>IMP: [{id, name, ...}]
     IMP->>IMP: Map milestone_name → milestone_id
-    
+
     alt Validation Success
         IMP->>API: POST /v0/projects/{id}/expenses/bulk
         Note over IMP,API: {expenses: [{description, amount, expense_date,<br/>category, milestone_id, invoice_number}]}
@@ -1005,7 +1005,7 @@ sequenceDiagram
     IMP->>IMP: Map milestone_name → milestone_id
     IMP->>IMP: Group task rows by milestone
     IMP->>IMP: Validate task_estimate sum = amount
-    
+
     alt Validation Success
         loop For each milestone
             IMP->>API: POST /v0/milestones/{id}/rae
@@ -1180,7 +1180,7 @@ new_milestones = ["Phase 1 Complete", "Phase 2A Complete", "Phase 3 Complete"]  
 ValidationError: Milestone structure changed
   Existing: Phase 2 Complete
   New: Phase 2A Complete
-  
+
   RESOLUTION:
   Option 1: Rename milestone in wfp-poc: PATCH /milestones/{id} {"name": "Phase 2A Complete"}
   Option 2: Revert name in MS Project to "Phase 2 Complete"
@@ -1305,7 +1305,7 @@ Authorization: Bearer <expired_token>
 
 **Solution**: Use `ms_project_guid` (from `<GUID>` element) as natural key for reconciliation during reimport.
 
-**Alternative Considered**: 
+**Alternative Considered**:
 - Match by `ms_project_uid` → Rejected: UID changes on task reorder/deletion
 - Match by task name → Rejected: duplicates and renames break reconciliation
 

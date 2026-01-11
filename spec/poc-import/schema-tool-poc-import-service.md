@@ -899,14 +899,14 @@ poc-import msproject project_baguera_v3.xml \
 # ❌ Validating milestone structure...
 #    Expected: 5 milestones
 #    Found: 6 milestones ❌
-# 
+#
 # ❌ IMPORT FAILED: Milestone structure changed
-# 
+#
 # Error Details:
 #   Code: MILESTONE_COUNT_MISMATCH
 #   Message: Milestone count increased from 5 to 6
 #   New milestone: "Phase 2.5 Integration Testing"
-# 
+#
 # Resolution Options:
 #   1. Remove milestone from MS Project and retry import
 #   2. Add milestone manually in wfp-poc first:
@@ -919,7 +919,7 @@ poc-import msproject project_baguera_v3.xml \
 #      }
 #      Then recalculate budget_weight for other milestones (total must = 1.0)
 #      Then retry import
-# 
+#
 # Exit code: 1 (Validation failed)
 ```
 
@@ -934,20 +934,20 @@ poc-import expenses expenses_q2.xlsx \
 # Output:
 # ✅ Parsing expenses_q2.xlsx...
 # ❌ Validation errors found:
-# 
+#
 # Row 15: ❌ milestone_name "Phase 1a Complete" not found
 #         Available milestones: Phase 1 Complete, Phase 2 Complete, ...
-#         
+#  
 # Row 23: ❌ amount "-5000.00" is negative (must be >= 0)
-# 
+#
 # Row 45: ⚠️  category "labour" not recognized (did you mean "Labor"?)
-# 
+#
 # Row 67: ⚠️  Duplicate expense (2026-04-15, "Server License", 5000.00)
 #         Will be skipped
-# 
+#
 # Summary: 2 errors, 2 warnings
 # ❌ Import aborted due to validation errors
-# 
+#
 # Exit code: 1 (Validation failed)
 ```
 
@@ -993,17 +993,17 @@ poc-import msproject project_baguera_v4.xml \
 # ✅ Validating milestone structure... ✅
 # ✅ Validating tasks... ✅
 # ✅ Validation successful
-# 
+#
 # 🔍 DRY RUN - No API calls made
-# 
+#
 # Would perform:
 #   - Update 148 tasks
 #   - Create 2 new tasks
 #   - Update 0 milestones
 #   - Update 25 resources
-# 
+#
 # To execute import, remove --dry-run flag
-# 
+#
 # Exit code: 0 (Validation passed)
 ```
 

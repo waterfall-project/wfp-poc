@@ -46,7 +46,7 @@
         $ref: '../components/responses.yaml#/TooManyRequests'
       '500':
         $ref: '../components/responses.yaml#/InternalServerError'
-  
+
   get:
     summary: List tasks
     description: Retrieve paginated list of tasks for a project
@@ -225,7 +225,7 @@
         $ref: '../components/responses.yaml#/NotFound'
       '500':
         $ref: '../components/responses.yaml#/InternalServerError'
-  
+
   patch:
     summary: Update task
     description: Update an existing task (partial update)
@@ -272,7 +272,7 @@
         $ref: '../components/responses.yaml#/UnprocessableEntity'
       '500':
         $ref: '../components/responses.yaml#/InternalServerError'
-  
+
   delete:
     summary: Delete task
     description: Delete a task (cascades to assignments and child tasks)

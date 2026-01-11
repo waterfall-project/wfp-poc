@@ -4,20 +4,20 @@ info:
   title: WFP-POC - Project Management & EVM API
   version: "1.0"
   description: |
-    The **wfp-poc** service is a proof-of-concept microservice that provides comprehensive 
+    The **wfp-poc** service is a proof-of-concept microservice that provides comprehensive
     project management and Earned Value Management (EVM) capabilities for the Waterfall suite.
-    
+
     This service enables:
     - **Project planning data** imported from Microsoft Project XML files
     - **Financial tracking** imported from ERP Excel exports
     - **EVM indicators** calculated and exposed for dashboard visualization
     - **Performance forecasts** using multiple projection methods
-    
+
     **Architecture Position:**
     - **Upstream**: Consumes data from `poc-import` service
     - **Downstream**: Provides data to `poc-export` service and frontend
     - **Standalone**: Exposes REST API for direct CRUD operations
-    
+
   contact:
     name: Waterfall Project Team
   license:
@@ -76,13 +76,13 @@ paths:
   # Metrics (non-versioned)
   /metrics:
     $ref: './paths/metrics.yaml#/~1metrics'
-  
+
   # Projects
   /{version}/projects:
     $ref: './paths/projects.yaml#/~1{version}~1projects'
   /{version}/projects/{id}:
     $ref: './paths/projects.yaml#/~1{version}~1projects~1{id}'
-  
+
   # Tasks
   /{version}/projects/{project_id}/tasks:
     $ref: './paths/tasks.yaml#/~1{version}~1projects~1{project_id}~1tasks'
@@ -92,7 +92,7 @@ paths:
     $ref: './paths/tasks.yaml#/~1{version}~1projects~1{project_id}~1tasks~1sync'
   /{version}/projects/{project_id}/tasks/{id}:
     $ref: './paths/tasks.yaml#/~1{version}~1projects~1{project_id}~1tasks~1{id}'
-  
+
   # Milestones
   /{version}/projects/{project_id}/milestones:
     $ref: './paths/milestones.yaml#/~1{version}~1projects~1{project_id}~1milestones'
@@ -102,19 +102,19 @@ paths:
     $ref: './paths/milestones.yaml#/~1{version}~1milestones~1{milestone_id}~1tasks'
   /{version}/milestones/{milestone_id}/tasks/sync:
     $ref: './paths/milestones.yaml#/~1{version}~1milestones~1{milestone_id}~1tasks~1sync'
-  
+
   # Resources
   /{version}/resources:
     $ref: './paths/resources.yaml#/~1{version}~1resources'
   /{version}/resources/{id}:
     $ref: './paths/resources.yaml#/~1{version}~1resources~1{id}'
-  
+
   # Assignments
   /{version}/projects/{project_id}/assignments:
     $ref: './paths/assignments.yaml#/~1{version}~1projects~1{project_id}~1assignments'
   /{version}/projects/{project_id}/assignments/{id}:
     $ref: './paths/assignments.yaml#/~1{version}~1projects~1{project_id}~1assignments~1{id}'
-  
+
   # Expenses
   /{version}/projects/{project_id}/expenses:
     $ref: './paths/expenses.yaml#/~1{version}~1projects~1{project_id}~1expenses'
@@ -122,7 +122,7 @@ paths:
     $ref: './paths/expenses.yaml#/~1{version}~1projects~1{project_id}~1expenses~1bulk'
   /{version}/projects/{project_id}/expenses/{id}:
     $ref: './paths/expenses.yaml#/~1{version}~1projects~1{project_id}~1expenses~1{id}'
-  
+
   # Progress
   /{version}/projects/{project_id}/progress:
     $ref: './paths/progress.yaml#/~1{version}~1projects~1{project_id}~1progress'
@@ -136,7 +136,7 @@ paths:
     $ref: './paths/rae.yaml#/~1{version}~1milestones~1{milestone_id}~1rae~1history'
   /{version}/projects/{project_id}/rae/summary:
     $ref: './paths/rae.yaml#/~1{version}~1projects~1{project_id}~1rae~1summary'
-  
+
   # EVM
   /{version}/projects/{project_id}/evm:
     $ref: './paths/evm.yaml#/~1{version}~1projects~1{project_id}~1evm'
@@ -144,7 +144,7 @@ paths:
     $ref: './paths/evm.yaml#/~1{version}~1projects~1{project_id}~1evm~1timeseries'
   /{version}/projects/{project_id}/evm/forecasts:
     $ref: './paths/evm.yaml#/~1{version}~1projects~1{project_id}~1evm~1forecasts'
-  
+
   # Statistics
   /{version}/projects/{project_id}/statistics/expenses/by-category:
     $ref: './paths/statistics.yaml#/~1{version}~1projects~1{project_id}~1statistics~1expenses~1by-category'
@@ -159,7 +159,7 @@ components:
       $ref: './components/security.yaml#/bearerAuth'
     metricsAuth:
       $ref: './components/security.yaml#/metricsAuth'
-  
+
   parameters:
     VersionParam:
       $ref: './components/parameters.yaml#/VersionParam'
@@ -189,7 +189,7 @@ components:
       $ref: './components/parameters.yaml#/SortByParam'
     SortOrderParam:
       $ref: './components/parameters.yaml#/SortOrderParam'
-  
+
   responses:
     BadRequest:
       $ref: './components/responses.yaml#/BadRequest'
@@ -205,7 +205,7 @@ components:
       $ref: './components/responses.yaml#/TooManyRequests'
     InternalServerError:
       $ref: './components/responses.yaml#/InternalServerError'
-  
+
   schemas:
     # Project schemas
     Project:
@@ -218,7 +218,7 @@ components:
       $ref: './components/schemas/project.yaml#/ProjectResponse'
     ProjectList:
       $ref: './components/schemas/project.yaml#/ProjectList'
-    
+
     # Task schemas
     Task:
       $ref: './components/schemas/task.yaml#/Task'
@@ -234,7 +234,7 @@ components:
       $ref: './components/schemas/task.yaml#/TaskBulkCreate'
     TaskSync:
       $ref: './components/schemas/task.yaml#/TaskSync'
-    
+
     # Milestone schemas
     Milestone:
       $ref: './components/schemas/milestone.yaml#/Milestone'
@@ -262,7 +262,7 @@ components:
       $ref: './components/schemas/health.yaml#/VersionResponse'
     VersionErrorResponse:
       $ref: './components/schemas/health.yaml#/VersionErrorResponse'
-    
+
     # Resource schemas
     Resource:
       $ref: './components/schemas/resource.yaml#/Resource'
@@ -274,7 +274,7 @@ components:
       $ref: './components/schemas/resource.yaml#/ResourceResponse'
     ResourceList:
       $ref: './components/schemas/resource.yaml#/ResourceList'
-    
+
     # Assignment schemas
     Assignment:
       $ref: './components/schemas/assignment.yaml#/Assignment'
@@ -286,7 +286,7 @@ components:
       $ref: './components/schemas/assignment.yaml#/AssignmentResponse'
     AssignmentList:
       $ref: './components/schemas/assignment.yaml#/AssignmentList'
-    
+
     # Expense schemas
     Expense:
       $ref: './components/schemas/expense.yaml#/Expense'
@@ -302,7 +302,7 @@ components:
       $ref: './components/schemas/expense.yaml#/ExpenseResponse'
     ExpenseList:
       $ref: './components/schemas/expense.yaml#/ExpenseList'
-    
+
     # RAE schemas
     RAE:
       $ref: './components/schemas/rae.yaml#/RAE'
@@ -314,7 +314,7 @@ components:
       $ref: './components/schemas/rae.yaml#/RAEHistory'
     RAESummary:
       $ref: './components/schemas/rae.yaml#/RAESummary'
-    
+
     # EVM schemas
     EVMIndicators:
       $ref: './components/schemas/evm.yaml#/EVMIndicators'
@@ -322,7 +322,7 @@ components:
       $ref: './components/schemas/evm.yaml#/EVMTimeSeries'
     EVMForecasts:
       $ref: './components/schemas/evm.yaml#/EVMForecasts'
-    
+
     # Statistics schemas
     ExpenseBreakdown:
       $ref: './components/schemas/evm.yaml#/ExpenseBreakdown'
@@ -330,7 +330,7 @@ components:
       $ref: './components/schemas/evm.yaml#/LaborByResource'
     MonthlyExpenses:
       $ref: './components/schemas/evm.yaml#/MonthlyExpenses'
-    
+
     # Progress schemas
     ProgressUpdateEntry:
       $ref: './components/schemas/progress.yaml#/ProgressUpdateEntry'
@@ -348,7 +348,7 @@ components:
       $ref: './components/schemas/progress.yaml#/ProgressHistoryItem'
     ProgressHistoryResponse:
       $ref: './components/schemas/progress.yaml#/ProgressHistoryResponse'
-    
+
     # Common schemas
     Error:
       $ref: './components/schemas/common.yaml#/Error'

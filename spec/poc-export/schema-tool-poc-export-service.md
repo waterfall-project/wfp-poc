@@ -809,16 +809,16 @@ poc-export msproject a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d \
 # Output:
 # ✅ Fetching project data from wfp-poc...
 # ❌ API Error: 403 Forbidden
-# 
+#
 # Error Details:
 #   Guardian Permission Check Failed
 #   Required: READ permission on resource "projects"
 #   User: john.doe@example.com
 #   Company: ACME Corp
-# 
+#
 # Resolution:
 #   Contact your administrator to request READ access to this project.
-# 
+#
 # Exit code: 2 (Permission denied)
 ```
 
