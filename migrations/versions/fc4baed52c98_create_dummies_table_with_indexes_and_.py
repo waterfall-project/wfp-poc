@@ -11,10 +11,10 @@ from alembic import op
 from app.models.types import GUID
 
 # revision identifiers, used by Alembic.
-revision = 'fc4baed52c98'
-down_revision = None
-branch_labels = None
-depends_on = None
+revision: str = 'fc4baed52c98'
+down_revision: str | None = None
+branch_labels: str | None = None
+depends_on: str | None = None
 
 
 def upgrade():

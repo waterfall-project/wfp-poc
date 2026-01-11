@@ -158,6 +158,7 @@ ignore = [
 "__init__.py" = ["F401"]  # Allow unused imports in __init__.py
 "tests/*" = ["S101", "D"]  # Allow assert in tests, no docstring requirement
 "scripts/*" = ["D"]         # No docstring requirement for scripts
+"migrations/*" = ["D", "E402"]  # Alembic migrations: no docstring requirement, allow imports not at top
 
 [tool.ruff.lint.isort]
 known-first-party = ["app", "poc_import"]

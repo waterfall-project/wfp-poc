@@ -28,6 +28,7 @@ repos:
       - id: mypy
         additional_dependencies:
           - types-requests
+          - types-PyJWT
           - flask
           - flask-cors
           - flask-limiter

@@ -1,0 +1,141 @@
+# Copyright (c) 2025 Waterfall
+#
+# This source code is dual-licensed under:
+# - GNU Affero General Public License v3.0 (AGPLv3) for open source use
+# - Commercial License for proprietary use
+#
+# See LICENSE and LICENSE.md files in the root directory for full license text.
+# For commercial licensing inquiries, contact: contact@waterfall-project.pro
+
+"""Assignment model definition.
+
+This module defines the Assignment model for managing resource allocations
+to specific tasks with planned work and actual effort tracking.
+"""
+
+import uuid
+from typing import TYPE_CHECKING
+
+from sqlalchemy import ForeignKey, Integer, Numeric, UniqueConstraint
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from app.models.types import GUID, TimestampMixin, UUIDMixin
+
+if TYPE_CHECKING:
+    from flask_sqlalchemy.model import Model
+
+    from app.models.project import Project
+    from app.models.resource import Resource
+    from app.models.task import Task
+else:
+    from app import db
+
+    Model = db.Model
+
+
+class Assignment(UUIDMixin, TimestampMixin, Model):
+    """Assignment model for resource-task allocation.
+
+    Represents the assignment of a resource to a specific task,
+    including planned work, actual work, and cost allocation.
+
+    Attributes:
+        id: Unique identifier (UUID, primary key).
+        task_id: Task identifier (UUID, required, foreign key).
+        resource_id: Resource identifier (UUID, required, foreign key).
+        project_id: Project identifier for denormalization (UUID, required, foreign key).
+        planned_work_minutes: Planned work effort in minutes.
+        actual_work_minutes: Actual work effort in minutes.
+        planned_cost: Planned cost for this assignment.
+        actual_cost: Actual cost incurred for this assignment.
+        created_at: Timestamp of creation (auto-generated).
+        updated_at: Timestamp of last update (auto-updated).
+    """
+
+    __tablename__ = "assignments"
+
+    # Foreign Keys
+    task_id: Mapped[uuid.UUID] = mapped_column(
+        GUID(),
+        ForeignKey("tasks.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+        doc="Task ID",
+    )
+
+    resource_id: Mapped[uuid.UUID] = mapped_column(
+        GUID(),
+        ForeignKey("resources.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+        doc="Resource ID",
+    )
+
+    project_id: Mapped[uuid.UUID] = mapped_column(
+        GUID(),
+        ForeignKey("projects.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+        doc="Project ID (denormalized for query performance)",
+    )
+
+    # Optional Fields
+    planned_work_minutes: Mapped[int | None] = mapped_column(
+        Integer,
+        nullable=True,
+        doc="Planned work effort in minutes",
+    )
+
+    actual_work_minutes: Mapped[int | None] = mapped_column(
+        Integer,
+        nullable=True,
+        doc="Actual work effort in minutes",
+    )
+
+    planned_cost: Mapped[float | None] = mapped_column(
+        Numeric(15, 2),
+        nullable=True,
+        doc="Planned cost for this assignment",
+    )
+
+    actual_cost: Mapped[float | None] = mapped_column(
+        Numeric(15, 2),
+        nullable=True,
+        doc="Actual cost incurred for this assignment",
+    )
+
+    # Relationships
+    task: Mapped["Task"] = relationship(
+        "Task",
+        back_populates="assignments",
+        doc="Associated task",
+    )
+
+    resource: Mapped["Resource"] = relationship(
+        "Resource",
+        back_populates="assignments",
+        doc="Assigned resource",
+    )
+
+    project: Mapped["Project"] = relationship(
+        "Project",
+        back_populates="assignments",
+        doc="Parent project (denormalized)",
+    )
+
+    # Constraints
+    __table_args__ = (
+        UniqueConstraint(
+            "task_id",
+            "resource_id",
+            name="uq_assignments_task_resource",
+        ),
+    )
+
+    def __repr__(self) -> str:
+        """String representation of Assignment.
+
+        Returns:
+            Human-readable string with key attributes.
+        """
+        return f"<Assignment(id={self.id}, task_id={self.task_id}, resource_id={self.resource_id})>"

@@ -32,6 +32,21 @@ from app.utils.jwt_decorators import (
 )
 
 
+def _encode_jwt(payload: dict[str, Any], secret: str, algorithm: str = "HS256") -> str:
+    """Encode JWT and ensure it returns a string.
+
+    Args:
+        payload: JWT claims.
+        secret: Secret key for encoding.
+        algorithm: Algorithm to use.
+
+    Returns:
+        JWT token as string.
+    """
+    token = jwt.encode(payload, secret, algorithm=algorithm)
+    return token.decode("utf-8") if isinstance(token, bytes) else token
+
+
 @pytest.fixture
 def app() -> Flask:
     """Fixture providing a Flask app with JWT configuration.
@@ -113,9 +128,10 @@ def generate_valid_token(
         "iat": datetime.now(UTC),
     }
 
-    return jwt.encode(  # type: ignore[no-any-return]
+    token = _encode_jwt(
         payload, app.config["JWT_SECRET_KEY"], algorithm=app.config["JWT_ALGORITHM"]
     )
+    return token.decode("utf-8") if isinstance(token, bytes) else token
 
 
 class TestJWTError:
@@ -226,7 +242,7 @@ class TestRequireJWTAuth:
             "email": "test@example.com",
             "exp": datetime.now(UTC) + timedelta(hours=1),
         }
-        token = jwt.encode(payload, "wrong-secret", algorithm="HS256")
+        token = _encode_jwt(payload, "wrong-secret", algorithm="HS256")
         client.set_cookie("access_token", token)
 
         response = client.get("/protected")
@@ -266,7 +282,7 @@ class TestRequireJWTAuth:
             "email": "test@example.com",
             "exp": datetime.now(UTC) + timedelta(hours=1),
         }
-        token = jwt.encode(
+        token = _encode_jwt(
             payload, app.config["JWT_SECRET_KEY"], algorithm=app.config["JWT_ALGORITHM"]
         )
         client.set_cookie("access_token", token)
@@ -292,7 +308,7 @@ class TestRequireJWTAuth:
             "email": "test@example.com",
             "exp": datetime.now(UTC) + timedelta(hours=1),
         }
-        token = jwt.encode(
+        token = _encode_jwt(
             payload, app.config["JWT_SECRET_KEY"], algorithm=app.config["JWT_ALGORITHM"]
         )
         client.set_cookie("access_token", token)
@@ -318,7 +334,7 @@ class TestRequireJWTAuth:
             "company_id": "company-456",
             "exp": datetime.now(UTC) + timedelta(hours=1),
         }
-        token = jwt.encode(
+        token = _encode_jwt(
             payload, app.config["JWT_SECRET_KEY"], algorithm=app.config["JWT_ALGORITHM"]
         )
         client.set_cookie("access_token", token)
@@ -523,7 +539,7 @@ class TestAccessRequired:
         mock_post.return_value = mock_response
 
         with guardian_app.test_client() as client:
-            token = jwt.encode(
+            token = _encode_jwt(
                 {
                     "user_id": "user-123",
                     "company_id": "company-456",
@@ -559,7 +575,7 @@ class TestAccessRequired:
         mock_post.return_value = mock_response
 
         with guardian_app.test_client() as client:
-            token = jwt.encode(
+            token = _encode_jwt(
                 {
                     "user_id": "user-123",
                     "company_id": "company-456",
@@ -593,7 +609,7 @@ class TestAccessRequired:
         mock_post.return_value = mock_response
 
         with guardian_app.test_client() as client:
-            token = jwt.encode(
+            token = _encode_jwt(
                 {
                     "user_id": "user-123",
                     "company_id": "company-456",
@@ -645,7 +661,7 @@ class TestAccessRequired:
         mock_post.side_effect = ConnectionError()
 
         with guardian_app.test_client() as client:
-            token = jwt.encode(
+            token = _encode_jwt(
                 {
                     "user_id": "user-123",
                     "company_id": "company-456",
@@ -681,7 +697,7 @@ class TestAccessRequired:
         mock_post.return_value = mock_response
 
         with guardian_app.test_client() as client:
-            token = jwt.encode(
+            token = _encode_jwt(
                 {
                     "user_id": "user-123",
                     "company_id": "company-456",
@@ -712,7 +728,7 @@ class TestAccessRequired:
         mock_post.side_effect = Timeout()
 
         with guardian_app.test_client() as client:
-            token = jwt.encode(
+            token = _encode_jwt(
                 {
                     "user_id": "user-123",
                     "company_id": "company-456",
@@ -744,7 +760,7 @@ class TestAccessRequired:
         mock_post.return_value = mock_response
 
         with guardian_app.test_client() as client:
-            token = jwt.encode(
+            token = _encode_jwt(
                 {
                     "user_id": "user-123",
                     "company_id": "company-456",

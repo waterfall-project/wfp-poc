@@ -6,14 +6,9 @@
 #
 # See LICENSE and LICENSE.md files in the root directory for full license text.
 # For commercial licensing inquiries, contact: contact@waterfall-project.pro
-"""SQLAlchemy database instance.
 
-This module re-exports the SQLAlchemy instance (db) from app for use
-throughout the models package. This avoids circular imports.
+"""Unit tests for Flask-RESTful resources.
+
+This package contains all unit tests for API endpoints including
+request validation, response formatting, and HTTP status codes.
 """
-
-# Import db from the main app module where it's initialized
-# This ensures we use the same instance that's registered with the Flask app
-from app import db
-
-__all__ = ["db"]
