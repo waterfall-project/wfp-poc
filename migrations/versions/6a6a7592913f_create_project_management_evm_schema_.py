@@ -4,6 +4,9 @@ Revision ID: 6a6a7592913f
 Revises: fc4baed52c98
 Create Date: 2026-01-11 18:00:43.150718
 
+Note: This is an Alembic auto-generated migration file.
+String literal duplication (e.g., '(CURRENT_TIMESTAMP)', 'projects.id', 'tasks.id')
+is acceptable in migration files as they are declarative schema definitions.
 """
 import sqlalchemy as sa
 from alembic import op
@@ -11,10 +14,10 @@ from alembic import op
 from app.models.types import GUID, JSONB
 
 # revision identifiers, used by Alembic.
-revision = '6a6a7592913f'
-down_revision = 'fc4baed52c98'
-branch_labels = None
-depends_on = None
+revision: str = '6a6a7592913f'
+down_revision: str | None = 'fc4baed52c98'
+branch_labels: str | None = None
+depends_on: str | None = None
 
 
 def upgrade():
