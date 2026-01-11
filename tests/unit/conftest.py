@@ -288,7 +288,8 @@ def generate_jwt(jwt_secret: str) -> Callable[[dict], str]:
     """
 
     def _generate(claims: dict[str, Any]) -> str:
-        return jwt.encode(claims, jwt_secret, algorithm="HS256")  # type: ignore[no-any-return]
+        token = jwt.encode(claims, jwt_secret, algorithm="HS256")
+        return token.decode("utf-8") if isinstance(token, bytes) else token
 
     return _generate
 
