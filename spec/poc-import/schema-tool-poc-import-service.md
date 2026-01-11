@@ -25,8 +25,8 @@ tags: [tool, poc-import, ms-project, excel, etl, validation]
 - Orchestrate wfp-poc API calls with error handling and retry logic
 - Support initial import and incremental reimport workflows
 - Provide CLI interface for manual/scripted imports
-- Provide REST API endpoints for programmatic imports (future)
-- Support MCP (Model Context Protocol) server for AI integration (future)
+- Provide REST API endpoints for programmatic imports (Phase 2 / future)
+- Support MCP (Model Context Protocol) server for AI integration (Phase 2 / future)
 - Provide detailed validation reports and import summaries
 
 **Out of Scope:**
@@ -60,9 +60,9 @@ tags: [tool, poc-import, ms-project, excel, etl, validation]
 | **Structural Validation** | Verification that milestone count and names remain unchanged during reimport |
 | **Planning Data** | MS Project-sourced data: WBS, task dates, durations, dependencies, resource assignments |
 | **Tracking Data** | wfp-poc-sourced data preserved during reimport: expenses, actual dates, progress, RAE |
-| **ms_project_guid** | MS Project Task GUID (UUID) - stable reconciliation key for upsert operations |
-| **ms_project_uid** | MS Project Task UID (integer) - display ID, unstable, changes on reorder |
-| **Upsert** | Operation that creates new record if GUID not found, updates existing if found |
+| **ms_project_guid** | MS Project Task GUID (UUID) - stable identifier for cross-system reconciliation when supported by the target API |
+| **ms_project_uid** | MS Project Task UID (integer) - reconciliation key used by some wfp-poc sync operations; can change if tasks are renumbered/reordered in MS Project |
+| **Upsert** | Operation that creates new record if reconciliation key not found, updates existing if found |
 | **Bulk Import** | Single API request containing multiple entities (e.g., 100 tasks) |
 | **Batch Processing** | Splitting large datasets into multiple bulk imports (e.g., 1000 tasks → 10 batches of 100) |
 | **Dry Run** | Validation-only mode that reports errors without making API calls |
@@ -85,7 +85,7 @@ tags: [tool, poc-import, ms-project, excel, etl, validation]
 
 #### Validation
 
-- **REQ-009**: poc-import SHALL validate MS Project XML against schema before processing
+- **REQ-009**: poc-import SHOULD validate MS Project XML structure before processing (well-formed XML, required elements present). Full XSD validation MAY be implemented as a Phase 2 enhancement.
 - **REQ-010**: poc-import SHALL validate Excel files have required columns (see Section 4)
 - **REQ-011**: poc-import SHALL validate milestone structure consistency on reimport (count + names)
 - **REQ-012**: poc-import SHALL reject reimport if milestone count changed from wfp-poc
@@ -99,11 +99,14 @@ tags: [tool, poc-import, ms-project, excel, etl, validation]
 
 #### Transformation
 
-- **REQ-020**: poc-import SHALL map MS Project Task GUID to ms_project_guid (reconciliation key)
-- **REQ-021**: poc-import SHALL preserve MS Project Task UID as ms_project_uid (display only)
-- **REQ-022**: poc-import SHALL map MS Project PredecessorLink to wfp-poc predecessor_ids array
-- **REQ-023**: poc-import SHALL map MS Project Resource Type (1=Labor, 0=Material) to wfp-poc enum
-- **REQ-024**: poc-import SHALL map Excel milestone_name to milestone_id via wfp-poc GET /milestones
+- **REQ-020**: poc-import SHALL map MS Project Task GUID to ms_project_guid (stable identifier for reconciliation)
+- **REQ-021**: poc-import SHALL preserve MS Project Task UID as ms_project_uid (reconciliation key + display)
+- **REQ-022**: poc-import SHALL map MS Project PredecessorLink to wfp-poc task predecessor relationships (`predecessors` array)
+  - For task sync, poc-import SHOULD send `predecessor_task_uid` (MS Project UID) as defined by wfp-poc.
+- **REQ-023**: poc-import SHALL map MS Project Resource Type to wfp-poc enum
+  - MS Project: 1=Labor, 0=Material, 2=Cost
+  - wfp-poc: labor, material, cost
+- **REQ-024**: poc-import SHALL map Excel milestone_name to milestone_id via wfp-poc `GET /v0/projects/{project_id}/milestones`
 - **REQ-025**: poc-import SHALL calculate milestone budget_weight from task budget distribution
 - **REQ-026**: poc-import SHALL convert MS Project dates to ISO 8601 UTC timestamps
 - **REQ-027**: poc-import SHALL map Excel expense category to wfp-poc enum (labor, procurement, subcontracting, overhead)
@@ -113,12 +116,15 @@ tags: [tool, poc-import, ms-project, excel, etl, validation]
 - **REQ-028**: poc-import SHALL authenticate API requests using JWT token (from config or CLI arg)
 - **REQ-029**: poc-import SHALL include correlation_id in all API requests for tracing
 - **REQ-030**: poc-import SHALL use POST for initial import (create entities)
-- **REQ-031**: poc-import SHALL use PUT /projects/{project_id}/tasks/sync for reimport (upsert based on ms_project_guid)
-- **REQ-032**: poc-import SHALL use POST /expenses/bulk for batch expense import
-- **REQ-033**: poc-import SHALL use POST /milestones/{id}/rae for each milestone RAE update
+- **REQ-031**: poc-import SHALL use `PUT /v0/projects/{project_id}/tasks/sync` for reimport.
+  - For this POC, poc-import SHOULD follow the reconciliation behavior defined by wfp-poc (currently: `ms_project_uid` as reconciliation key), while still sending `ms_project_guid` when available.
+- **REQ-032**: poc-import SHALL use `POST /v0/projects/{project_id}/expenses/bulk` for batch expense import
+- **REQ-033**: poc-import SHALL use `POST /v0/milestones/{milestone_id}/rae` for each milestone RAE update
 - **REQ-034**: poc-import SHALL implement retry logic for transient API errors (3 retries with exponential backoff)
 - **REQ-035**: poc-import SHALL abort import on validation errors (4xx) without retry
-- **REQ-036**: poc-import SHALL rollback transaction if any critical API call fails (if supported by API)
+- **REQ-036**: poc-import SHOULD provide POC-grade partial failure handling.
+  - MVP: emit a resumable import report (per batch) including correlation_id and created/updated/failed counts.
+  - Compensation/cleanup actions MUST be explicit and best-effort (no implicit rollback assumptions).
 
 #### Workflows
 
@@ -141,10 +147,11 @@ tags: [tool, poc-import, ms-project, excel, etl, validation]
 
 ### Performance Requirements (PERF-xxx)
 
-- **PERF-001**: poc-import SHALL process MS Project files up to 5000 tasks within 5 minutes
+- **PERF-001**: poc-import SHOULD process MS Project files up to 5000 tasks within 5 minutes in a typical POC environment.
+  - Timing guidance: measure parsing/validation/client-side batching separately from external API latency.
 - **PERF-002**: poc-import SHALL use bulk API calls for tasks (max 100 per request)
 - **PERF-003**: poc-import SHALL use bulk API calls for expenses (max 200 per request)
-- **PERF-004**: poc-import SHALL process Excel files up to 10,000 rows within 2 minutes
+- **PERF-004**: poc-import SHOULD process Excel files up to 10,000 rows within 2 minutes in a typical POC environment
 - **PERF-005**: poc-import SHALL implement batch processing for large datasets (split into chunks)
 - **PERF-006**: poc-import SHALL display progress indicator for operations > 30 seconds
 
@@ -179,7 +186,7 @@ poc-import msproject <file.xml> \
   --mode=initial \
   --token=<jwt_token> \
   --api-url=https://wfp-poc.example.com \
-  --company-id=<uuid> \
+  [--company-id=<uuid>] \
   [--dry-run] \
   [--verbose] \
   [--output-report=report.json]
@@ -190,7 +197,7 @@ poc-import msproject <file.xml> \
 - `--mode`: Import mode: `initial` or `sync` (required)
 - `--token`: JWT authentication token (required, can use env var WFP_JWT_TOKEN)
 - `--api-url`: wfp-poc API base URL (required, can use env var WFP_API_URL)
-- `--company-id`: Company UUID for multi-tenant isolation (required for initial import)
+- `--company-id`: Company UUID for multi-tenant isolation (optional; preferred source is JWT claims as enforced by wfp-poc)
 - `--project-id`: Existing project UUID (required for sync mode)
 - `--dry-run`: Validate only, do not call API (optional)
 - `--verbose`: Enable detailed logging (optional)
@@ -242,7 +249,7 @@ poc-import expenses <file.xlsx> \
 - Date format: ISO 8601 (YYYY-MM-DD) or Excel date serial
 - Amount: Non-negative decimal, max 15 digits, 2 decimal places
 - Category: Case-insensitive match to enum values (labor, procurement, subcontracting, overhead)
-- milestone_name: Must exist in project (case-sensitive)
+- milestone_name: Must exist in project (normalized match: trim, collapse internal whitespace, case-insensitive)
 - Duplicate detection: Same date + description + amount → skip or update (configurable)
 
 #### Import RAE from Excel
@@ -274,7 +281,7 @@ poc-import rae <file.xlsx> \
 
 **Validation Rules:**
 - Date format: ISO 8601 or Excel date serial
-- milestone_name: Must exist in project (case-sensitive)
+- milestone_name: Must exist in project (normalized match: trim, collapse internal whitespace, case-insensitive)
 - Amount: Non-negative decimal
 - If task breakdown provided: Σ(task_estimate) MUST equal milestone amount
 - task_status: Enum validation (not_started, in_progress, completed)
@@ -301,7 +308,7 @@ poc-import rae <file.xlsx> \
 ```json
 POST /v0/projects
 {
-  "company_id": "<from CLI arg>",
+  "company_id": "<from JWT claims (preferred); or from CLI arg in testing/mocked mode>",
   "name": "<Name>",
   "title": "<Title>",
   "start_date": "<StartDate ISO 8601>",
@@ -355,7 +362,7 @@ POST /v0/projects/{project_id}/tasks/bulk
       "percent_complete": 0,
       "is_critical": true,
       "type": "task",
-      "predecessor_uids": [0]
+      "predecessors": []
     }
   ]
 }
@@ -373,7 +380,9 @@ PUT /v0/projects/{project_id}/tasks/sync
       "planned_start_date": "<Start ISO 8601>",
       "planned_finish_date": "<Finish ISO 8601>",
       "duration_hours": 240,
-      "predecessor_uids": [0]
+      "predecessors": [
+        {"predecessor_task_uid": "<PredecessorUID>", "type": "FS", "lag": 0}
+      ]
     }
   ]
 }
@@ -386,7 +395,7 @@ PUT /v0/projects/{project_id}/tasks/sync
   <UID>1</UID>
   <GUID>B2C3D4E5-F6A7-4B8C-9D0E-1F2A3B4C5D6E</GUID>
   <Name>John Doe</Name>
-  <Type>1</Type>  <!-- 1=Labor, 0=Material -->
+  <Type>1</Type>  <!-- 1=Labor, 0=Material, 2=Cost -->
   <StandardRate>750</StandardRate>  <!-- Per hour -->
   <MaxUnits>1.0</MaxUnits>
   <EmailAddress>john.doe@example.com</EmailAddress>
@@ -603,7 +612,7 @@ POST /v0/projects/{project_id}/assignments/bulk
 
 - **AC-001**: Given a valid MS Project XML file with 100 tasks, When I run `poc-import msproject file.xml --mode=initial`, Then all 100 tasks SHALL be created in wfp-poc with correct GUIDs
 - **AC-002**: Given a MS Project file with milestones (duration=0), When imported, Then milestones SHALL be created as separate entities linked to milestone_tasks
-- **AC-003**: Given a MS Project file with task dependencies, When imported, Then predecessor relationships SHALL be preserved using ms_project_guid references
+- **AC-003**: Given a MS Project file with task dependencies, When imported, Then predecessor relationships SHALL be preserved using MS Project UID references (wfp-poc `predecessor_task_uid`)
 - **AC-004**: Given a MS Project file with resources, When imported, Then resources SHALL be created with correct types (labor/material/cost)
 - **AC-005**: Given a MS Project file with assignments, When imported, Then task-resource assignments SHALL link to correct task_id and resource_id
 
@@ -617,15 +626,15 @@ POST /v0/projects/{project_id}/assignments/bulk
 
 ### Expense Import
 
-- **AC-011**: Given a valid Excel file with 50 expense rows, When I run `poc-import expenses file.xlsx`, Then all 50 expenses SHALL be created via POST /expenses/bulk
-- **AC-012**: Given an expense row with milestone_name "Phase 1", When imported, Then milestone_id SHALL be resolved from wfp-poc GET /milestones API
+- **AC-011**: Given a valid Excel file with 50 expense rows, When I run `poc-import expenses file.xlsx`, Then all 50 expenses SHALL be created via POST /v0/projects/{project_id}/expenses/bulk
+- **AC-012**: Given an expense row with milestone_name "Phase 1", When imported, Then milestone_id SHALL be resolved from wfp-poc GET /v0/projects/{project_id}/milestones API
 - **AC-013**: Given an expense row with invalid milestone_name, When validated, Then SHALL fail with "Milestone not found: {name}" error
 - **AC-014**: Given duplicate expense (same date + description + amount), When imported, Then SHALL skip with warning (configurable: skip or update)
 - **AC-015**: Given expense with negative amount, When validated, Then SHALL fail with "Amount must be >= 0" error
 
 ### RAE Import
 
-- **AC-016**: Given a valid RAE Excel file with 5 milestones, When imported, Then 5 POST /milestones/{id}/rae API calls SHALL be made
+- **AC-016**: Given a valid RAE Excel file with 5 milestones, When imported, Then 5 POST /v0/milestones/{milestone_id}/rae API calls SHALL be made
 - **AC-017**: Given a RAE row with task breakdown, When validated, Then Σ(task_estimate) SHALL equal milestone amount or fail
 - **AC-018**: Given a RAE row with invalid task_status, When validated, Then SHALL fail with "Invalid status: must be not_started, in_progress, or completed"
 - **AC-019**: Given duplicate RAE for same milestone + date, When imported, Then SHALL upsert (update existing record)
@@ -641,8 +650,8 @@ POST /v0/projects/{project_id}/assignments/bulk
 
 ### Performance
 
-- **AC-026**: Given a MS Project file with 1000 tasks, When imported, Then SHALL complete within 3 minutes (batch processing)
-- **AC-027**: Given an Excel file with 5000 expense rows, When imported, Then SHALL use bulk API (max 200 per request) and complete within 5 minutes
+- **AC-026**: Given a MS Project file with 1000 tasks, When imported, Then SHOULD complete within 3 minutes (batch processing)
+- **AC-027**: Given an Excel file with 5000 expense rows, When imported, Then SHOULD use bulk API (max 200 per request) and complete within 5 minutes
 - **AC-028**: Given a MS Project file with 5000 tasks, When imported, Then SHALL split into batches of 100 tasks per API call
 
 ## 6. Rationale & Context
@@ -760,7 +769,11 @@ MS Project has 3 identifiers:
 - `<GUID>` (UUID): Globally unique, **STABLE** across all operations
 - `<ID>` (integer): Row number, changes frequently
 
-Using GUID ensures:
+Preferred approach: use GUID for reconciliation whenever the target API supports it.
+
+Current POC constraint: wfp-poc task sync currently uses `ms_project_uid` as the reconciliation key. Therefore, poc-import MUST preserve and send `ms_project_uid` for sync, and SHOULD also send `ms_project_guid` when available for future-proofing.
+
+Using GUID (when supported) ensures:
 - ✅ Reimport correctly updates same tasks even after reordering
 - ✅ Round-trip compatibility (export → edit → reimport)
 - ✅ No duplicate tasks created on reimport
@@ -897,7 +910,7 @@ poc-import msproject project_baguera_v3.xml \
 # Resolution Options:
 #   1. Remove milestone from MS Project and retry import
 #   2. Add milestone manually in wfp-poc first:
-#      POST https://wfp-poc.example.com/v0/milestones
+#      POST https://wfp-poc.example.com/v0/projects/{project_id}/milestones
 #      {
 #        "project_id": "a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d",
 #        "name": "Phase 2.5 Integration Testing",
@@ -955,11 +968,11 @@ poc-import rae rae_june_2026.xlsx \
 # ✅ Phase 4 Complete: RAE = $0 (not started, but no budget allocated)
 # ✅ Phase 5 Complete: RAE = $0 (completed)
 # ✅ Importing to wfp-poc...
-# ✅ POST /v0/milestones/{id}/rae (Phase 1) → 201 Created
-# ✅ POST /v0/milestones/{id}/rae (Phase 2) → 201 Created
-# ✅ POST /v0/milestones/{id}/rae (Phase 3) → 201 Created
-# ✅ POST /v0/milestones/{id}/rae (Phase 4) → 201 Created
-# ✅ POST /v0/milestones/{id}/rae (Phase 5) → 201 Created
+# ✅ POST /v0/milestones/{milestone_id}/rae (Phase 1) → 201 Created
+# ✅ POST /v0/milestones/{milestone_id}/rae (Phase 2) → 201 Created
+# ✅ POST /v0/milestones/{milestone_id}/rae (Phase 3) → 201 Created
+# ✅ POST /v0/milestones/{milestone_id}/rae (Phase 4) → 201 Created
+# ✅ POST /v0/milestones/{milestone_id}/rae (Phase 5) → 201 Created
 # ✅ Import completed in 1.8 seconds
 # 📊 Total RAE: $235,000.00
 ```
@@ -998,7 +1011,7 @@ poc-import msproject project_baguera_v4.xml \
 
 ### File Format Validation
 
-- **VAL-001**: MS Project XML file SHALL validate against MS Project 2010+ XML schema
+- **VAL-001**: MS Project XML file SHOULD pass structural validation (well-formed XML, required sections present). Full XSD validation MAY be added as Phase 2.
 - **VAL-002**: Excel file SHALL be .xlsx format (OpenXML), reject .xls or .csv
 - **VAL-003**: Excel file SHALL contain required columns (see Section 4)
 - **VAL-004**: Excel date columns SHALL be valid dates (ISO 8601 or Excel serial number)
@@ -1006,11 +1019,11 @@ poc-import msproject project_baguera_v4.xml \
 ### Business Logic Validation
 
 - **VAL-005**: Milestone structure SHALL match existing project on reimport (count + names)
-- **VAL-006**: Expense milestone_name SHALL exist in project milestones
-- **VAL-007**: RAE milestone_name SHALL exist in project milestones
+- **VAL-006**: Expense milestone_name SHALL exist in project milestones (normalized match: trim + case-insensitive)
+- **VAL-007**: RAE milestone_name SHALL exist in project milestones (normalized match: trim + case-insensitive)
 - **VAL-008**: RAE task breakdown (if provided) SHALL sum to milestone RAE amount
 - **VAL-009**: All amounts SHALL be non-negative decimals
-- **VAL-010**: Task GUID SHALL be valid UUID v4 format
+- **VAL-010**: Task GUID SHALL be a valid UUID string (case-insensitive). Version-specific enforcement (v4) is not required for this POC.
 
 ### API Integration Validation
 

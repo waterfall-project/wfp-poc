@@ -18,20 +18,18 @@ tags: [tool, poc-export, ms-project, excel, reporting, blueprints, visualization
 ### Scope
 
 **In Scope:**
-- **MS Project XML Export**: Generate MS Project 2010+ XML from wfp-poc data (tasks, milestones, resources, assignments)
-- **Excel EVM Export**: Generate Excel spreadsheets with EVM metrics (BAC, PV, AC, EV, CV, SV, CPI, SPI, forecasts)
-- **Blueprint Visualization**: Flask Blueprint-based web pages displaying charts (Earned Value curves, milestone status, expense breakdown)
-- Preserve GUID/UID mappings for round-trip compatibility (import → export → edit → reimport)
-- Support CLI for automated exports (CI/CD, scheduled jobs)
-- Support web interface for interactive chart viewing
-- Provide detailed export reports and summaries
+- **POC MS Project XML Export (MVP)**: Generate a minimal MS Project 2010+ XML from wfp-poc data (tasks, resources, assignments) including planned/actual dates, dependencies, and preserved `GUID`s. `UID` is best-effort only.
+- **POC Excel EVM Export (MVP)**: Generate an Excel workbook with 2 sheets ("Summary", "Metrics") using standard EVM metrics (BAC, PV, AC, EV, CV, SV, CPI, SPI, EAC, ETC, VAC). No embedded charts in MVP.
+- **POC Blueprint Visualization (MVP)**: Provide a single route to render an EVM chart server-side (`/charts/project/{id}/evm`) as PNG with basic in-memory caching.
+- **CLI for exports**: Commands for MS Project XML and Excel. CLI chart image generation is Phase 2.
+- **Export reports**: JSON export summary output (size, duration, counts).
 
 **Out of Scope:**
 - MS Project binary .mpp file generation (export XML only, convert with MS Project if needed)
 - Real-time synchronization (batch export only)
 - Data import (handled by poc-import service)
 - Full-featured dashboard/SPA (lightweight Blueprint views only)
-- Authentication/authorization (delegates to wfp-poc API via JWT)
+- Authentication/authorization (delegated to wfp-poc via JWT; HTTPS not required for local POC)
 
 ### Intended Audience
 
@@ -56,13 +54,24 @@ tags: [tool, poc-export, ms-project, excel, reporting, blueprints, visualization
 | **Snapshot Export** | Point-in-time export of project data (tasks, resources, dates, actuals) |
 | **Round-Trip Compatibility** | Exported XML can be imported back into wfp-poc without data loss |
 | **GUID Preservation** | ms_project_guid values maintained in export for reconciliation |
-| **UID Preservation** | ms_project_uid values maintained in export for MS Project display consistency |
+| **UID Preservation (Best-Effort)** | ms_project_uid values are preserved when present; if absent, UIDs MAY be generated for export readability. UID stability across a round-trip is not guaranteed. |
 | **EVM Snapshot** | Historical EVM metrics at a specific date (from evm_snapshots table) |
 | **Blueprint** | Flask Blueprint for organizing web routes and views |
 | **Server-Side Rendering** | HTML generated on server (not SPA, minimal JavaScript) |
 | **Chart Generation** | matplotlib or plotly generating PNG/SVG images or HTML plots |
 | **Baseline Preservation** | Original planned dates (baseline) vs current planned dates vs actuals |
 | **Excel Template** | Pre-formatted Excel with formulas and charts (populated with data) |
+
+### EVM Standard Definitions (POC)
+
+For this POC, the service uses EVM fields provided by wfp-poc (e.g., `pv`, `ac`, `ev_physical`, `ev_milestone`). Derived indicators SHALL follow standard EVM definitions:
+
+- **CV** (Cost Variance) = $EV - AC$
+- **SV** (Schedule Variance) = $EV - PV$
+- **CPI** (Cost Performance Index) = $EV / AC$ (when $AC > 0$)
+- **SPI** (Schedule Performance Index) = $EV / PV$ (when $PV > 0$)
+- **ETC** (Estimate To Complete) = $EAC - AC$
+- **VAC** (Variance At Completion) = $BAC - EAC$
 
 ## 3. Requirements, Constraints & Guidelines
 
@@ -77,50 +86,48 @@ tags: [tool, poc-export, ms-project, excel, reporting, blueprints, visualization
 - **REQ-005**: poc-export SHALL retrieve resources with GET /v0/resources API (global resources, filter by project locally)
 - **REQ-006**: poc-export SHALL retrieve assignments with GET /v0/projects/{project_id}/assignments API
 - **REQ-007**: poc-export SHALL preserve ms_project_guid for task reconciliation
-- **REQ-008**: poc-export SHALL preserve ms_project_uid for MS Project display consistency
+- **REQ-008**: poc-export SHOULD preserve ms_project_uid for MS Project display consistency when provided by wfp-poc; otherwise it MAY generate sequential UIDs for export readability (best-effort).
 - **REQ-009**: poc-export SHALL export planned dates to <Start>/<Finish> elements
 - **REQ-010**: poc-export SHALL export actual dates to <ActualStart>/<ActualFinish> elements
 - **REQ-011**: poc-export SHALL export percent_complete to <PercentComplete> element
 - **REQ-012**: poc-export SHALL export task dependencies as <PredecessorLink> elements
 - **REQ-013**: poc-export SHALL export milestones as tasks with Duration=0 and Milestone=1
 - **REQ-014**: poc-export SHALL export task budgets to <Cost> element
-- **REQ-015**: poc-export SHALL validate generated XML against MS Project schema
+- **REQ-015**: poc-export SHOULD produce XML that opens without errors in MS Project 2010+ (validation by import). XSD validation is optional in Phase 2.
 
 #### Excel EVM Export
 
-- **REQ-016**: poc-export SHALL generate Excel workbook with multiple sheets (Summary, Metrics, Expenses, RAE)
+- **REQ-016**: poc-export SHALL generate an Excel workbook with 2 sheets (Summary, Metrics) in MVP; Expenses and RAE are Phase 2.
 - **REQ-017**: poc-export SHALL retrieve EVM data with GET /v0/projects/{project_id}/evm/timeseries API
-- **REQ-018**: poc-export SHALL retrieve expenses with GET /v0/projects/{project_id}/expenses API
-- **REQ-019**: poc-export SHALL retrieve RAE data using GET /v0/projects/{project_id}/rae/summary API (which aggregates RAE from all milestones)
+- **REQ-018**: poc-export SHOULD retrieve expenses with GET /v0/projects/{project_id}/expenses API (Phase 2)
+- **REQ-019**: poc-export SHOULD retrieve RAE data using GET /v0/projects/{project_id}/rae/summary API (Phase 2)
 - **REQ-020**: poc-export SHALL create "Summary" sheet with project overview (BAC, dates, status)
 - **REQ-021**: poc-export SHALL create "Metrics" sheet with EVM time-series (date, BAC, PV, AC, EV, CV, SV, CPI, SPI, EAC, etc.)
-- **REQ-022**: poc-export SHALL create "Expenses" sheet with expense details (date, description, amount, category, milestone)
-- **REQ-023**: poc-export SHALL create "RAE" sheet with RAE history per milestone
+- **REQ-022**: poc-export SHOULD create an "Expenses" sheet (Phase 2)
+- **REQ-023**: poc-export SHOULD create an "RAE" sheet (Phase 2)
 - **REQ-024**: poc-export SHALL format numbers as currency (€ or $) with 2 decimal places
 - **REQ-025**: poc-export SHALL format percentages with 1 decimal place
 - **REQ-026**: poc-export SHALL apply Excel formulas for derived metrics (e.g., ETC = EAC - AC)
-- **REQ-027**: poc-export SHALL create Excel charts (line chart for EV curves, pie chart for expenses)
+- **REQ-027**: poc-export SHOULD create Excel charts (Phase 2)
 
 #### Blueprint Visualization
 
-- **REQ-028**: poc-export SHALL provide Flask Blueprint with routes for chart viewing
-- **REQ-029**: poc-export SHALL generate route GET /charts/project/{id}/overview for project summary dashboard
-- **REQ-030**: poc-export SHALL generate route GET /charts/project/{id}/evm for Earned Value charts
-- **REQ-031**: poc-export SHALL generate route GET /charts/project/{id}/milestones for milestone status
-- **REQ-032**: poc-export SHALL generate route GET /charts/project/{id}/expenses for expense breakdown
-- **REQ-033**: poc-export SHALL render charts server-side using matplotlib or plotly
-- **REQ-034**: poc-export SHALL generate responsive HTML with embedded charts (PNG/SVG or plotly HTML)
-- **REQ-035**: poc-export SHALL display EV curve chart (BAC, PV, AC, EV_physical, EV_milestone over time)
-- **REQ-036**: poc-export SHALL display milestone status chart (Gantt-style or timeline)
-- **REQ-037**: poc-export SHALL display expense breakdown pie chart (by category: labor, procurement, etc.)
-- **REQ-038**: poc-export SHALL display RAE trend chart (RAE per milestone over time)
+- **REQ-028**: poc-export SHALL provide a Flask Blueprint with at least one route for chart viewing (EVM)
+- **REQ-029**: poc-export SHALL generate route GET /charts/project/{id}/evm for Earned Value charts (MVP)
+- **REQ-031**: poc-export SHOULD generate overview/milestones/expenses routes (Phase 2)
+- **REQ-033**: poc-export SHALL render charts server-side using matplotlib (plotly optional in Phase 2)
+- **REQ-034**: poc-export SHOULD generate simple HTML pages with embedded charts (PNG). Responsive layout is best-effort for POC.
+- **REQ-035**: poc-export SHALL display an EV curve chart over time (BAC, PV, AC, and at least one EV series).
+- **REQ-036**: poc-export SHOULD display milestone status chart (Phase 2)
+- **REQ-037**: poc-export SHOULD display expense breakdown charts (Phase 2)
+- **REQ-038**: poc-export SHOULD display RAE trend chart (Phase 2)
 - **REQ-039**: poc-export SHALL authenticate chart access via JWT token (delegated to wfp-poc)
 - **REQ-040**: poc-export SHALL check Guardian READ permissions before displaying charts
 
 #### CLI Interface
 
-- **REQ-041**: poc-export SHALL support CLI command `export msproject <project-id>` for XML generation
-- **REQ-042**: poc-export SHALL support CLI command `export excel <project-id>` for Excel generation
+- **REQ-041**: poc-export SHALL support CLI command `msproject <project-id>` for XML generation
+- **REQ-042**: poc-export SHALL support CLI command `excel <project-id>` for Excel generation
 - **REQ-043**: poc-export SHALL support `--output` flag to specify output file path
 - **REQ-044**: poc-export SHALL support `--format` flag for chart format (png, svg, html)
 - **REQ-045**: poc-export SHALL generate export summary report (file size, record counts)
@@ -138,11 +145,11 @@ tags: [tool, poc-export, ms-project, excel, reporting, blueprints, visualization
 
 ### Performance Requirements (PERF-xxx)
 
-- **PERF-001**: poc-export SHALL generate MS Project XML for 1000 tasks within 30 seconds
-- **PERF-002**: poc-export SHALL generate Excel EVM report within 10 seconds
-- **PERF-003**: poc-export SHALL render Blueprint charts within 2 seconds (server-side generation)
+- **PERF-001**: poc-export SHOULD generate MS Project XML for up to 1000 tasks within a reasonable time budget on a developer machine (target: < 30 seconds, excluding API latency).
+- **PERF-002**: poc-export SHOULD generate Excel EVM report within a reasonable time budget (target: < 10 seconds, excluding API latency).
+- **PERF-003**: poc-export SHOULD render the MVP EVM Blueprint chart within a reasonable time budget (target: < 2 seconds, excluding API latency and cold-start).
 - **PERF-004**: poc-export SHALL cache chart images for 5 minutes (configurable)
-- **PERF-005**: poc-export SHALL paginate large datasets (e.g., expenses > 1000 rows)
+- **PERF-005**: poc-export SHOULD paginate large datasets (Phase 2)
 
 ### Constraints (CON-xxx)
 
@@ -155,9 +162,9 @@ tags: [tool, poc-export, ms-project, excel, reporting, blueprints, visualization
 
 ### Guidelines (GUD-xxx)
 
-- **GUD-001**: Use lxml library for MS Project XML generation with schema validation
+- **GUD-001**: Use lxml or ElementTree for MS Project XML generation. Schema/XSD validation is optional (Phase 2); primary validation method for POC is import into MS Project.
 - **GUD-002**: Use openpyxl or xlsxwriter for Excel file generation
-- **GUD-003**: Use matplotlib or plotly for chart generation (prefer plotly for interactive HTML)
+- **GUD-003**: Use matplotlib for chart generation in MVP (PNG). Plotly is optional in Phase 2.
 - **GUD-004**: Implement caching for chart images (avoid regenerating on every request)
 - **GUD-005**: Provide verbose logging mode (--verbose) for debugging
 - **GUD-006**: Use structured logging (JSON format) for production deployments
@@ -210,7 +217,7 @@ poc-export excel <project-id> \
 - `--api-url`: wfp-poc API base URL (required)
 - `--output`: Output file path (default: `evm_report_{id}_{date}.xlsx`)
 - `--verbose`: Enable detailed logging (optional)
-- `--include-charts`: Embed Excel charts in workbook (optional, default: false)
+- `--include-charts`: Embed Excel charts in workbook (Phase 2, optional, default: false)
 
 #### Generate Chart Images (CLI)
 
@@ -239,12 +246,79 @@ poc-export charts <project-id> \
 
 | Route | Method | Description | Response |
 |-------|--------|-------------|----------|
-| `/charts/` | GET | List available projects with charts | HTML page with project list |
-| `/charts/project/{id}/overview` | GET | Project summary dashboard | HTML page with overview charts |
-| `/charts/project/{id}/evm` | GET | Earned Value Management charts | HTML page with EV curves |
-| `/charts/project/{id}/milestones` | GET | Milestone status and timeline | HTML page with milestone chart |
-| `/charts/project/{id}/expenses` | GET | Expense breakdown and trends | HTML page with expense charts |
-| `/charts/project/{id}/rae` | GET | RAE trends per milestone | HTML page with RAE charts |
+| `/charts/project/{id}/evm` | GET | Earned Value Management chart (MVP) | HTML page with EV curves |
+| `/charts/` | GET | List available projects with charts (Phase 2) | HTML page with project list |
+| `/charts/project/{id}/overview` | GET | Project summary dashboard (Phase 2) | HTML page with overview charts |
+| `/charts/project/{id}/milestones` | GET | Milestone status and timeline (Phase 2) | HTML page with milestone chart |
+| `/charts/project/{id}/expenses` | GET | Expense breakdown and trends (Phase 2) | HTML page with expense charts |
+| `/charts/project/{id}/rae` | GET | RAE trends per milestone (Phase 2) | HTML page with RAE charts |
+
+### 4.2.1 Expected wfp-poc API Payloads (POC Contract)
+
+This POC assumes the following minimum payload fields from wfp-poc endpoints. Additional fields MAY be present and SHALL be ignored.
+
+#### GET /v0/projects/{project_id}
+
+| Field | Type | Required | Notes |
+|------|------|----------|------|
+| id | UUID | Yes | Project identifier |
+| name | string | Yes | Project name |
+| code | string | No | Human reference code |
+| title | string | No | Optional title |
+| start_date | string (ISO 8601 date/datetime) | No | Used for summary only |
+| finish_date | string (ISO 8601 date/datetime) | No | Used for summary only |
+| status | string | No | Used for summary only |
+| budget | number | No | Used as BAC fallback if BAC not provided elsewhere |
+| ms_project_project_guid | UUID string | No | Used for `<Project><GUID>` when available |
+
+#### GET /v0/projects/{project_id}/tasks
+
+| Field | Type | Required | Notes |
+|------|------|----------|------|
+| id | UUID | Yes | wfp-poc task id |
+| name | string | Yes | Task name |
+| wbs_code | string | No | Optional WBS |
+| planned_start_date | string (ISO 8601) | No | Maps to `<Start>` |
+| planned_finish_date | string (ISO 8601) | No | Maps to `<Finish>` |
+| actual_start_date | string (ISO 8601) | No | Maps to `<ActualStart>` |
+| actual_finish_date | string (ISO 8601) | No | Maps to `<ActualFinish>` |
+| percent_complete | number | No | 0..100 |
+| budget | number | No | Maps to `<Cost>` (best-effort) |
+| ms_project_guid | UUID string | No | Primary for round-trip reconciliation |
+| ms_project_uid | integer | No | Preserved when present; otherwise generated sequentially |
+| predecessors | array | No | Array of predecessor UIDs or task identifiers (see note below) |
+
+**Predecessors note (POC):** if `predecessors` does not contain MS Project UIDs directly, poc-export MAY build a mapping based on `ms_project_guid`.
+
+#### GET /v0/resources
+
+| Field | Type | Required | Notes |
+|------|------|----------|------|
+| id | UUID | Yes | Resource id |
+| name | string | Yes | Display name |
+| ms_project_guid | UUID string | No | Optional mapping |
+| ms_project_uid | integer | No | Optional mapping |
+
+#### GET /v0/projects/{project_id}/assignments
+
+| Field | Type | Required | Notes |
+|------|------|----------|------|
+| id | UUID | Yes | Assignment id |
+| task_id | UUID | Yes | Links to a task |
+| resource_id | UUID | Yes | Links to a resource |
+| units | number | No | 0..1 or 0..100 depending on API; interpreted best-effort |
+
+#### GET /v0/projects/{project_id}/evm/timeseries
+
+| Field | Type | Required | Notes |
+|------|------|----------|------|
+| date | string (ISO 8601 date) | Yes | Snapshot date |
+| bac | number | No | Budget at completion |
+| pv | number | No | Planned Value |
+| ac | number | No | Actual Cost |
+| ev_physical | number | No | Earned Value (physical) |
+| ev_milestone | number | No | Earned Value (milestone) |
+| eac | number | No | Estimate at Completion (if provided) |
 
 #### Authentication
 
@@ -312,7 +386,7 @@ Authorization: Bearer <jwt_token>
 ```
 
 **Mapping from wfp-poc API:**
-- `<UID>` ← task.ms_project_uid
+- `<UID>` ← task.ms_project_uid (if present), otherwise generated sequentially by poc-export (best-effort)
 - `<GUID>` ← task.ms_project_guid
 - `<Name>` ← task.name
 - `<WBS>` ← task.wbs_code
@@ -322,7 +396,7 @@ Authorization: Bearer <jwt_token>
 - `<ActualFinish>` ← task.actual_finish_date (if exists)
 - `<PercentComplete>` ← task.percent_complete
 - `<Cost>` ← task.budget
-- `<PredecessorLink>` ← task.predecessors (array of UIDs)
+- `<PredecessorLink>` ← task.predecessors (best-effort; if not provided as UIDs, map by GUID where possible)
 
 ### 4.4. Excel EVM Report Structure
 
@@ -336,19 +410,19 @@ Authorization: Bearer <jwt_token>
 | Finish Date | 2027-12-31 | project.finish_date |
 | Status | In Progress | project.status |
 | BAC | €500,000.00 | project.budget |
-| Current Date | 2026-06-30 | evm_snapshot.snapshot_date |
-| PV | €450,000.00 | evm_snapshot.pv |
-| AC | €330,000.00 | evm_snapshot.ac |
-| EV (Physical) | €340,000.00 | evm_snapshot.ev_physical |
-| EV (Milestone) | €330,000.00 | evm_snapshot.ev_milestone |
-| CV | €10,000.00 | evm_snapshot.cv_physical |
-| SV | -€110,000.00 | evm_snapshot.sv_physical |
-| CPI | 1.03 | evm_snapshot.cpi_physical |
-| SPI | 0.76 | evm_snapshot.spi_physical |
-| EAC (CPI) | €485,437.00 | evm_snapshot.eac_cpi_physical |
-| ETC | €155,437.00 | evm_snapshot.etc_physical |
-| VAC | €14,563.00 | evm_snapshot.vac_physical |
-| % Complete | 68.0% | evm_snapshot.percent_complete |
+| Current Date | 2026-06-30 | evm_timeseries.latest.date |
+| PV | €450,000.00 | evm_timeseries.latest.pv |
+| AC | €330,000.00 | evm_timeseries.latest.ac |
+| EV (Physical) | €340,000.00 | evm_timeseries.ev_physical |
+| EV (Milestone) | €330,000.00 | evm_timeseries.ev_milestone |
+| CV | €10,000.00 | Derived: $EV - AC$ |
+| SV | -€110,000.00 | Derived: $EV - PV$ |
+| CPI | 1.03 | Derived: $EV / AC$ |
+| SPI | 0.76 | Derived: $EV / PV$ |
+| EAC | €485,437.00 | API field if provided, else derived (POC best-effort) |
+| ETC | €155,437.00 | Derived: $EAC - AC$ |
+| VAC | €14,563.00 | Derived: $BAC - EAC$ |
+| % Complete | 68.0% | Optional if provided by API |
 
 #### Sheet 2: EVM Metrics (Time-Series)
 
@@ -360,61 +434,38 @@ Authorization: Bearer <jwt_token>
 
 **Source**: `GET /v0/projects/{project_id}/evm/timeseries`
 
-#### Sheet 3: Expenses
+#### Phase 2 Sheets (Non-MVP)
 
-| Date | Description | Amount | Category | Milestone | Invoice Number |
-|------|-------------|--------|----------|-----------|----------------|
-| 2026-04-15 | Backend Dev Team | €85,000.00 | labor | Phase 2 Complete | INV-2026-0234 |
-| 2026-04-20 | Server Hardware | €12,000.00 | procurement | Phase 2 Complete | INV-2026-0245 |
-| ... | ... | ... | ... | ... | ... |
-
-**Source**: `GET /v0/projects/{project_id}/expenses`
-
-#### Sheet 4: RAE (Reste À Engager)
-
-| Date | Milestone | RAE Amount | Comment |
-|------|-----------|------------|---------|
-| 2026-06-30 | Phase 1 Complete | €0.00 | Completed |
-| 2026-06-30 | Phase 2 Complete | €85,000.00 | Backend delay |
-| 2026-06-30 | Phase 3 Complete | €150,000.00 | Not started |
-| ... | ... | ... | ... |
-
-**Source**: `GET /v0/projects/{project_id}/rae/summary`
+- **Expenses** sheet (from `GET /v0/projects/{project_id}/expenses`)
+- **RAE** sheet (from `GET /v0/projects/{project_id}/rae/summary`)
 
 ### 4.5. Blueprint Chart Views
 
-#### Overview Dashboard
-
-**Route:** `/charts/project/{id}/overview`
-
-**Layout:**
-```
-┌─────────────────────────────────────────────┐
-│ Project: Baguera Phase 1                    │
-│ Status: In Progress | BAC: €500K | CPI: 1.03│
-├─────────────────────────────────────────────┤
-│ [EV Curve Chart]        [Milestone Status]  │
-│                                              │
-│ [Expense Breakdown]     [KPI Summary]       │
-└─────────────────────────────────────────────┘
-```
-
-#### Earned Value Chart
+#### MVP: Earned Value Chart
 
 **Route:** `/charts/project/{id}/evm`
 
-**Chart:** Line chart with 4 curves:
-- BAC (horizontal line at budget)
-- PV (Planned Value - S-curve based on task dates)
-- AC (Actual Cost - accumulated expenses)
-- EV Physical (Earned Value based on AC/(AC+RAE))
-- EV Milestone (Earned Value based on milestone weights)
+**Chart:** Line chart with:
+- BAC (horizontal line)
+- PV (Planned Value)
+- AC (Actual Cost)
+- EV (one or two series): `ev_physical` and/or `ev_milestone`
+
+**Derived indicators (optional display):** CV, SV, CPI, SPI using standard definitions (see Definitions section).
+
+#### Phase 2: Additional Charts (Non-MVP)
+
+- Milestone status timeline
+- Expense breakdown
+- RAE trends
 
 **X-axis:** Date (monthly intervals)
 **Y-axis:** Cost (€)
 **Legend:** Top-right with color coding
 
 #### Milestone Status Chart
+
+**Phase 2**
 
 **Route:** `/charts/project/{id}/milestones`
 
@@ -424,6 +475,8 @@ Authorization: Bearer <jwt_token>
 - Status color: Green (achieved on time), Yellow (achieved late), Red (missed/at risk)
 
 #### Expense Breakdown Chart
+
+**Phase 2**
 
 **Route:** `/charts/project/{id}/expenses`
 
@@ -457,7 +510,7 @@ Authorization: Bearer <jwt_token>
     "uid_preserved": true
   },
   "validation": {
-    "xml_schema_valid": true,
+    "msproject_import_valid": true,
     "warnings": [
       "Task 'Testing' has no ActualStart (not started yet)"
     ]
@@ -480,11 +533,11 @@ Authorization: Bearer <jwt_token>
   "timestamp": "2026-06-30T18:05:00Z",
   "duration_seconds": 3.8,
   "summary": {
-    "sheets": 4,
+    "sheets": 2,
     "evm_snapshots": 12,
-    "expenses": 125,
-    "rae_records": 15,
-    "charts_embedded": true
+    "expenses": 0,
+    "rae_records": 0,
+    "charts_embedded": false
   }
 }
 ```
@@ -497,24 +550,24 @@ Authorization: Bearer <jwt_token>
 - **AC-002**: Given tasks with ms_project_guid, When exported, Then <GUID> elements SHALL match source GUIDs
 - **AC-003**: Given tasks with actual_start_date, When exported, Then <ActualStart> SHALL be populated
 - **AC-004**: Given tasks with dependencies, When exported, Then <PredecessorLink> SHALL reference correct UIDs
-- **AC-005**: Given generated XML, When validated, Then SHALL pass MS Project 2010+ schema validation
+- **AC-005**: Given generated XML, When imported into MS Project 2010+, Then it SHOULD open without errors (primary POC validation)
 - **AC-006**: Given exported XML, When imported to MS Project, Then SHALL open without errors
 
 ### Excel EVM Export
 
-- **AC-007**: Given a project with EVM snapshots, When I run `poc-export excel <id>`, Then Excel file SHALL contain 4 sheets
+- **AC-007**: Given a project with EVM snapshots, When I run `poc-export excel <id>`, Then Excel file SHALL contain 2 sheets (Summary, Metrics)
 - **AC-008**: Given EVM snapshots, When exported, Then "Metrics" sheet SHALL have time-series with all dates
-- **AC-009**: Given expenses, When exported, Then "Expenses" sheet SHALL have all expense rows
-- **AC-010**: Given RAE data, When exported, Then "RAE" sheet SHALL have milestone breakdown
+- **AC-009**: Given expenses, When exported in Phase 2, Then "Expenses" sheet SHALL have all expense rows
+- **AC-010**: Given RAE data, When exported in Phase 2, Then "RAE" sheet SHALL have milestone breakdown
 - **AC-011**: Given numeric values, When exported, Then SHALL be formatted as currency with 2 decimals
-- **AC-012**: Given --include-charts flag, When exported, Then Excel SHALL contain embedded charts
+- **AC-012**: Given --include-charts flag, When exported in Phase 2, Then Excel SHALL contain embedded charts
 
 ### Blueprint Charts
 
 - **AC-013**: Given authenticated user, When I access `/charts/project/{id}/evm`, Then SHALL display EV curve chart
 - **AC-014**: Given EVM snapshots, When chart rendered, Then SHALL show BAC, PV, AC, EV curves
-- **AC-015**: Given milestones, When I access `/charts/project/{id}/milestones`, Then SHALL display Gantt-style timeline
-- **AC-016**: Given expenses, When I access `/charts/project/{id}/expenses`, Then SHALL display pie chart by category
+- **AC-015**: Given milestones, When I access `/charts/project/{id}/milestones` in Phase 2, Then SHALL display a timeline
+- **AC-016**: Given expenses, When I access `/charts/project/{id}/expenses` in Phase 2, Then SHALL display expense charts
 - **AC-017**: Given invalid JWT, When accessing chart route, Then SHALL return 401 Unauthorized
 - **AC-018**: Given insufficient permissions, When accessing chart, Then SHALL return 403 Forbidden
 - **AC-019**: Given large dataset, When chart rendered, Then SHALL complete within 2 seconds
@@ -606,9 +659,9 @@ poc-export/
 ### Why Preserve GUID/UID?
 
 **Round-Trip Compatibility**: Export → Edit in MS Project → Reimport
-- ✅ GUIDs ensure reimport updates correct tasks (stable reconciliation)
-- ✅ UIDs maintain display order in MS Project
-- ✅ No duplicate tasks created
+- ✅ GUIDs are the primary stable identifier for reconciliation on reimport
+- ✅ UIDs improve readability/display in MS Project but are best-effort and not guaranteed to be stable across a round-trip
+- ✅ POC objective: avoid duplicate tasks primarily via GUID preservation
 
 ### Why Server-Side Chart Rendering?
 
@@ -693,7 +746,7 @@ poc-export msproject a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d \
 ### Example 2: Excel EVM Report
 
 ```bash
-# Generate Excel report with charts
+# Generate Excel report (embedded charts are Phase 2)
 poc-export excel a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d \
   --token=$WFP_JWT_TOKEN \
   --api-url=https://wfp-poc.example.com \
@@ -702,13 +755,11 @@ poc-export excel a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d \
 
 # Output:
 # ✅ Fetching EVM data from wfp-poc...
-# ✅ Retrieved: 12 EVM snapshots, 125 expenses, 15 RAE records
+# ✅ Retrieved: 12 EVM snapshots
 # ✅ Generating Excel workbook...
 # ✅ Sheet 1: Summary (project overview)
 # ✅ Sheet 2: Metrics (EVM time-series, 12 rows)
-# ✅ Sheet 3: Expenses (125 rows)
-# ✅ Sheet 4: RAE (15 rows)
-# ✅ Embedding charts (EV curve, expense breakdown)...
+# ✅ No embedded charts in MVP (Phase 2 feature)
 # ✅ Export completed in 3.8 seconds
 # 📄 File: evm_report.xlsx (1.0 MB)
 ```
@@ -775,8 +826,8 @@ poc-export msproject a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d \
 
 ### MS Project XML Validation
 
-- **VAL-001**: Generated XML SHALL validate against MS Project 2010+ XML schema
-- **VAL-002**: All <GUID> elements SHALL be valid UUID v4 format
+- **VAL-001**: Generated XML SHOULD open/import without errors in MS Project 2010+ (primary POC validation). XSD validation is optional in Phase 2.
+- **VAL-002**: All <GUID> elements SHALL be valid UUID format
 - **VAL-003**: All dates SHALL be ISO 8601 format with timezone
 - **VAL-004**: <PredecessorLink> UIDs SHALL reference existing tasks
 
@@ -785,14 +836,14 @@ poc-export msproject a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d \
 - **VAL-005**: Excel file SHALL be valid .xlsx OpenXML format
 - **VAL-006**: All sheets SHALL have headers in row 1
 - **VAL-007**: Numeric columns SHALL be formatted as currency or percentage
-- **VAL-008**: Embedded charts SHALL be valid Excel chart objects
+- **VAL-008**: Embedded charts SHALL be valid Excel chart objects (Phase 2)
 
 ### Blueprint Chart Validation
 
 - **VAL-009**: Chart images SHALL be valid PNG/SVG format
-- **VAL-010**: HTML pages SHALL pass W3C HTML5 validation
+- **VAL-010**: HTML pages SHOULD be valid HTML5 (W3C validation is best-effort for POC)
 - **VAL-011**: JWT authentication SHALL be checked before rendering charts
-- **VAL-012**: Chart dimensions SHALL be responsive (min 800px width)
+- **VAL-012**: Chart layout SHOULD be readable on common desktop widths (responsive sizing is best-effort for POC)
 
 ## 10. Related Specifications / Further Reading
 
