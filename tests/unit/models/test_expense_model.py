@@ -14,12 +14,15 @@ and business logic for the Expense entity.
 """
 
 import uuid
-from datetime import date
+from datetime import UTC, date, datetime
 from decimal import Decimal
 
 import pytest
 
 from app.models import Expense, Project, Resource, db
+
+DEFAULT_START_DATE = datetime(2026, 1, 1, 9, 0, tzinfo=UTC)
+DEFAULT_FINISH_DATE = datetime(2026, 1, 31, 18, 0, tzinfo=UTC)
 
 
 class TestExpenseModel:
@@ -31,6 +34,8 @@ class TestExpenseModel:
         project = Project(
             company_id=uuid.UUID(company_id),
             name="Test Project",
+            start_date=DEFAULT_START_DATE,
+            finish_date=DEFAULT_FINISH_DATE,
         )
         db.session.add(project)
         db.session.commit()

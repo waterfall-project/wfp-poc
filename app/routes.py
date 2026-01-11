@@ -12,6 +12,7 @@
 from flask_restful import Api
 
 from app.resources.health import HealthResource, ReadyResource, VersionResource
+from app.resources.project_res import ProjectListResource, ProjectResource
 
 
 def register_routes(app):
@@ -31,4 +32,7 @@ def register_routes(app):
     api.add_resource(ReadyResource, "/ready")
     api.add_resource(VersionResource, "/version")
 
-    # Versioned API endpoints will be registered here
+    # Versioned API endpoints
+    # Projects
+    api.add_resource(ProjectListResource, "/v0/projects")
+    api.add_resource(ProjectResource, "/v0/projects/<string:project_id>")

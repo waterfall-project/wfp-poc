@@ -14,11 +14,15 @@ and business logic for the MilestoneTask entity.
 """
 
 import uuid
+from datetime import UTC, datetime
 
 import pytest
 from sqlalchemy.exc import IntegrityError
 
 from app.models import Milestone, MilestoneTask, Project, Task, db
+
+DEFAULT_START_DATE = datetime(2026, 1, 1, 9, 0, tzinfo=UTC)
+DEFAULT_FINISH_DATE = datetime(2026, 1, 31, 18, 0, tzinfo=UTC)
 
 
 class TestMilestoneTaskModel:
@@ -30,6 +34,8 @@ class TestMilestoneTaskModel:
         project = Project(
             company_id=uuid.UUID(company_id),
             name="Test Project",
+            start_date=DEFAULT_START_DATE,
+            finish_date=DEFAULT_FINISH_DATE,
         )
         db.session.add(project)
         db.session.commit()

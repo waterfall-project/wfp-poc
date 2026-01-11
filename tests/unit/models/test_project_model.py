@@ -14,12 +14,16 @@ and business logic for the Project entity.
 """
 
 import uuid
-from datetime import date
+from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 
 import pytest
 from sqlalchemy.exc import IntegrityError
 
 from app.models import Project, db
+
+DEFAULT_START_DATE = datetime(2026, 1, 1, 9, 0, tzinfo=UTC)
+DEFAULT_FINISH_DATE = datetime(2026, 1, 31, 18, 0, tzinfo=UTC)
 
 
 class TestProjectModel:
@@ -36,6 +40,8 @@ class TestProjectModel:
             project = Project(
                 company_id=uuid.UUID(company_id),
                 name="Test Project",
+                start_date=DEFAULT_START_DATE,
+                finish_date=DEFAULT_FINISH_DATE,
             )
             db.session.add(project)
             db.session.commit()
@@ -47,9 +53,9 @@ class TestProjectModel:
             assert project.status == "active"  # Default value
             assert project.code is None
             assert project.description is None
-            assert project.start_date is None
-            assert project.finish_date is None
-            assert project.budget_at_completion is None
+            assert isinstance(project.start_date, datetime)
+            assert isinstance(project.finish_date, datetime)
+            assert project.budget is None
             assert project.created_at is not None
             assert project.updated_at is not None
 
@@ -66,9 +72,9 @@ class TestProjectModel:
                 code="PROJ-001",
                 name="Full Test Project",
                 description="A comprehensive test project",
-                start_date=date(2026, 1, 1),
-                finish_date=date(2026, 12, 31),
-                budget_at_completion=100000.00,
+                start_date=DEFAULT_START_DATE,
+                finish_date=datetime(2026, 12, 31, 18, 0),
+                budget=Decimal("100000.00"),
                 status="active",
             )
             db.session.add(project)
@@ -76,9 +82,15 @@ class TestProjectModel:
 
             assert project.code == "PROJ-001"
             assert project.description == "A comprehensive test project"
-            assert project.start_date == date(2026, 1, 1)
-            assert project.finish_date == date(2026, 12, 31)
-            assert project.budget_at_completion == 100000.00
+            # Datetimes are stored normalized (naive UTC) in the model
+            expected_start = (
+                DEFAULT_START_DATE.replace(tzinfo=None)
+                if DEFAULT_START_DATE.tzinfo
+                else DEFAULT_START_DATE
+            )
+            assert project.start_date == expected_start
+            assert project.finish_date == datetime(2026, 12, 31, 18, 0)
+            assert project.budget == Decimal("100000.00")
             assert project.status == "active"
 
     def test_project_unique_code_per_company(self, app, company_id, generate_uuid):
@@ -94,6 +106,8 @@ class TestProjectModel:
                 company_id=uuid.UUID(company_id),
                 code="PROJ-001",
                 name="Project 1",
+                start_date=DEFAULT_START_DATE,
+                finish_date=DEFAULT_FINISH_DATE,
             )
             db.session.add(project1)
             db.session.commit()
@@ -103,6 +117,8 @@ class TestProjectModel:
                 company_id=uuid.UUID(company_id),
                 code="PROJ-001",
                 name="Project 2",
+                start_date=DEFAULT_START_DATE + timedelta(days=1),
+                finish_date=DEFAULT_FINISH_DATE + timedelta(days=1),
             )
             db.session.add(project2)
 
@@ -124,11 +140,15 @@ class TestProjectModel:
                 company_id=company1_id,
                 code="PROJ-001",
                 name="Company 1 Project",
+                start_date=DEFAULT_START_DATE,
+                finish_date=DEFAULT_FINISH_DATE,
             )
             project2 = Project(
                 company_id=company2_id,
                 code="PROJ-001",
                 name="Company 2 Project",
+                start_date=DEFAULT_START_DATE + timedelta(days=1),
+                finish_date=DEFAULT_FINISH_DATE + timedelta(days=1),
             )
 
             db.session.add_all([project1, project2])
@@ -153,6 +173,8 @@ class TestProjectModel:
                     company_id=uuid.UUID(company_id),
                     name=f"Project {status}",
                     status=status,
+                    start_date=DEFAULT_START_DATE,
+                    finish_date=DEFAULT_FINISH_DATE,
                 )
                 db.session.add(project)
                 db.session.commit()
@@ -172,6 +194,8 @@ class TestProjectModel:
                 company_id=uuid.UUID(company_id),
                 name="Test Project",
                 status="active",
+                start_date=DEFAULT_START_DATE,
+                finish_date=DEFAULT_FINISH_DATE,
             )
             db.session.add(project)
             db.session.commit()
@@ -193,6 +217,8 @@ class TestProjectModel:
             project = Project(
                 company_id=uuid.UUID(company_id),
                 name="Test Project",
+                start_date=DEFAULT_START_DATE,
+                finish_date=DEFAULT_FINISH_DATE,
             )
             db.session.add(project)
             db.session.commit()
@@ -224,6 +250,8 @@ class TestProjectModel:
             project = Project(
                 company_id=uuid.UUID(company_id),
                 name="Test Project",
+                start_date=DEFAULT_START_DATE,
+                finish_date=DEFAULT_FINISH_DATE,
             )
             db.session.add(project)
             db.session.commit()
@@ -255,10 +283,14 @@ class TestProjectModel:
             project1 = Project(
                 company_id=uuid.UUID(company_id),
                 name="Project Without Code 1",
+                start_date=DEFAULT_START_DATE,
+                finish_date=DEFAULT_FINISH_DATE,
             )
             project2 = Project(
                 company_id=uuid.UUID(company_id),
                 name="Project Without Code 2",
+                start_date=DEFAULT_START_DATE + timedelta(days=2),
+                finish_date=DEFAULT_FINISH_DATE + timedelta(days=2),
             )
 
             db.session.add_all([project1, project2])

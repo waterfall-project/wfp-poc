@@ -14,9 +14,14 @@ database connections and full application stack.
 """
 
 import os
-from collections.abc import Generator
+import uuid
+from collections.abc import Callable, Generator
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from typing import Any
+from unittest.mock import patch
 
+import jwt
 import pytest
 from flask import Flask
 from flask.testing import FlaskClient
@@ -66,3 +71,69 @@ def client(app: Flask) -> FlaskClient:
         Flask test client for making HTTP requests.
     """
     return app.test_client()
+
+
+@pytest.fixture
+def generate_uuid() -> Callable[[], str]:
+    """Generate UUID strings for test data."""
+
+    def _generate() -> str:
+        return str(uuid.uuid4())
+
+    return _generate
+
+
+@pytest.fixture
+def company_id(generate_uuid: Callable[[], str]) -> str:
+    """Provide a unique company ID for integration tests."""
+
+    return generate_uuid()
+
+
+@pytest.fixture
+def user_claims(company_id: str, generate_uuid: Callable[[], str]) -> dict[str, Any]:
+    """Standard JWT claims for integration tests."""
+
+    return {
+        "user_id": generate_uuid(),
+        "company_id": company_id,
+        "email": "integration@example.com",
+        "roles": ["user"],
+        "exp": datetime.now(UTC) + timedelta(hours=1),
+        "iat": datetime.now(UTC),
+    }
+
+
+@pytest.fixture
+def generate_jwt(app: Flask) -> Callable[[dict[str, Any]], str]:
+    """Factory to generate JWT tokens with the app secret."""
+
+    jwt_secret = app.config["JWT_SECRET_KEY"]
+
+    def _generate(claims: dict[str, Any]) -> str:
+        token = jwt.encode(claims, jwt_secret, algorithm="HS256")
+        return token.decode("utf-8") if isinstance(token, bytes) else token
+
+    return _generate
+
+
+@pytest.fixture
+def integration_client(
+    client: FlaskClient,
+    user_claims: dict[str, Any],
+    generate_jwt: Callable[[dict[str, Any]], str],
+) -> FlaskClient:
+    """Authenticated client with access_token cookie set."""
+
+    token = generate_jwt(user_claims)
+    client.set_cookie("access_token", token)
+    return client
+
+
+@pytest.fixture(autouse=True)
+def mock_guardian_access() -> Generator[None, None, None]:
+    """Stub Guardian access checks to always grant during integration tests."""
+
+    with patch("app.utils.jwt_decorators.GuardianService.check_access") as mock:
+        mock.return_value = (True, "granted")
+        yield
