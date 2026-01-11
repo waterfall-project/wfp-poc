@@ -159,7 +159,7 @@ class WfpApiClient:
         fractional_hours, hours_float = math.modf(duration_hours)
         hours = int(hours_float)
         # Use rounding instead of truncation to avoid precision loss,
-        # e.g. 8.333 hours -> 8 hours 20 minutes rather than 19.
+        # e.g. 8.333 hours -> 8 hours 20 minutes rather than 19 minutes.
         minutes = int(round(fractional_hours * 60))
         # Handle edge case where rounding yields 60 minutes.
         if minutes == 60:
