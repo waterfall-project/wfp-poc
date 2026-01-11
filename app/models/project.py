@@ -14,10 +14,20 @@ the EVM system with multi-tenancy support and comprehensive tracking.
 """
 
 import uuid
-from datetime import datetime
+from datetime import datetime, time
+from decimal import Decimal
 from typing import TYPE_CHECKING
 
-from sqlalchemy import CheckConstraint, Date, String, Text, UniqueConstraint
+from sqlalchemy import (
+    CheckConstraint,
+    DateTime,
+    Integer,
+    Numeric,
+    String,
+    Text,
+    Time,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.types import GUID, TimestampMixin, UUIDMixin
@@ -48,11 +58,27 @@ class Project(UUIDMixin, TimestampMixin, Model):
         company_id: Company identifier for multi-tenancy (UUID, required).
         code: Optional unique project code within company.
         name: Project name (required, max 255 characters).
+        title: Optional MS Project title field.
         description: Optional project description.
-        start_date: Planned project start date.
-        finish_date: Planned project finish date.
-        budget_at_completion: Total planned budget (BAC).
+        planned_start_date: Deprecated alias for start_date.
+        planned_finish_date: Deprecated alias for finish_date.
+        start_date: Planned project start date (required, date-time).
+        finish_date: Planned project finish date (required, date-time).
+        budget: Total planned budget (BAC).
+        currency_code: ISO 4217 currency code, default EUR.
         status: Project status (active, completed, cancelled, on_hold).
+        ms_project_uid: MS Project UID (string/integer representation).
+        ms_project_guid: MS Project GUID for reconciliation.
+        ms_project_save_version: MS Project SaveVersion field.
+        creation_date: Original MS Project creation date.
+        last_saved_date: MS Project last saved date.
+        calendar_uid: MS Project calendar UID.
+        minutes_per_day: Working minutes per day.
+        minutes_per_week: Working minutes per week.
+        days_per_month: Working days per month.
+        week_start_day: Week start day (0=Sunday,1=Monday).
+        default_start_time: Default task start time (HH:MM:SS).
+        default_finish_time: Default task finish time (HH:MM:SS).
         created_at: Timestamp of creation (auto-generated).
         updated_at: Timestamp of last update (auto-updated).
     """
@@ -87,21 +113,47 @@ class Project(UUIDMixin, TimestampMixin, Model):
         doc="Project description",
     )
 
-    start_date: Mapped[datetime | None] = mapped_column(
-        Date,
+    title: Mapped[str | None] = mapped_column(
+        String(255),
         nullable=True,
+        doc="MS Project title",
+    )
+
+    start_date: Mapped[datetime] = mapped_column(
+        DateTime,
+        nullable=False,
         doc="Planned start date",
     )
 
-    finish_date: Mapped[datetime | None] = mapped_column(
-        Date,
+    planned_start_date: Mapped[datetime | None] = mapped_column(
+        DateTime,
         nullable=True,
+        doc="Deprecated alias for start_date",
+    )
+
+    finish_date: Mapped[datetime] = mapped_column(
+        DateTime,
+        nullable=False,
         doc="Planned finish date",
     )
 
-    budget_at_completion: Mapped[float | None] = mapped_column(
+    planned_finish_date: Mapped[datetime | None] = mapped_column(
+        DateTime,
+        nullable=True,
+        doc="Deprecated alias for finish_date",
+    )
+
+    budget: Mapped[Decimal | None] = mapped_column(
+        Numeric(18, 2),
         nullable=True,
         doc="Total planned budget (BAC)",
+    )
+
+    currency_code: Mapped[str] = mapped_column(
+        String(3),
+        nullable=False,
+        default="EUR",
+        doc="ISO 4217 currency code",
     )
 
     status: Mapped[str] = mapped_column(
@@ -110,6 +162,84 @@ class Project(UUIDMixin, TimestampMixin, Model):
         default="active",
         index=True,
         doc="Project status",
+    )
+
+    ms_project_uid: Mapped[str | None] = mapped_column(
+        String(50),
+        nullable=True,
+        doc="MS Project UID",
+    )
+
+    ms_project_guid: Mapped[str | None] = mapped_column(
+        String(50),
+        nullable=True,
+        doc="MS Project GUID",
+    )
+
+    ms_project_save_version: Mapped[int | None] = mapped_column(
+        Integer,
+        nullable=True,
+        doc="MS Project SaveVersion",
+    )
+
+    creation_date: Mapped[datetime | None] = mapped_column(
+        DateTime,
+        nullable=True,
+        doc="Original MS Project creation date",
+    )
+
+    last_saved_date: Mapped[datetime | None] = mapped_column(
+        DateTime,
+        nullable=True,
+        doc="MS Project last saved date",
+    )
+
+    calendar_uid: Mapped[int | None] = mapped_column(
+        Integer,
+        nullable=True,
+        doc="MS Project calendar UID",
+    )
+
+    minutes_per_day: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=420,
+        doc="Working minutes per day",
+    )
+
+    minutes_per_week: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=2100,
+        doc="Working minutes per week",
+    )
+
+    days_per_month: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=20,
+        doc="Working days per month",
+    )
+
+    week_start_day: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=1,
+        doc="Week start day (0=Sunday,1=Monday)",
+    )
+
+    default_start_time: Mapped[time] = mapped_column(
+        Time,
+        nullable=False,
+        default=time(9, 0, 0),
+        doc="Default task start time",
+    )
+
+    default_finish_time: Mapped[time] = mapped_column(
+        Time,
+        nullable=False,
+        default=time(18, 0, 0),
+        doc="Default task finish time",
     )
 
     # Relationships

@@ -14,12 +14,15 @@ and business logic for the EVMSnapshot (Earned Value Management) entity.
 """
 
 import uuid
-from datetime import date
+from datetime import UTC, date, datetime
 from decimal import Decimal
 
 import pytest
 
 from app.models import EVMSnapshot, Project, db
+
+DEFAULT_START_DATE = datetime(2026, 1, 1, 9, 0, tzinfo=UTC)
+DEFAULT_FINISH_DATE = datetime(2026, 1, 31, 18, 0, tzinfo=UTC)
 
 
 class TestEVMSnapshotModel:
@@ -31,7 +34,9 @@ class TestEVMSnapshotModel:
         project = Project(
             company_id=uuid.UUID(company_id),
             name="Test Project",
-            budget_at_completion=Decimal("100000.00"),
+            start_date=DEFAULT_START_DATE,
+            finish_date=DEFAULT_FINISH_DATE,
+            budget=Decimal("100000.00"),
         )
         db.session.add(project)
         db.session.commit()

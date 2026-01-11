@@ -18,7 +18,7 @@ from functools import wraps
 from typing import Any
 
 import jwt
-from flask import current_app, g, jsonify, request
+from flask import current_app, g, request
 from jwt.exceptions import DecodeError, ExpiredSignatureError, InvalidTokenError
 
 from app.services.guardian_service import GuardianError, GuardianService, Operation
@@ -91,12 +91,10 @@ def require_jwt_auth(f: Callable[..., Any]) -> Callable[..., Any]:
                 extra={"correlation_id": getattr(g, "correlation_id", "N/A")},
             )
             return (
-                jsonify(
-                    {
-                        "error": "Unauthorized",
-                        "message": "Authentication required. No token provided.",
-                    }
-                ),
+                {
+                    "error": "Unauthorized",
+                    "message": "Authentication required. No token provided.",
+                },
                 401,
             )
 
@@ -124,12 +122,10 @@ def require_jwt_auth(f: Callable[..., Any]) -> Callable[..., Any]:
                     },
                 )
                 return (
-                    jsonify(
-                        {
-                            "error": "Unauthorized",
-                            "message": "Invalid token: missing required claims.",
-                        }
-                    ),
+                    {
+                        "error": "Unauthorized",
+                        "message": "Invalid token: missing required claims.",
+                    },
                     401,
                 )
 
@@ -151,7 +147,7 @@ def require_jwt_auth(f: Callable[..., Any]) -> Callable[..., Any]:
                 extra={"correlation_id": getattr(g, "correlation_id", "N/A")},
             )
             return (
-                jsonify({"error": "Unauthorized", "message": "Token has expired."}),
+                {"error": "Unauthorized", "message": "Token has expired."},
                 401,
             )
         except DecodeError:
@@ -160,7 +156,7 @@ def require_jwt_auth(f: Callable[..., Any]) -> Callable[..., Any]:
                 extra={"correlation_id": getattr(g, "correlation_id", "N/A")},
             )
             return (
-                jsonify({"error": "Unauthorized", "message": "Invalid token format."}),
+                {"error": "Unauthorized", "message": "Invalid token format."},
                 401,
             )
         except InvalidTokenError as e:
@@ -172,7 +168,7 @@ def require_jwt_auth(f: Callable[..., Any]) -> Callable[..., Any]:
                 },
             )
             return (
-                jsonify({"error": "Unauthorized", "message": "Invalid token."}),
+                {"error": "Unauthorized", "message": "Invalid token."},
                 401,
             )
 
@@ -282,12 +278,10 @@ def access_required(
                     },
                 )
                 return (
-                    jsonify(
-                        {
-                            "error": "Internal Server Error",
-                            "message": "Cannot determine resource for authorization.",
-                        }
-                    ),
+                    {
+                        "error": "Internal Server Error",
+                        "message": "Cannot determine resource for authorization.",
+                    },
                     500,
                 )
 
@@ -303,12 +297,10 @@ def access_required(
                     },
                 )
                 return (
-                    jsonify(
-                        {
-                            "error": "Unauthorized",
-                            "message": "User context missing. Use @require_jwt_auth first.",
-                        }
-                    ),
+                    {
+                        "error": "Unauthorized",
+                        "message": "User context missing. Use @require_jwt_auth first.",
+                    },
                     401,
                 )
 
@@ -338,12 +330,10 @@ def access_required(
                         },
                     )
                     return (
-                        jsonify(
-                            {
-                                "error": "Forbidden",
-                                "message": f"Access denied: {reason}",
-                            }
-                        ),
+                        {
+                            "error": "Forbidden",
+                            "message": f"Access denied: {reason}",
+                        },
                         403,
                     )
 
@@ -359,12 +349,10 @@ def access_required(
                     },
                 )
                 return (
-                    jsonify(
-                        {
-                            "error": "Service Unavailable",
-                            "message": "Authorization service unavailable.",
-                        }
-                    ),
+                    {
+                        "error": "Service Unavailable",
+                        "message": "Authorization service unavailable.",
+                    },
                     503,
                 )
 

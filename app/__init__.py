@@ -74,9 +74,9 @@ def create_app(config_class: str = "app.config.DevelopmentConfig") -> Flask:
     with app.app_context():
         from app.models import Dummy  # noqa: F401
 
-    # Configure rate limiting
-    if app.config.get("RATE_LIMIT_ENABLED"):
-        limiter.init_app(app)
+    # Configure rate limiting (initialize even when disabled so decorators are safe)
+    limiter.enabled = app.config.get("RATE_LIMIT_ENABLED", True)
+    limiter.init_app(app)
 
     # Configure Prometheus metrics
     if app.config.get("PROMETHEUS_METRICS_ENABLED"):
