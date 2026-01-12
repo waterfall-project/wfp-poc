@@ -21,7 +21,7 @@ from typing import Any, cast
 from flask import request
 from flask_restful import Resource
 from marshmallow import ValidationError
-from sqlalchemy import or_
+from sqlalchemy import func, or_
 from sqlalchemy.exc import IntegrityError
 
 from app import limiter
@@ -241,6 +241,7 @@ class ProjectListResource(Resource):
             query = query.filter(Project.start_date <= start_date_to_dt)
 
         # Apply search filter (name, code, title)
+        # Note: title is nullable, so we use coalesce to handle NULL values
         search = request.args.get("search")
         if search:
             search_pattern = f"%{search}%"
@@ -248,7 +249,7 @@ class ProjectListResource(Resource):
                 or_(
                     Project.name.ilike(search_pattern),
                     Project.code.ilike(search_pattern),
-                    Project.title.ilike(search_pattern),
+                    func.coalesce(Project.title, "").ilike(search_pattern),
                 )
             )
 
