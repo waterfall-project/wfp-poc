@@ -16,7 +16,7 @@ of project data according to OpenAPI specification.
 from datetime import time
 from decimal import Decimal
 
-from marshmallow import Schema, ValidationError, fields, post_dump, validates_schema
+from marshmallow import Schema, fields, post_dump
 from marshmallow.validate import Length, Range
 from marshmallow_sqlalchemy import SQLAlchemyAutoSchema
 
@@ -137,24 +137,6 @@ class ProjectCreateSchema(Schema):
     default_start_time = fields.Time(load_default=time(9, 0, 0))
     default_finish_time = fields.Time(load_default=time(18, 0, 0))
 
-    @validates_schema
-    def validate_dates(self, data: dict, **kwargs) -> None:
-        """Validate that finish_date is after start_date.
-
-        Args:
-            data: Schema data to validate.
-            kwargs: Additional keyword arguments from Marshmallow.
-
-        Raises:
-            ValidationError: If finish_date is before or equal to start_date.
-        """
-        if (
-            data.get("start_date")
-            and data.get("finish_date")
-            and data["finish_date"] <= data["start_date"]
-        ):
-            raise ValidationError("finish_date must be after start_date")
-
 
 class ProjectUpdateSchema(Schema):
     """Schema for updating an existing project.
@@ -196,24 +178,6 @@ class ProjectUpdateSchema(Schema):
     week_start_day = fields.Integer(validate=Range(min=0, max=6))
     default_start_time = fields.Time()
     default_finish_time = fields.Time()
-
-    @validates_schema
-    def validate_dates(self, data: dict, **kwargs) -> None:
-        """Validate that finish_date is after start_date if both present.
-
-        Args:
-            data: Schema data to validate.
-            kwargs: Additional keyword arguments from Marshmallow.
-
-        Raises:
-            ValidationError: If finish_date is before or equal to start_date.
-        """
-        if (
-            data.get("start_date")
-            and data.get("finish_date")
-            and data["finish_date"] <= data["start_date"]
-        ):
-            raise ValidationError("finish_date must be after start_date")
 
 
 class ProjectListResponseSchema(Schema):

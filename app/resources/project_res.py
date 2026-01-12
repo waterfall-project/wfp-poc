@@ -317,10 +317,11 @@ class ProjectListResource(Resource):
         Returns:
             Tuple of (response_dict, status_code):
                 - 201: Project created successfully
-                - 400: Validation failed (invalid data format or finish_date before start_date)
+                - 400: Validation failed (invalid data format)
                 - 401: Missing or invalid JWT
                 - 403: Insufficient permissions (missing CREATE permission)
                 - 409: Conflict (duplicate project code for company)
+                - 422: Business rule violation (finish_date before start_date)
 
         Examples:
             Request:
@@ -369,6 +370,15 @@ class ProjectListResource(Resource):
 
         normalized = _normalize_datetime_fields(data)
         normalized["company_id"] = get_current_company_id()
+
+        # Validate business rule: finish_date must be after start_date
+        start_date = normalized.get("start_date")
+        finish_date = normalized.get("finish_date")
+        if start_date and finish_date and finish_date <= start_date:
+            return {
+                "error": "Unprocessable Entity",
+                "message": INVALID_FINISH_DATE_MSG,
+            }, 422
 
         project = Project(**normalized)
 

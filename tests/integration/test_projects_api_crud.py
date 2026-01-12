@@ -128,7 +128,7 @@ class TestProjectCreate:
 
         Given: Invalid project data (finish_date before start_date)
         When: POST /v0/projects is called
-        Then: Returns 400 validation error
+        Then: Returns 422 business rule error
         """
         payload = {
             "name": "Invalid Project",
@@ -139,10 +139,10 @@ class TestProjectCreate:
 
         response = integration_client.post("/v0/projects", json=payload)
 
-        assert response.status_code == 400
+        assert response.status_code == 422
         data = response.get_json()
-        assert data["error"] == "Bad Request"
-        assert "finish_date" in str(data)
+        assert data["error"] == "Unprocessable Entity"
+        assert "finish_date must be after start_date" in data["message"]
 
     def test_create_project_missing_required_field(self, integration_client) -> None:
         """Test project creation without required fields.
