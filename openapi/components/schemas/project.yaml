@@ -36,6 +36,12 @@ Project:
         - type: "null"
       maxLength: 255
       description: MS Project Title field
+    description:
+      anyOf:
+        - type: string
+        - type: "null"
+      maxLength: 2000
+      description: Project description
     start_date:
       type: string
       format: date-time
@@ -173,6 +179,9 @@ ProjectCreate:
     title:
       type: string
       maxLength: 255
+    description:
+      type: string
+      maxLength: 2000
     start_date:
       type: string
       format: date-time
@@ -264,6 +273,9 @@ ProjectUpdate:
     title:
       type: string
       maxLength: 255
+    description:
+      type: string
+      maxLength: 2000
     start_date:
       type: string
       format: date-time
