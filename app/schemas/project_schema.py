@@ -164,7 +164,6 @@ class ProjectUpdateSchema(Schema):
         if x
         else True,
     )
-
     ms_project_uid = fields.String(allow_none=True)
     ms_project_guid = fields.String(allow_none=True, validate=Length(max=50))
     ms_project_save_version = fields.Integer(allow_none=True)

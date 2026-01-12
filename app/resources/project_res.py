@@ -370,7 +370,6 @@ class ProjectListResource(Resource):
 
         normalized = _normalize_datetime_fields(data)
         normalized["company_id"] = get_current_company_id()
-
         # Validate business rule: finish_date must be after start_date
         start_date = normalized.get("start_date")
         finish_date = normalized.get("finish_date")
@@ -379,7 +378,6 @@ class ProjectListResource(Resource):
                 "error": "Unprocessable Entity",
                 "message": INVALID_FINISH_DATE_MSG,
             }, 422
-
         project = Project(**normalized)
 
         try:
@@ -579,8 +577,8 @@ class ProjectResource(Resource):
     @require_jwt_auth
     @access_required(Operation.DELETE, "projects")
     @limiter.limit("50 per minute", key_func=_rate_limit_user_key)
-    def delete(self, project_id: str) -> tuple[str, int] | tuple[dict, int]:
-        """Delete a project if it has no related entities.
+    def delete(self, project_id: str) -> tuple[dict, int]:
+        """Delete a project if no related entities exist.
 
         Path Parameters:
             project_id (str): UUID of the project to delete
@@ -592,27 +590,6 @@ class ProjectResource(Resource):
                 - 403: Insufficient permissions (missing DELETE permission)
                 - 404: Project not found or not accessible (wrong company)
                 - 409: Conflict (project has related tasks, assignments, milestones, or EVM snapshots)
-
-        Business Logic:
-            Projects with related entities cannot be deleted to maintain data integrity.
-            Related entities checked:
-            - Tasks (project.tasks)
-            - Assignments (project.assignments)
-            - Milestones (project.milestones)
-            - EVM Snapshots (project.evm_snapshots)
-
-        Examples:
-            Request:
-            >>> DELETE /v0/projects/{uuid}
-
-            Success Response (204):
-            (No content)
-
-            Conflict Response (409):
-            {
-                "error": "Conflict",
-                "message": "Cannot delete project with related tasks, assignments, milestones, or EVM snapshots"
-            }
         """
         project = self._get_project(project_id)
         if project is None:
@@ -638,7 +615,7 @@ class ProjectResource(Resource):
         db.session.delete(project)
         db.session.commit()
 
-        return "", 204
+        return {}, 204
 
     @staticmethod
     def _get_project(project_id: str) -> Project | None:
