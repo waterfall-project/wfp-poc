@@ -50,7 +50,7 @@ class TestProjectModel:
             assert isinstance(project.id, uuid.UUID)
             assert project.company_id == uuid.UUID(company_id)
             assert project.name == "Test Project"
-            assert project.status == "active"  # Default value
+            assert project.status == "initialized"  # Default value
             assert project.code is None
             assert project.description is None
             assert isinstance(project.start_date, datetime)
@@ -91,7 +91,7 @@ class TestProjectModel:
             assert project.start_date == expected_start
             assert project.finish_date == datetime(2026, 12, 31, 18, 0)
             assert project.budget == Decimal("100000.00")
-            assert project.status == "active"
+            assert project.status == "active"  # Explicitly set
 
     def test_project_unique_code_per_company(self, app, company_id, generate_uuid):
         """Test unique constraint on (company_id, code).

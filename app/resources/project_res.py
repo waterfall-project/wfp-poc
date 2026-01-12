@@ -16,12 +16,12 @@ authorization, validation, and pagination.
 import math
 import uuid
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, cast
 
 from flask import request
 from flask_restful import Resource
 from marshmallow import ValidationError
-from sqlalchemy import or_
+from sqlalchemy import func, or_
 from sqlalchemy.exc import IntegrityError
 
 from app import limiter
@@ -41,6 +41,28 @@ from app.utils.jwt_decorators import (
     get_current_user_id,
     require_jwt_auth,
 )
+
+# HTTP Error Types
+BAD_REQUEST_ERROR = "Bad Request"
+NOT_FOUND_ERROR = "Not Found"
+CONFLICT_ERROR = "Conflict"
+
+# Error Messages
+INVALID_PAGINATION_MSG = "Invalid pagination parameters"
+INVALID_STATUS_MSG = "Invalid status: {status}"
+INVALID_SORT_BY_MSG = "Invalid sort_by: {sort_by}"
+INVALID_SORT_ORDER_MSG = "Invalid sort_order: {sort_order}"
+INVALID_JSON_BODY_MSG = "Request body must be a JSON object"
+VALIDATION_FAILED_MSG = "Validation failed"
+PROJECT_NOT_FOUND_MSG = "Project not found"
+INVALID_FINISH_DATE_MSG = "finish_date must be after start_date"
+DUPLICATE_PROJECT_CODE_MSG = (
+    "Project with code '{code}' already exists for this company"
+)
+
+# Success Messages
+PROJECT_CREATED_MSG = "Project created successfully"
+PROJECT_UPDATED_MSG = "Project updated successfully"
 
 
 def _normalize_datetime(value: datetime | None) -> datetime | None:
@@ -103,7 +125,7 @@ def _parse_query_datetime(
         parsed = datetime.fromisoformat(normalized_raw)
     except ValueError:
         return None, {
-            "error": "Bad Request",
+            "error": BAD_REQUEST_ERROR,
             "message": f"Invalid {param_name} format. Use ISO 8601.",
         }
 
@@ -176,8 +198,8 @@ class ProjectListResource(Resource):
             per_page = min(100, max(1, int(request.args.get("per_page", 20))))
         except ValueError:
             return {
-                "error": "Bad Request",
-                "message": "Invalid pagination parameters",
+                "error": BAD_REQUEST_ERROR,
+                "message": INVALID_PAGINATION_MSG,
             }, 400
 
         # Build base query filtered by company
@@ -186,10 +208,16 @@ class ProjectListResource(Resource):
         # Apply status filter
         status = request.args.get("status")
         if status:
-            if status not in ["active", "completed", "cancelled", "on_hold"]:
+            if status not in [
+                "initialized",
+                "active",
+                "completed",
+                "cancelled",
+                "on_hold",
+            ]:
                 return {
-                    "error": "Bad Request",
-                    "message": f"Invalid status: {status}",
+                    "error": BAD_REQUEST_ERROR,
+                    "message": INVALID_STATUS_MSG.format(status=status),
                 }, 400
             query = query.filter_by(status=status)
 
@@ -213,6 +241,7 @@ class ProjectListResource(Resource):
             query = query.filter(Project.start_date <= start_date_to_dt)
 
         # Apply search filter (name, code, title)
+        # Note: title is nullable, so we use coalesce to handle NULL values
         search = request.args.get("search")
         if search:
             search_pattern = f"%{search}%"
@@ -220,7 +249,7 @@ class ProjectListResource(Resource):
                 or_(
                     Project.name.ilike(search_pattern),
                     Project.code.ilike(search_pattern),
-                    Project.title.ilike(search_pattern),
+                    func.coalesce(Project.title, "").ilike(search_pattern),
                 )
             )
 
@@ -230,14 +259,14 @@ class ProjectListResource(Resource):
 
         if sort_by not in ["name", "code", "start_date", "created_at"]:
             return {
-                "error": "Bad Request",
-                "message": f"Invalid sort_by: {sort_by}",
+                "error": BAD_REQUEST_ERROR,
+                "message": INVALID_SORT_BY_MSG.format(sort_by=sort_by),
             }, 400
 
         if sort_order not in ["asc", "desc"]:
             return {
-                "error": "Bad Request",
-                "message": f"Invalid sort_order: {sort_order}",
+                "error": BAD_REQUEST_ERROR,
+                "message": INVALID_SORT_ORDER_MSG.format(sort_order=sort_order),
             }, 400
 
         # Get sortable column
@@ -254,29 +283,34 @@ class ProjectListResource(Resource):
         projects = query.paginate(page=page, per_page=per_page, error_out=False).items
 
         # Serialize response
-        return self.list_schema.dump(
-            {
-                "data": projects,
-                "page": page,
-                "per_page": per_page,
-                "total": total,
-                "total_pages": total_pages,
-            }
-        ), 200
+        result = cast(
+            "dict[str, Any]",
+            self.list_schema.dump(
+                {
+                    "data": projects,
+                    "page": page,
+                    "per_page": per_page,
+                    "total": total,
+                    "total_pages": total_pages,
+                }
+            ),
+        )
+        return result, 200
 
     @require_jwt_auth
     @access_required(Operation.CREATE, "projects")
+    @limiter.limit("100 per minute", key_func=_rate_limit_user_key)
     def post(self) -> tuple[dict, int]:
         """Create a new project for the authenticated company.
 
         Request Body:
             JSON object validated by ProjectCreateSchema:
                 - name (str, required): Project name (max 255 chars)
-                - code (str, optional): Project code (max 100 chars, unique per company)
+                - code (str, required): Project code (max 50 chars, unique per company)
                 - title (str, optional): Project title (max 255 chars)
                 - start_date (datetime, required): Project start date
                 - finish_date (datetime, required): Project finish date (must be after start_date)
-                - status (str, optional): Project status (active, completed, cancelled, on_hold)
+                - status (str, optional): Project status (initialized, active, completed, cancelled, on_hold, default: initialized)
                 - budget (decimal, optional): Project budget (max 18 digits, 2 decimals)
                 - description (str, optional): Project description (max 2000 chars)
                 - MS Project fields (optional): Various UIDs, GUIDs, calendar settings
@@ -284,10 +318,11 @@ class ProjectListResource(Resource):
         Returns:
             Tuple of (response_dict, status_code):
                 - 201: Project created successfully
-                - 400: Validation failed (invalid data format or finish_date before start_date)
+                - 400: Validation failed (invalid data format)
                 - 401: Missing or invalid JWT
                 - 403: Insufficient permissions (missing CREATE permission)
                 - 409: Conflict (duplicate project code for company)
+                - 422: Business rule violation (finish_date before start_date)
 
         Examples:
             Request:
@@ -298,7 +333,7 @@ class ProjectListResource(Resource):
                 "start_date": "2026-01-01T09:00:00Z",
                 "finish_date": "2026-12-31T18:00:00Z",
                 "status": "active",
-                "budget": "100000.00"
+                "budget": 100000.00
             }
 
             Success Response (201):
@@ -312,20 +347,38 @@ class ProjectListResource(Resource):
                 "message": "Project created successfully"
             }
         """
-        json_payload = request.get_json() or {}
+        json_payload_raw = request.get_json(silent=True)
+        if json_payload_raw is None:
+            json_payload: dict[str, Any] = {}
+        elif isinstance(json_payload_raw, dict):
+            json_payload = cast("dict[str, Any]", json_payload_raw)
+        else:
+            return {
+                "error": BAD_REQUEST_ERROR,
+                "message": INVALID_JSON_BODY_MSG,
+            }, 400
 
         try:
-            data = self.create_schema.load(json_payload)
+            data: dict[str, Any] = cast(
+                "dict[str, Any]", self.create_schema.load(json_payload)
+            )
         except ValidationError as err:
             return {
-                "error": "Bad Request",
-                "message": "Validation failed",
+                "error": BAD_REQUEST_ERROR,
+                "message": VALIDATION_FAILED_MSG,
                 "errors": err.messages,
             }, 400
 
         normalized = _normalize_datetime_fields(data)
         normalized["company_id"] = get_current_company_id()
-
+        # Validate business rule: finish_date must be after start_date
+        start_date = normalized.get("start_date")
+        finish_date = normalized.get("finish_date")
+        if start_date and finish_date and finish_date <= start_date:
+            return {
+                "error": "Unprocessable Entity",
+                "message": INVALID_FINISH_DATE_MSG,
+            }, 422
         project = Project(**normalized)
 
         try:
@@ -339,13 +392,18 @@ class ProjectListResource(Resource):
                 or "projects.company_id, projects.code" in error_message
             ):
                 return {
-                    "error": "Conflict",
-                    "message": f"Project with code '{normalized.get('code')}' already exists for this company",
+                    "error": CONFLICT_ERROR,
+                    "message": DUPLICATE_PROJECT_CODE_MSG.format(
+                        code=normalized.get("code")
+                    ),
                 }, 409
             raise
 
-        return self.response_schema.dump(
-            {"data": project, "message": "Project created successfully"}
+        return cast(
+            "dict[str, Any]",
+            self.response_schema.dump(
+                {"data": project, "message": PROJECT_CREATED_MSG}
+            ),
         ), 201
 
 
@@ -360,6 +418,7 @@ class ProjectResource(Resource):
 
     @require_jwt_auth
     @access_required(Operation.READ, "projects")
+    @limiter.limit("100 per minute", key_func=_rate_limit_user_key)
     def get(self, project_id: str) -> tuple[dict, int]:
         """Retrieve a single project by ID.
 
@@ -391,12 +450,13 @@ class ProjectResource(Resource):
         """
         project = self._get_project(project_id)
         if project is None:
-            return {"error": "Not Found", "message": "Project not found"}, 404
+            return {"error": NOT_FOUND_ERROR, "message": PROJECT_NOT_FOUND_MSG}, 404
 
-        return self.response_schema.dump({"data": project}), 200
+        return cast("dict[str, Any]", self.response_schema.dump({"data": project})), 200
 
     @require_jwt_auth
     @access_required(Operation.UPDATE, "projects")
+    @limiter.limit("50 per minute", key_func=_rate_limit_user_key)
     def patch(self, project_id: str) -> tuple[dict, int]:
         """Partially update a project.
 
@@ -406,11 +466,11 @@ class ProjectResource(Resource):
         Request Body:
             JSON object with fields to update (all optional):
                 - name (str): Project name (max 255 chars)
-                - code (str): Project code (max 100 chars, unique per company)
+                - code (str): Project code (max 50 chars, unique per company)
                 - title (str): Project title (max 255 chars)
                 - start_date (datetime): Project start date
                 - finish_date (datetime): Project finish date (must be after start_date)
-                - status (str): Project status (active, completed, cancelled, on_hold)
+                - status (str): Project status (initialized, active, completed, cancelled, on_hold)
                 - budget (decimal): Project budget (max 18 digits, 2 decimals)
                 - description (str): Project description (max 2000 chars)
                 - MS Project fields: Various UIDs, GUIDs, calendar settings
@@ -445,16 +505,36 @@ class ProjectResource(Resource):
         """
         project = self._get_project(project_id)
         if project is None:
-            return {"error": "Not Found", "message": "Project not found"}, 404
+            return {"error": NOT_FOUND_ERROR, "message": PROJECT_NOT_FOUND_MSG}, 404
 
-        json_payload = request.get_json() or {}
+        json_payload_raw = request.get_json(silent=True)
+        if json_payload_raw is not None and not isinstance(json_payload_raw, dict):
+            return {
+                "error": BAD_REQUEST_ERROR,
+                "message": "Request body must be a JSON object",
+            }, 400
+
+        payload: dict[str, Any] = (
+            cast("dict[str, Any]", json_payload_raw)
+            if isinstance(json_payload_raw, dict)
+            else {}
+        )
+
+        # Validate minProperties: 1 (OpenAPI requirement)
+        if not payload:
+            return {
+                "error": BAD_REQUEST_ERROR,
+                "message": "At least one field must be provided for update",
+            }, 400
 
         try:
-            updates = self.update_schema.load(json_payload, partial=True)
+            updates: dict[str, Any] = cast(
+                "dict[str, Any]", self.update_schema.load(payload, partial=True)
+            )
         except ValidationError as err:
             return {
-                "error": "Bad Request",
-                "message": "Validation failed",
+                "error": BAD_REQUEST_ERROR,
+                "message": VALIDATION_FAILED_MSG,
                 "errors": err.messages,
             }, 400
 
@@ -464,9 +544,9 @@ class ProjectResource(Resource):
         new_finish = normalized.get("finish_date", project.finish_date)
         if new_start and new_finish and new_finish <= new_start:
             return {
-                "error": "Bad Request",
-                "message": "finish_date must be after start_date",
-            }, 400
+                "error": "Unprocessable Entity",
+                "message": INVALID_FINISH_DATE_MSG,
+            }, 422
 
         for field, value in normalized.items():
             setattr(project, field, value)
@@ -481,19 +561,25 @@ class ProjectResource(Resource):
                 or "projects.company_id, projects.code" in error_message
             ):
                 return {
-                    "error": "Conflict",
-                    "message": f"Project with code '{normalized.get('code')}' already exists for this company",
+                    "error": CONFLICT_ERROR,
+                    "message": DUPLICATE_PROJECT_CODE_MSG.format(
+                        code=normalized.get("code")
+                    ),
                 }, 409
             raise
 
-        return self.response_schema.dump(
-            {"data": project, "message": "Project updated successfully"}
+        return cast(
+            "dict[str, Any]",
+            self.response_schema.dump(
+                {"data": project, "message": PROJECT_UPDATED_MSG}
+            ),
         ), 200
 
     @require_jwt_auth
     @access_required(Operation.DELETE, "projects")
+    @limiter.limit("50 per minute", key_func=_rate_limit_user_key)
     def delete(self, project_id: str) -> tuple[dict, int]:
-        """Delete a project if it has no related entities.
+        """Delete a project if no related entities exist.
 
         Path Parameters:
             project_id (str): UUID of the project to delete
@@ -505,31 +591,10 @@ class ProjectResource(Resource):
                 - 403: Insufficient permissions (missing DELETE permission)
                 - 404: Project not found or not accessible (wrong company)
                 - 409: Conflict (project has related tasks, assignments, milestones, or EVM snapshots)
-
-        Business Logic:
-            Projects with related entities cannot be deleted to maintain data integrity.
-            Related entities checked:
-            - Tasks (project.tasks)
-            - Assignments (project.assignments)
-            - Milestones (project.milestones)
-            - EVM Snapshots (project.evm_snapshots)
-
-        Examples:
-            Request:
-            >>> DELETE /v0/projects/{uuid}
-
-            Success Response (204):
-            (No content)
-
-            Conflict Response (409):
-            {
-                "error": "Conflict",
-                "message": "Cannot delete project with related tasks, assignments, milestones, or EVM snapshots"
-            }
         """
         project = self._get_project(project_id)
         if project is None:
-            return {"error": "Not Found", "message": "Project not found"}, 404
+            return {"error": NOT_FOUND_ERROR, "message": PROJECT_NOT_FOUND_MSG}, 404
 
         has_related = any(
             [
@@ -544,7 +609,7 @@ class ProjectResource(Resource):
 
         if has_related:
             return {
-                "error": "Conflict",
+                "error": CONFLICT_ERROR,
                 "message": "Cannot delete project with existing tasks/milestones/expenses/assignments",
             }, 409
 

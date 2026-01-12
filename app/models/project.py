@@ -159,7 +159,7 @@ class Project(UUIDMixin, TimestampMixin, Model):
     status: Mapped[str] = mapped_column(
         String(20),
         nullable=False,
-        default="active",
+        default="initialized",
         index=True,
         doc="Project status",
     )
@@ -293,7 +293,7 @@ class Project(UUIDMixin, TimestampMixin, Model):
             name="uq_projects_company_code",
         ),
         CheckConstraint(
-            "status IN ('active', 'completed', 'cancelled', 'on_hold')",
+            "status IN ('initialized', 'active', 'completed', 'cancelled', 'on_hold')",
             name="ck_projects_status",
         ),
     )

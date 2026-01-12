@@ -215,6 +215,57 @@ class TestProjectListGet:
         assert "Alpha" in data["data"][0]["name"]
 
     @patch("app.services.guardian_service.requests.post")
+    def test_list_projects_search_with_null_title(
+        self,
+        mock_guardian: MagicMock,
+        authenticated_client: FlaskClient,
+        app: Flask,
+        company_id: str,
+    ) -> None:
+        """Test search functionality with NULL title field.
+
+        Given: Projects with NULL title field
+        When: Searching by name or code
+        Then: Returns matching projects despite NULL title
+        """
+        # Create a project with NULL title explicitly
+        with app.app_context():
+            project = Project(
+                company_id=uuid.UUID(company_id),
+                name="SearchMe Project",
+                code="SEARCH-NULL",
+                title=None,  # Explicitly NULL
+                start_date=datetime.now(UTC),
+                finish_date=datetime.now(UTC) + timedelta(days=30),
+                status="active",
+            )
+            db.session.add(project)
+            db.session.commit()
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"access_granted": True, "reason": "granted"}
+        mock_guardian.return_value = mock_response
+
+        # Search by name should find the project
+        response = authenticated_client.get("/v0/projects?search=SearchMe")
+
+        assert response.status_code == 200
+        data = response.get_json()
+
+        assert data["total"] >= 1
+        assert any("SearchMe" in p["name"] for p in data["data"])
+
+        # Search by code should also find the project
+        response_code = authenticated_client.get("/v0/projects?search=SEARCH-NULL")
+
+        assert response_code.status_code == 200
+        data_code = response_code.get_json()
+
+        assert data_code["total"] >= 1
+        assert any("SEARCH-NULL" in p["code"] for p in data_code["data"])
+
+    @patch("app.services.guardian_service.requests.post")
     def test_list_projects_sort_by_name_asc(
         self,
         mock_guardian: MagicMock,
@@ -627,7 +678,7 @@ class TestProjectCrud:
             f"/v0/projects/{project_id}", json=payload
         )
 
-        assert response.status_code == 400
+        assert response.status_code == 422
         data = response.get_json()
         assert "finish_date must be after start_date" in data["message"]
 

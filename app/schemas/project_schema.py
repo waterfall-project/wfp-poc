@@ -14,8 +14,9 @@ of project data according to OpenAPI specification.
 """
 
 from datetime import time
+from decimal import Decimal
 
-from marshmallow import Schema, ValidationError, fields, validates_schema
+from marshmallow import Schema, fields, post_dump
 from marshmallow.validate import Length, Range
 from marshmallow_sqlalchemy import SQLAlchemyAutoSchema
 
@@ -43,20 +44,20 @@ class ProjectSchema(SQLAlchemyAutoSchema):
     name = fields.String(required=True, validate=Length(min=1, max=255))
     code = fields.String(allow_none=True, validate=Length(max=50))
     title = fields.String(allow_none=True, validate=Length(max=255))
+    description = fields.String(allow_none=True, validate=Length(max=2000))
 
     start_date = fields.DateTime(required=True)
     planned_start_date = fields.DateTime(allow_none=True)
     finish_date = fields.DateTime(required=True)
     planned_finish_date = fields.DateTime(allow_none=True)
 
-    budget = fields.Decimal(
-        allow_none=True, as_string=True, places=2, validate=Range(min=0)
-    )
+    budget = fields.Decimal(allow_none=True, places=2, validate=Range(min=0))
     currency_code = fields.String(validate=Length(equal=3), load_default="EUR")
 
     status = fields.String(
-        validate=lambda x: x in ["active", "completed", "cancelled", "on_hold"],
-        load_default="active",
+        validate=lambda x: x
+        in ["initialized", "active", "completed", "cancelled", "on_hold"],
+        load_default="initialized",
     )
 
     ms_project_uid = fields.String(allow_none=True)
@@ -78,6 +79,21 @@ class ProjectSchema(SQLAlchemyAutoSchema):
     created_at = fields.DateTime(dump_only=True)
     updated_at = fields.DateTime(dump_only=True)
 
+    @post_dump
+    def convert_decimals(self, data: dict, **kwargs) -> dict:
+        """Convert Decimal fields to float for JSON serialization.
+
+        Args:
+            data: Serialized data dictionary.
+            **kwargs: Additional keyword arguments from Marshmallow.
+
+        Returns:
+            Modified data with Decimal values converted to float.
+        """
+        if data.get("budget") is not None and isinstance(data["budget"], Decimal):
+            data["budget"] = float(data["budget"])
+        return data
+
 
 class ProjectCreateSchema(Schema):
     """Schema for creating a new project.
@@ -86,25 +102,25 @@ class ProjectCreateSchema(Schema):
     """
 
     name = fields.String(required=True, validate=Length(min=1, max=255))
-    code = fields.String(allow_none=True, validate=Length(max=50))
+    code = fields.String(required=True, validate=Length(min=1, max=50))
     title = fields.String(allow_none=True, validate=Length(max=255))
+    description = fields.String(allow_none=True, validate=Length(max=2000))
 
     start_date = fields.DateTime(required=True)
     planned_start_date = fields.DateTime(allow_none=True)
     finish_date = fields.DateTime(required=True)
     planned_finish_date = fields.DateTime(allow_none=True)
 
-    budget = fields.Decimal(
-        allow_none=True, as_string=True, places=2, validate=Range(min=0)
-    )
+    budget = fields.Decimal(allow_none=True, places=2, validate=Range(min=0))
     currency_code = fields.String(validate=Length(equal=3), load_default="EUR")
 
     status = fields.String(
         allow_none=True,
-        validate=lambda x: x in ["active", "completed", "cancelled", "on_hold"]
+        validate=lambda x: x
+        in ["initialized", "active", "completed", "cancelled", "on_hold"]
         if x
         else True,
-        load_default="active",
+        load_default="initialized",
     )
 
     ms_project_uid = fields.String(allow_none=True)
@@ -121,24 +137,6 @@ class ProjectCreateSchema(Schema):
     default_start_time = fields.Time(load_default=time(9, 0, 0))
     default_finish_time = fields.Time(load_default=time(18, 0, 0))
 
-    @validates_schema
-    def validate_dates(self, data: dict, **kwargs) -> None:
-        """Validate that finish_date is after start_date.
-
-        Args:
-            data: Schema data to validate.
-            kwargs: Additional keyword arguments from Marshmallow.
-
-        Raises:
-            ValidationError: If finish_date is before or equal to start_date.
-        """
-        if (
-            data.get("start_date")
-            and data.get("finish_date")
-            and data["finish_date"] <= data["start_date"]
-        ):
-            raise ValidationError("finish_date must be after start_date")
-
 
 class ProjectUpdateSchema(Schema):
     """Schema for updating an existing project.
@@ -147,26 +145,25 @@ class ProjectUpdateSchema(Schema):
     """
 
     name = fields.String(validate=Length(min=1, max=255))
-    code = fields.String(allow_none=True, validate=Length(max=50))
+    code = fields.String(allow_none=True, validate=Length(min=1, max=50))
     title = fields.String(allow_none=True, validate=Length(max=255))
+    description = fields.String(allow_none=True, validate=Length(max=2000))
 
     start_date = fields.DateTime()
     planned_start_date = fields.DateTime(allow_none=True)
     finish_date = fields.DateTime()
     planned_finish_date = fields.DateTime(allow_none=True)
 
-    budget = fields.Decimal(
-        allow_none=True, as_string=True, places=2, validate=Range(min=0)
-    )
+    budget = fields.Decimal(allow_none=True, places=2, validate=Range(min=0))
     currency_code = fields.String(validate=Length(equal=3))
 
     status = fields.String(
         allow_none=True,
-        validate=lambda x: x in ["active", "completed", "cancelled", "on_hold"]
+        validate=lambda x: x
+        in ["initialized", "active", "completed", "cancelled", "on_hold"]
         if x
         else True,
     )
-
     ms_project_uid = fields.String(allow_none=True)
     ms_project_guid = fields.String(allow_none=True, validate=Length(max=50))
     ms_project_save_version = fields.Integer(allow_none=True)
@@ -180,24 +177,6 @@ class ProjectUpdateSchema(Schema):
     week_start_day = fields.Integer(validate=Range(min=0, max=6))
     default_start_time = fields.Time()
     default_finish_time = fields.Time()
-
-    @validates_schema
-    def validate_dates(self, data: dict, **kwargs) -> None:
-        """Validate that finish_date is after start_date if both present.
-
-        Args:
-            data: Schema data to validate.
-            kwargs: Additional keyword arguments from Marshmallow.
-
-        Raises:
-            ValidationError: If finish_date is before or equal to start_date.
-        """
-        if (
-            data.get("start_date")
-            and data.get("finish_date")
-            and data["finish_date"] <= data["start_date"]
-        ):
-            raise ValidationError("finish_date must be after start_date")
 
 
 class ProjectListResponseSchema(Schema):
