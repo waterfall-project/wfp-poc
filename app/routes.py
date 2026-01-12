@@ -13,6 +13,12 @@ from flask_restful import Api
 
 from app.resources.health import HealthResource, ReadyResource, VersionResource
 from app.resources.project_res import ProjectListResource, ProjectResource
+from app.resources.task_res import (
+    TaskBulkResource,
+    TaskListResource,
+    TaskResource,
+    TaskSyncResource,
+)
 
 
 def register_routes(app):
@@ -36,3 +42,9 @@ def register_routes(app):
     # Projects
     api.add_resource(ProjectListResource, "/v0/projects")
     api.add_resource(ProjectResource, "/v0/projects/<string:project_id>")
+
+    # Tasks
+    api.add_resource(TaskListResource, "/v0/projects/<string:project_id>/tasks")
+    api.add_resource(TaskResource, "/v0/projects/<string:project_id>/tasks/<string:id>")
+    api.add_resource(TaskBulkResource, "/v0/projects/<string:project_id>/tasks/bulk")
+    api.add_resource(TaskSyncResource, "/v0/projects/<string:project_id>/tasks/sync")
