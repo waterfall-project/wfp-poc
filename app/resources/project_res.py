@@ -331,7 +331,7 @@ class ProjectListResource(Resource):
                 "start_date": "2026-01-01T09:00:00Z",
                 "finish_date": "2026-12-31T18:00:00Z",
                 "status": "active",
-                "budget": "100000.00"
+                "budget": 100000.00
             }
 
             Success Response (201):
@@ -535,9 +535,9 @@ class ProjectResource(Resource):
         new_finish = normalized.get("finish_date", project.finish_date)
         if new_start and new_finish and new_finish <= new_start:
             return {
-                "error": BAD_REQUEST_ERROR,
+                "error": "Unprocessable Entity",
                 "message": INVALID_FINISH_DATE_MSG,
-            }, 400
+            }, 422
 
         for field, value in normalized.items():
             setattr(project, field, value)
@@ -569,7 +569,7 @@ class ProjectResource(Resource):
     @require_jwt_auth
     @access_required(Operation.DELETE, "projects")
     @limiter.limit("50 per minute", key_func=_rate_limit_user_key)
-    def delete(self, project_id: str) -> tuple[dict, int]:
+    def delete(self, project_id: str) -> tuple[str, int] | tuple[dict, int]:
         """Delete a project if it has no related entities.
 
         Path Parameters:
@@ -628,7 +628,7 @@ class ProjectResource(Resource):
         db.session.delete(project)
         db.session.commit()
 
-        return {}, 204
+        return "", 204
 
     @staticmethod
     def _get_project(project_id: str) -> Project | None:

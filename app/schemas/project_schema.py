@@ -163,7 +163,7 @@ class ProjectUpdateSchema(Schema):
     """
 
     name = fields.String(validate=Length(min=1, max=255))
-    code = fields.String(allow_none=True, validate=Length(max=50))
+    code = fields.String(allow_none=True, validate=Length(min=1, max=50))
     title = fields.String(allow_none=True, validate=Length(max=255))
     description = fields.String(allow_none=True, validate=Length(max=2000))
 

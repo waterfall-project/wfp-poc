@@ -14,7 +14,7 @@
         description: Filter by project status
         schema:
           type: string
-          enum: [active, completed, cancelled, on_hold]
+          enum: [initialized, active, completed, cancelled, on_hold]
       - name: start_date_from
         in: query
         description: Filter projects starting after this date

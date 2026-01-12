@@ -627,7 +627,7 @@ class TestProjectCrud:
             f"/v0/projects/{project_id}", json=payload
         )
 
-        assert response.status_code == 400
+        assert response.status_code == 422
         data = response.get_json()
         assert "finish_date must be after start_date" in data["message"]
 

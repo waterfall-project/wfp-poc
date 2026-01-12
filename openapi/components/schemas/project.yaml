@@ -47,7 +47,9 @@ Project:
       format: date-time
       description: Project start date (ISO 8601)
     planned_start_date:
-      type: string
+      anyOf:
+        - type: string
+        - type: "null"
       format: date-time
       deprecated: true
       description: Alias for start_date (ERD terminology)
@@ -56,7 +58,9 @@ Project:
       format: date-time
       description: Project finish date (ISO 8601)
     planned_finish_date:
-      type: string
+      anyOf:
+        - type: string
+        - type: "null"
       format: date-time
       deprecated: true
       description: Alias for finish_date (ERD terminology)
@@ -78,7 +82,9 @@ Project:
       default: initialized
       description: Project status
     ms_project_uid:
-      type: string
+      anyOf:
+        - type: string
+        - type: "null"
       description: MS Project UID (import reconciliation key)
     ms_project_guid:
       anyOf:
@@ -187,7 +193,9 @@ ProjectCreate:
       format: date-time
       description: Must be before finish_date
     planned_start_date:
-      type: string
+      anyOf:
+        - type: string
+        - type: "null"
       format: date-time
       deprecated: true
       description: Alias for start_date (ERD terminology)
@@ -196,7 +204,9 @@ ProjectCreate:
       format: date-time
       description: Must be after start_date
     planned_finish_date:
-      type: string
+      anyOf:
+        - type: string
+        - type: "null"
       format: date-time
       deprecated: true
       description: Alias for finish_date (ERD terminology)
@@ -213,7 +223,9 @@ ProjectCreate:
       enum: [initialized, active, completed, cancelled, on_hold]
       default: initialized
     ms_project_uid:
-      type: string
+      anyOf:
+        - type: string
+        - type: "null"
       description: MS Project UID (import reconciliation key)
     ms_project_guid:
       type: string
@@ -280,14 +292,18 @@ ProjectUpdate:
       type: string
       format: date-time
     planned_start_date:
-      type: string
+      anyOf:
+        - type: string
+        - type: "null"
       format: date-time
       deprecated: true
     finish_date:
       type: string
       format: date-time
     planned_finish_date:
-      type: string
+      anyOf:
+        - type: string
+        - type: "null"
       format: date-time
       deprecated: true
     budget:
@@ -301,7 +317,9 @@ ProjectUpdate:
       type: string
       enum: [initialized, active, completed, cancelled, on_hold]
     ms_project_uid:
-      type: string
+      anyOf:
+        - type: string
+        - type: "null"
     ms_project_guid:
       type: string
       maxLength: 50
