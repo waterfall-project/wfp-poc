@@ -14,8 +14,9 @@ of project data according to OpenAPI specification.
 """
 
 from datetime import time
+from decimal import Decimal
 
-from marshmallow import Schema, ValidationError, fields, validates_schema
+from marshmallow import Schema, ValidationError, fields, post_dump, validates_schema
 from marshmallow.validate import Length, Range
 from marshmallow_sqlalchemy import SQLAlchemyAutoSchema
 
@@ -50,14 +51,13 @@ class ProjectSchema(SQLAlchemyAutoSchema):
     finish_date = fields.DateTime(required=True)
     planned_finish_date = fields.DateTime(allow_none=True)
 
-    budget = fields.Decimal(
-        allow_none=True, as_string=True, places=2, validate=Range(min=0)
-    )
+    budget = fields.Decimal(allow_none=True, places=2, validate=Range(min=0))
     currency_code = fields.String(validate=Length(equal=3), load_default="EUR")
 
     status = fields.String(
-        validate=lambda x: x in ["active", "completed", "cancelled", "on_hold"],
-        load_default="active",
+        validate=lambda x: x
+        in ["initialized", "active", "completed", "cancelled", "on_hold"],
+        load_default="initialized",
     )
 
     ms_project_uid = fields.String(allow_none=True)
@@ -79,6 +79,21 @@ class ProjectSchema(SQLAlchemyAutoSchema):
     created_at = fields.DateTime(dump_only=True)
     updated_at = fields.DateTime(dump_only=True)
 
+    @post_dump
+    def convert_decimals(self, data: dict, **kwargs) -> dict:
+        """Convert Decimal fields to float for JSON serialization.
+
+        Args:
+            data: Serialized data dictionary.
+            **kwargs: Additional keyword arguments from Marshmallow.
+
+        Returns:
+            Modified data with Decimal values converted to float.
+        """
+        if data.get("budget") is not None and isinstance(data["budget"], Decimal):
+            data["budget"] = float(data["budget"])
+        return data
+
 
 class ProjectCreateSchema(Schema):
     """Schema for creating a new project.
@@ -87,7 +102,7 @@ class ProjectCreateSchema(Schema):
     """
 
     name = fields.String(required=True, validate=Length(min=1, max=255))
-    code = fields.String(allow_none=True, validate=Length(max=50))
+    code = fields.String(required=True, validate=Length(min=1, max=50))
     title = fields.String(allow_none=True, validate=Length(max=255))
     description = fields.String(allow_none=True, validate=Length(max=2000))
 
@@ -96,17 +111,16 @@ class ProjectCreateSchema(Schema):
     finish_date = fields.DateTime(required=True)
     planned_finish_date = fields.DateTime(allow_none=True)
 
-    budget = fields.Decimal(
-        allow_none=True, as_string=True, places=2, validate=Range(min=0)
-    )
+    budget = fields.Decimal(allow_none=True, places=2, validate=Range(min=0))
     currency_code = fields.String(validate=Length(equal=3), load_default="EUR")
 
     status = fields.String(
         allow_none=True,
-        validate=lambda x: x in ["active", "completed", "cancelled", "on_hold"]
+        validate=lambda x: x
+        in ["initialized", "active", "completed", "cancelled", "on_hold"]
         if x
         else True,
-        load_default="active",
+        load_default="initialized",
     )
 
     ms_project_uid = fields.String(allow_none=True)
@@ -158,14 +172,13 @@ class ProjectUpdateSchema(Schema):
     finish_date = fields.DateTime()
     planned_finish_date = fields.DateTime(allow_none=True)
 
-    budget = fields.Decimal(
-        allow_none=True, as_string=True, places=2, validate=Range(min=0)
-    )
+    budget = fields.Decimal(allow_none=True, places=2, validate=Range(min=0))
     currency_code = fields.String(validate=Length(equal=3))
 
     status = fields.String(
         allow_none=True,
-        validate=lambda x: x in ["active", "completed", "cancelled", "on_hold"]
+        validate=lambda x: x
+        in ["initialized", "active", "completed", "cancelled", "on_hold"]
         if x
         else True,
     )

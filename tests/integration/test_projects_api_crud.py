@@ -52,7 +52,7 @@ class TestProjectCreate:
         assert data["data"]["name"] == "Integration Test Project"
         assert data["data"]["code"] == "INT-001"
         assert data["data"]["status"] == "active"
-        assert data["data"]["budget"] == "500000.00"
+        assert data["data"]["budget"] == 500000.00
         assert data["data"]["currency_code"] == "USD"
         assert "id" in data["data"]
         assert "created_at" in data["data"]
@@ -74,6 +74,7 @@ class TestProjectCreate:
         """
         payload = {
             "name": "Minimal Project",
+            "code": "MIN-001",
             "start_date": "2026-02-01T09:00:00Z",
             "finish_date": "2026-03-01T18:00:00Z",
         }
@@ -84,9 +85,9 @@ class TestProjectCreate:
         data = response.get_json()
 
         assert data["data"]["name"] == "Minimal Project"
-        assert data["data"]["status"] == "active"  # Default value
+        assert data["data"]["code"] == "MIN-001"
+        assert data["data"]["status"] == "initialized"  # Default value
         assert data["data"]["currency_code"] == "EUR"  # Default value
-        assert data["data"]["code"] is None
 
     def test_create_project_duplicate_code(
         self, integration_client, app, company_id
@@ -131,6 +132,7 @@ class TestProjectCreate:
         """
         payload = {
             "name": "Invalid Project",
+            "code": "INV-001",
             "start_date": "2026-12-31T18:00:00Z",
             "finish_date": "2026-01-01T09:00:00Z",  # Before start_date
         }
@@ -199,7 +201,7 @@ class TestProjectRetrieve:
         assert data["data"]["code"] == "FETCH-001"
         assert data["data"]["title"] == "Integration Test"
         assert data["data"]["status"] == "active"
-        assert data["data"]["budget"] == "100000.00"
+        assert data["data"]["budget"] == 100000.00
         assert data["data"]["currency_code"] == "EUR"
         assert data["data"]["description"] == "Test project for retrieval"
         assert "created_at" in data["data"]
@@ -249,6 +251,7 @@ class TestProjectRetrieve:
             project = Project(  # type: ignore[call-arg]
                 company_id=uuid.UUID(other_company_id),
                 name="Other Company Project",
+                code="OTHER-001",
                 start_date=datetime.now(UTC),
                 finish_date=datetime.now(UTC) + timedelta(days=30),
             )
@@ -300,7 +303,7 @@ class TestProjectUpdate:
         assert data["message"] == "Project updated successfully"
         assert data["data"]["name"] == "Updated Name"
         assert data["data"]["status"] == "on_hold"
-        assert data["data"]["budget"] == "150000.00"
+        assert data["data"]["budget"] == 150000.00
         assert data["data"]["description"] == "Updated description"
         assert data["data"]["code"] == "PATCH-001"  # Unchanged
 
@@ -356,6 +359,7 @@ class TestProjectUpdate:
             project = Project(  # type: ignore[call-arg]
                 company_id=uuid.UUID(company_id),
                 name="Date Update Project",
+                code="DATE-001",
                 start_date=datetime(2026, 1, 1, 9, 0, tzinfo=UTC),
                 finish_date=datetime(2026, 6, 30, 18, 0, tzinfo=UTC),
             )
@@ -389,6 +393,7 @@ class TestProjectUpdate:
             project = Project(  # type: ignore[call-arg]
                 company_id=uuid.UUID(company_id),
                 name="Invalid Date Project",
+                code="INV-DATE-001",
                 start_date=datetime(2026, 6, 1, 9, 0, tzinfo=UTC),
                 finish_date=datetime(2026, 12, 31, 18, 0, tzinfo=UTC),
             )
@@ -576,6 +581,7 @@ class TestProjectDelete:
             project = Project(  # type: ignore[call-arg]
                 company_id=uuid.UUID(other_company_id),
                 name="Other Company Project",
+                code="OTHER-DEL-001",
                 start_date=datetime.now(UTC),
                 finish_date=datetime.now(UTC) + timedelta(days=30),
             )

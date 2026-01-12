@@ -74,13 +74,11 @@ Project:
       description: ISO 4217 currency code
     status:
       type: string
-      enum: [active, completed, cancelled, on_hold]
-      default: active
+      enum: [initialized, active, completed, cancelled, on_hold]
+      default: initialized
       description: Project status
     ms_project_uid:
-      anyOf:
-        - type: string
-        - type: integer
+      type: string
       description: MS Project UID (import reconciliation key)
     ms_project_guid:
       anyOf:
@@ -166,6 +164,7 @@ ProjectCreate:
   type: object
   required:
     - name
+    - code
     - start_date
     - finish_date
   properties:
@@ -175,6 +174,7 @@ ProjectCreate:
       maxLength: 255
     code:
       type: string
+      minLength: 1
       maxLength: 50
     title:
       type: string
@@ -210,12 +210,11 @@ ProjectCreate:
       default: EUR
     status:
       type: string
-      enum: [active, completed, cancelled, on_hold]
-      default: active
+      enum: [initialized, active, completed, cancelled, on_hold]
+      default: initialized
     ms_project_uid:
-      anyOf:
-        - type: string
-        - type: integer
+      type: string
+      description: MS Project UID (import reconciliation key)
     ms_project_guid:
       type: string
       maxLength: 50
@@ -269,6 +268,7 @@ ProjectUpdate:
       maxLength: 255
     code:
       type: string
+      minLength: 1
       maxLength: 50
     title:
       type: string
@@ -279,13 +279,17 @@ ProjectUpdate:
     start_date:
       type: string
       format: date-time
+    planned_start_date:
+      type: string
+      format: date-time
+      deprecated: true
     finish_date:
       type: string
       format: date-time
-    ms_project_uid:
-      anyOf:
-        - type: string
-        - type: integer
+    planned_finish_date:
+      type: string
+      format: date-time
+      deprecated: true
     budget:
       type: number
       format: decimal
@@ -295,10 +299,41 @@ ProjectUpdate:
       maxLength: 3
     status:
       type: string
-      enum: [active, completed, cancelled, on_hold]
+      enum: [initialized, active, completed, cancelled, on_hold]
+    ms_project_uid:
+      type: string
+    ms_project_guid:
+      type: string
+      maxLength: 50
+    ms_project_save_version:
+      type: integer
+    creation_date:
+      type: string
+      format: date-time
     last_saved_date:
       type: string
       format: date-time
+    calendar_uid:
+      type: integer
+    minutes_per_day:
+      type: integer
+      minimum: 0
+    minutes_per_week:
+      type: integer
+      minimum: 0
+    days_per_month:
+      type: integer
+      minimum: 0
+    week_start_day:
+      type: integer
+      minimum: 0
+      maximum: 6
+    default_start_time:
+      type: string
+      pattern: '^\d{2}:\d{2}:\d{2}$'
+    default_finish_time:
+      type: string
+      pattern: '^\d{2}:\d{2}:\d{2}$'
 
 ProjectResponse:
   type: object

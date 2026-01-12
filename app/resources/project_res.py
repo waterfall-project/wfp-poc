@@ -208,7 +208,13 @@ class ProjectListResource(Resource):
         # Apply status filter
         status = request.args.get("status")
         if status:
-            if status not in ["active", "completed", "cancelled", "on_hold"]:
+            if status not in [
+                "initialized",
+                "active",
+                "completed",
+                "cancelled",
+                "on_hold",
+            ]:
                 return {
                     "error": BAD_REQUEST_ERROR,
                     "message": INVALID_STATUS_MSG.format(status=status),
@@ -299,11 +305,11 @@ class ProjectListResource(Resource):
         Request Body:
             JSON object validated by ProjectCreateSchema:
                 - name (str, required): Project name (max 255 chars)
-                - code (str, optional): Project code (max 100 chars, unique per company)
+                - code (str, required): Project code (max 50 chars, unique per company)
                 - title (str, optional): Project title (max 255 chars)
                 - start_date (datetime, required): Project start date
                 - finish_date (datetime, required): Project finish date (must be after start_date)
-                - status (str, optional): Project status (active, completed, cancelled, on_hold)
+                - status (str, optional): Project status (initialized, active, completed, cancelled, on_hold, default: initialized)
                 - budget (decimal, optional): Project budget (max 18 digits, 2 decimals)
                 - description (str, optional): Project description (max 2000 chars)
                 - MS Project fields (optional): Various UIDs, GUIDs, calendar settings
@@ -451,11 +457,11 @@ class ProjectResource(Resource):
         Request Body:
             JSON object with fields to update (all optional):
                 - name (str): Project name (max 255 chars)
-                - code (str): Project code (max 100 chars, unique per company)
+                - code (str): Project code (max 50 chars, unique per company)
                 - title (str): Project title (max 255 chars)
                 - start_date (datetime): Project start date
                 - finish_date (datetime): Project finish date (must be after start_date)
-                - status (str): Project status (active, completed, cancelled, on_hold)
+                - status (str): Project status (initialized, active, completed, cancelled, on_hold)
                 - budget (decimal): Project budget (max 18 digits, 2 decimals)
                 - description (str): Project description (max 2000 chars)
                 - MS Project fields: Various UIDs, GUIDs, calendar settings
@@ -504,6 +510,13 @@ class ProjectResource(Resource):
             if isinstance(json_payload_raw, dict)
             else {}
         )
+
+        # Validate minProperties: 1 (OpenAPI requirement)
+        if not payload:
+            return {
+                "error": BAD_REQUEST_ERROR,
+                "message": "At least one field must be provided for update",
+            }, 400
 
         try:
             updates: dict[str, Any] = cast(
@@ -593,7 +606,7 @@ class ProjectResource(Resource):
         """
         project = self._get_project(project_id)
         if project is None:
-            return {"error": "Not Found", "message": "Project not found"}, 404
+            return {"error": NOT_FOUND_ERROR, "message": PROJECT_NOT_FOUND_MSG}, 404
 
         has_related = any(
             [
@@ -608,7 +621,7 @@ class ProjectResource(Resource):
 
         if has_related:
             return {
-                "error": "Conflict",
+                "error": CONFLICT_ERROR,
                 "message": "Cannot delete project with existing tasks/milestones/expenses/assignments",
             }, 409
 
