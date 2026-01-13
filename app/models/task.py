@@ -20,7 +20,7 @@ from typing import TYPE_CHECKING
 from sqlalchemy import (
     Boolean,
     CheckConstraint,
-    Date,
+    DateTime,
     ForeignKey,
     Integer,
     Numeric,
@@ -142,14 +142,14 @@ class Task(UUIDMixin, TimestampMixin, Model):
     )
 
     planned_start_date: Mapped[datetime | None] = mapped_column(
-        Date,
+        DateTime,
         nullable=True,
         index=True,
         doc="Planned start date",
     )
 
     planned_finish_date: Mapped[datetime | None] = mapped_column(
-        Date,
+        DateTime,
         nullable=True,
         index=True,
         doc="Planned finish date",
@@ -162,13 +162,13 @@ class Task(UUIDMixin, TimestampMixin, Model):
     )
 
     actual_start_date: Mapped[datetime | None] = mapped_column(
-        Date,
+        DateTime,
         nullable=True,
         doc="Actual start date",
     )
 
     actual_finish_date: Mapped[datetime | None] = mapped_column(
-        Date,
+        DateTime,
         nullable=True,
         doc="Actual finish date",
     )
@@ -296,6 +296,36 @@ class Task(UUIDMixin, TimestampMixin, Model):
             name="ck_tasks_percent_complete",
         ),
     )
+
+    @property
+    def is_milestone(self) -> bool:
+        """Check if task is a milestone.
+
+        Returns:
+            True if task type is milestone.
+        """
+        return self.type == "milestone"
+
+    @property
+    def is_summary(self) -> bool:
+        """Check if task is a summary task.
+
+        Returns:
+            True if task type is summary.
+        """
+        return self.type == "summary"
+
+    @property
+    def is_deliverable(self) -> bool:
+        """Check if task is a deliverable.
+
+        For now, milestones are considered deliverables.
+        Can be extended with dedicated field if needed.
+
+        Returns:
+            True if task is a milestone.
+        """
+        return self.type == "milestone"
 
     def __repr__(self) -> str:
         """String representation of Task.

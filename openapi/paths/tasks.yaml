@@ -111,6 +111,8 @@
           application/json:
             schema:
               $ref: '../components/schemas/task.yaml#/TaskList'
+      '400':
+        $ref: '../components/responses.yaml#/BadRequest'
       '401':
         $ref: '../components/responses.yaml#/Unauthorized'
       '403':
@@ -153,6 +155,8 @@
         $ref: '../components/responses.yaml#/Forbidden'
       '404':
         $ref: '../components/responses.yaml#/NotFound'
+      '422':
+        $ref: '../components/responses.yaml#/UnprocessableEntity'
       '429':
         $ref: '../components/responses.yaml#/TooManyRequests'
       '500':
@@ -217,6 +221,8 @@
           application/json:
             schema:
               $ref: '../components/schemas/task.yaml#/TaskResponse'
+      '400':
+        $ref: '../components/responses.yaml#/BadRequest'
       '401':
         $ref: '../components/responses.yaml#/Unauthorized'
       '403':
@@ -286,6 +292,8 @@
     responses:
       '204':
         description: Task deleted successfully
+      '400':
+        $ref: '../components/responses.yaml#/BadRequest'
       '401':
         $ref: '../components/responses.yaml#/Unauthorized'
       '403':
