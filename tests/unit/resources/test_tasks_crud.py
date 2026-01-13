@@ -549,7 +549,10 @@ class TestTaskUpdate:
         assert response.headers["X-Correlation-ID"] == data["correlation_id"]
 
         # Verify error message
-        assert "circular" in data["message"].lower() or "dependency" in data["message"].lower()
+        assert (
+            "circular" in data["message"].lower()
+            or "dependency" in data["message"].lower()
+        )
 
 
 class TestTaskDelete:

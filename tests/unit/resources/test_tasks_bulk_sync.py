@@ -344,7 +344,11 @@ class TestTaskBulkCreate:
 
         # Verify tasks were created in database
         with app.app_context():
-            tasks = Task.query.filter_by(project_id=test_project.id).order_by(Task.name).all()
+            tasks = (
+                Task.query.filter_by(project_id=test_project.id)
+                .order_by(Task.name)
+                .all()
+            )
             # Should have: Existing Task + 3 new tasks = 4 total
             assert len(tasks) == 4
 
