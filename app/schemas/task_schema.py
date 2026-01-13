@@ -110,6 +110,38 @@ class DateOrDateTimeField(fields.Field):
                 raise ValidationError("Not a valid ISO 8601 date/datetime string.")
 
 
+class PredecessorSyncSchema(Schema):
+    """Schema for predecessor in sync operation.
+
+    Uses MS Project UIDs for reconciliation instead of internal UUIDs.
+    Supports both current and legacy field names.
+    """
+
+    predecessor_task_uid: fields.Field = fields.Field(
+        allow_none=True,
+        metadata={"description": "Predecessor task UID from MS Project (preferred)"},
+    )
+    predecessor_ms_project_uid: fields.Field = fields.Field(
+        allow_none=True,
+        metadata={"description": "Legacy alias for predecessor_task_uid"},
+    )
+    type = fields.String(
+        load_default="FS",
+        validate=OneOf(["FS", "SS", "FF", "SF"]),
+        metadata={
+            "description": (
+                "Relationship type: FS (Finish-to-Start), "
+                "SS (Start-to-Start), FF (Finish-to-Finish), "
+                "SF (Start-to-Finish)"
+            )
+        },
+    )
+    lag = fields.Integer(
+        load_default=0,
+        metadata={"description": "Lag time in minutes (positive=delay, negative=lead)"},
+    )
+
+
 class PredecessorSchema(Schema):
     """Schema for task predecessor relationship.
 
@@ -467,6 +499,7 @@ class TaskSyncItemSchema(Schema):
     """Schema for a single task in sync operation.
 
     Uses ms_project_uid as reconciliation key.
+    Supports both current (planned_start_date) and legacy (start) field names.
     """
 
     ms_project_uid: fields.Field = fields.Field(
@@ -475,8 +508,41 @@ class TaskSyncItemSchema(Schema):
     name = fields.String(allow_none=True, validate=Length(min=1, max=255))
     planned_start_date = DateOrDateTimeField(allow_none=True)
     planned_finish_date = DateOrDateTimeField(allow_none=True)
+    start = DateOrDateTimeField(
+        allow_none=True,
+        metadata={
+            "deprecated": True,
+            "description": "Legacy alias for planned_start_date",
+        },
+    )
+    finish = DateOrDateTimeField(
+        allow_none=True,
+        metadata={
+            "deprecated": True,
+            "description": "Legacy alias for planned_finish_date",
+        },
+    )
     duration = fields.String(allow_none=True)
-    predecessors = fields.List(fields.Nested(PredecessorSchema), allow_none=True)
+    predecessors = fields.List(fields.Nested(PredecessorSyncSchema), allow_none=True)
+
+    @pre_load
+    def handle_legacy_aliases(self, data: dict, **kwargs: Any) -> dict:
+        """Handle legacy field aliases.
+
+        Maps start -> planned_start_date and finish -> planned_finish_date if present.
+
+        Args:
+            data: Input data.
+            **kwargs: Additional marshmallow context arguments.
+
+        Returns:
+            Data with aliases resolved.
+        """
+        if "start" in data and "planned_start_date" not in data:
+            data["planned_start_date"] = data["start"]
+        if "finish" in data and "planned_finish_date" not in data:
+            data["planned_finish_date"] = data["finish"]
+        return data
 
 
 class TaskSyncSchema(Schema):

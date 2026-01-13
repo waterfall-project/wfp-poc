@@ -273,7 +273,7 @@ class TestTaskCreate:
 
         assert response.status_code == 422
         data = response.get_json()
-        assert data["error"] == "Unprocessable Entity"
+        assert data["message"] == "Validation failed"
 
     @patch("app.services.guardian_service.requests.post")
     def test_create_task_invalid_dates(
@@ -364,7 +364,7 @@ class TestTaskGet:
 
         assert response.status_code == 404
         data = response.get_json()
-        assert data["error"] == "Not Found"
+        assert data["message"] == "Task not found"
 
 
 class TestTaskUpdate:

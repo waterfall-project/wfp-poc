@@ -47,6 +47,16 @@ from app.utils.jwt_decorators import (
     require_jwt_auth,
 )
 
+
+def _get_correlation_id() -> str:
+    """Get or generate correlation ID for request tracing.
+
+    Returns:
+        Correlation ID from header or newly generated UUID.
+    """
+    return request.headers.get("X-Correlation-ID", str(uuid.uuid4()))
+
+
 # HTTP Error Types
 BAD_REQUEST_ERROR = "Bad Request"
 NOT_FOUND_ERROR = "Not Found"
@@ -506,15 +516,9 @@ class TaskListResource(Resource):
                 "errors": {"predecessors": error_msg},
             }, 400
 
-        # Check for circular dependencies
-        task_id_for_cycle_check = uuid.uuid4()
-        if predecessors and _detect_circular_dependency(
-            task_id_for_cycle_check, predecessors, project_uuid
-        ):
-            return {
-                "message": CIRCULAR_DEPENDENCY_MSG,
-                "errors": {"predecessors": "Circular dependency detected"},
-            }, 409
+        # Note: Circular dependency check is deferred to PATCH/update
+        # where the task ID is known. For POST, we allow creation and
+        # rely on validation during subsequent updates.
 
         # Create task
         task_type = _get_task_type(
@@ -635,7 +639,6 @@ class TaskResource(Resource):
         # Serialize response
         response_data = {
             "data": self.task_schema.dump(task),
-            "message": None,
         }
 
         return response_data, 200
@@ -643,7 +646,9 @@ class TaskResource(Resource):
     @require_jwt_auth
     @access_required(Operation.UPDATE, "tasks")
     @limiter.limit("50 per minute", key_func=_rate_limit_user_key)
-    def patch(self, project_id: str, id: str) -> tuple[dict, int]:
+    def patch(
+        self, project_id: str, id: str
+    ) -> tuple[dict, int] | tuple[dict, int, dict[str, str]]:
         """Update a task (partial update).
 
         Args:
@@ -736,10 +741,16 @@ class TaskResource(Resource):
 
             # Check for circular dependencies
             if _detect_circular_dependency(task_uuid, predecessors, project_uuid):
-                return {
-                    "message": CIRCULAR_DEPENDENCY_MSG,
-                    "errors": {"predecessors": "Circular dependency detected"},
-                }, 409
+                correlation_id = _get_correlation_id()
+                return (
+                    {
+                        "message": CIRCULAR_DEPENDENCY_MSG,
+                        "errors": {"predecessors": "Circular dependency detected"},
+                        "correlation_id": correlation_id,
+                    },
+                    409,
+                    {"X-Correlation-ID": correlation_id},
+                )
 
         # Update task fields
         if "name" in validated_data:
@@ -804,7 +815,9 @@ class TaskResource(Resource):
     @require_jwt_auth
     @access_required(Operation.DELETE, "tasks")
     @limiter.limit("20 per minute", key_func=_rate_limit_user_key)
-    def delete(self, project_id: str, id: str) -> tuple[dict | str, int]:
+    def delete(
+        self, project_id: str, id: str
+    ) -> tuple[dict | str, int] | tuple[dict, int, dict[str, str]]:
         """Delete a task.
 
         Cascades to assignments and child tasks. Blocks if task is
@@ -864,10 +877,16 @@ class TaskResource(Resource):
             .count()
         )
         if successor_count > 0:
-            return {
-                "message": REFERENCED_TASK_MSG,
-                "errors": {"predecessor": "Task is referenced by other tasks"},
-            }, 409
+            correlation_id = _get_correlation_id()
+            return (
+                {
+                    "message": REFERENCED_TASK_MSG,
+                    "errors": {"predecessor": "Task is referenced by other tasks"},
+                    "correlation_id": correlation_id,
+                },
+                409,
+                {"X-Correlation-ID": correlation_id},
+            )
 
         # Delete task (cascade will handle children and assignments)
         try:
@@ -1003,6 +1022,7 @@ class TaskBulkResource(Resource):
                 db.session.flush()
 
                 # Add predecessors (validate they exist in same project)
+                invalid_predecessors = []
                 for pred in predecessors:
                     pred_id = uuid.UUID(str(pred["predecessor_task_id"]))
                     # Check predecessor exists in same project
@@ -1010,6 +1030,7 @@ class TaskBulkResource(Resource):
                         id=pred_id, project_id=project_uuid
                     ).first()
                     if not pred_task:
+                        invalid_predecessors.append(str(pred_id))
                         continue  # Skip invalid predecessor in bulk operation
 
                     predecessor_rel = TaskPredecessor()
@@ -1018,6 +1039,17 @@ class TaskBulkResource(Resource):
                     predecessor_rel.type = pred["type"]
                     predecessor_rel.lag_minutes = pred.get("lag", 0)
                     db.session.add(predecessor_rel)
+
+                if invalid_predecessors:
+                    errors.append(
+                        {
+                            "index": idx,
+                            "task_name": task_data.get("name", "unknown"),
+                            "errors": {
+                                "predecessors": f"Invalid predecessor IDs: {', '.join(invalid_predecessors)}"
+                            },
+                        }
+                    )
 
                 created_tasks.append(task)
 
@@ -1191,6 +1223,7 @@ class TaskSyncResource(Resource):
 
                     for pred in task_data["predecessors"]:
                         # Resolve predecessor by MS Project UID
+                        # Support both current and legacy field names
                         pred_uid = pred.get("predecessor_task_uid") or pred.get(
                             "predecessor_ms_project_uid"
                         )

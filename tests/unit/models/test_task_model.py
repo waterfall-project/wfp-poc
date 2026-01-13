@@ -105,10 +105,10 @@ class TestTaskModel:
         assert task.ms_project_uid == 456
         assert task.wbs_code == "1.2.3"
         assert task.description == "Detailed task description"
-        assert task.planned_start_date == date(2026, 1, 15)
-        assert task.planned_finish_date == date(2026, 1, 30)
+        assert task.planned_start_date == datetime(2026, 1, 15, 0, 0)
+        assert task.planned_finish_date == datetime(2026, 1, 30, 0, 0)
         assert task.planned_duration_minutes == 9600
-        assert task.actual_start_date == date(2026, 1, 16)
+        assert task.actual_start_date == datetime(2026, 1, 16, 0, 0)
         assert task.percent_complete == 45.50
         assert float(task.planned_cost) == 5000.00
         assert float(task.earned_value) == 2275.00

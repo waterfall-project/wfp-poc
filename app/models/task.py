@@ -20,7 +20,7 @@ from typing import TYPE_CHECKING
 from sqlalchemy import (
     Boolean,
     CheckConstraint,
-    Date,
+    DateTime,
     ForeignKey,
     Integer,
     Numeric,
@@ -142,14 +142,14 @@ class Task(UUIDMixin, TimestampMixin, Model):
     )
 
     planned_start_date: Mapped[datetime | None] = mapped_column(
-        Date,
+        DateTime,
         nullable=True,
         index=True,
         doc="Planned start date",
     )
 
     planned_finish_date: Mapped[datetime | None] = mapped_column(
-        Date,
+        DateTime,
         nullable=True,
         index=True,
         doc="Planned finish date",
@@ -162,13 +162,13 @@ class Task(UUIDMixin, TimestampMixin, Model):
     )
 
     actual_start_date: Mapped[datetime | None] = mapped_column(
-        Date,
+        DateTime,
         nullable=True,
         doc="Actual start date",
     )
 
     actual_finish_date: Mapped[datetime | None] = mapped_column(
-        Date,
+        DateTime,
         nullable=True,
         doc="Actual finish date",
     )

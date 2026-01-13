@@ -161,7 +161,7 @@ class TestTaskBulkCreate:
         # Schema validation fails upfront when any task is invalid
         assert response.status_code == 422
         data = response.get_json()
-        assert data["error"] == "Unprocessable Entity"
+        assert data["message"] == "Validation failed"
 
     @patch("app.services.guardian_service.requests.post")
     def test_bulk_create_tasks_exceeds_limit(
@@ -200,7 +200,7 @@ class TestTaskBulkCreate:
 
         assert response.status_code == 422
         data = response.get_json()
-        assert data["error"] == "Unprocessable Entity"
+        assert data["message"] == "Validation failed"
 
     @patch("app.services.guardian_service.requests.post")
     def test_bulk_create_tasks_empty_array(

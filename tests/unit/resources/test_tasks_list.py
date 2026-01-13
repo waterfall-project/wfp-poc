@@ -363,7 +363,7 @@ class TestTaskListGet:
 
         assert response.status_code == 404
         data = response.get_json()
-        assert data["error"] == "Not Found"
+        assert data["message"] == "Project not found"
 
     @patch("app.services.guardian_service.requests.post")
     def test_list_tasks_no_auth(
