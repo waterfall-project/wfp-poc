@@ -7,15 +7,6 @@
 # See LICENSE and LICENSE.md files in the root directory for full license text.
 # For commercial licensing inquiries, contact: contact@waterfall-project.pro
 
-# Copyright (c) 2025 Waterfall
-#
-# This source code is dual-licensed under:
-# - GNU Affero General Public License v3.0 (AGPLv3) for open source use
-# - Commercial License for proprietary use
-#
-# See LICENSE and LICENSE.md files in the root directory for full license text.
-# For commercial licensing inquiries, contact: contact@waterfall-project.pro
-
 """Marshmallow schemas for Task resource.
 
 Provides schemas for validation, serialization, and deserialization
@@ -35,11 +26,12 @@ from app.models.task import Task
 
 
 class DateOrDateTimeField(fields.Field):
-    """Custom field that accepts both date and datetime but stores/returns dates.
+    """Custom field that accepts both date and datetime values.
 
-    This field handles the mismatch between the OpenAPI spec (format: date-time)
-    and the database model (Date columns). It accepts ISO datetime strings from
-    API requests and converts them to date objects for storage.
+    This field handles the OpenAPI spec (format: date-time) requirement
+    and the database model (DateTime columns). It accepts ISO datetime strings
+    from API requests and normalizes them to Python date or datetime instances
+    as required by the application logic.
     """
 
     def _serialize(
@@ -74,8 +66,8 @@ class DateOrDateTimeField(fields.Field):
 
     def _deserialize(
         self, value: Any, attr: str | None, data: Mapping[str, Any] | None, **kwargs
-    ) -> date | None:
-        """Deserialize ISO date or datetime string to date object.
+    ) -> datetime | None:
+        """Deserialize ISO date or datetime string to datetime object.
 
         Args:
             value: Input string.
@@ -84,7 +76,7 @@ class DateOrDateTimeField(fields.Field):
             **kwargs: Additional marshmallow context arguments.
 
         Returns:
-            Date object or None.
+            Datetime object or None.
 
         Raises:
             ValidationError: If value is not a valid date/datetime string.
@@ -92,8 +84,12 @@ class DateOrDateTimeField(fields.Field):
         if value is None:
             return None
 
-        if isinstance(value, date):
+        if isinstance(value, datetime):
             return value
+
+        if isinstance(value, date) and not isinstance(value, datetime):
+            # Convert date to datetime at midnight UTC
+            return datetime.combine(value, datetime.min.time())
 
         if not isinstance(value, str):
             raise ValidationError("Not a valid date/datetime string.")
@@ -101,11 +97,16 @@ class DateOrDateTimeField(fields.Field):
         # Try parsing as datetime first (supports both date and datetime formats)
         try:
             dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
-            return dt.date()
+            # Normalize to naive datetime (remove timezone info)
+            if dt.tzinfo is not None:
+                dt = dt.astimezone(UTC).replace(tzinfo=None)
+            return dt
         except ValueError:
             # Try parsing as date only
             try:
-                return date.fromisoformat(value)
+                parsed_date = date.fromisoformat(value)
+                # Convert date to datetime at midnight
+                return datetime.combine(parsed_date, datetime.min.time())
             except ValueError:
                 raise ValidationError("Not a valid ISO 8601 date/datetime string.")
 
