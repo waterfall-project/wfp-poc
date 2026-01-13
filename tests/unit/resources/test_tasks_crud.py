@@ -468,6 +468,89 @@ class TestTaskUpdate:
 
         assert response.status_code == 404
 
+    @patch("app.services.guardian_service.requests.post")
+    def test_update_task_circular_dependency(
+        self,
+        mock_guardian: MagicMock,
+        authenticated_client: FlaskClient,
+        test_project: Project,
+        app: Flask,
+    ) -> None:
+        """Test updating task with circular dependency detection.
+
+        Given: Two tasks with predecessor relationship
+        When: PATCH creates circular dependency
+        Then: Returns 409 with correlation_id and X-Correlation-ID header
+        """
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"access_granted": True, "reason": "granted"}
+        mock_guardian.return_value = mock_response
+
+        # Create two tasks with A -> B relationship
+        with app.app_context():
+            task_a = Task(
+                project_id=test_project.id,
+                name="Task A",
+                type="task",
+                status="not_started",
+                planned_start_date=datetime.now(UTC),
+                planned_finish_date=datetime.now(UTC) + timedelta(days=5),
+            )
+            task_b = Task(
+                project_id=test_project.id,
+                name="Task B",
+                type="task",
+                status="not_started",
+                planned_start_date=datetime.now(UTC) + timedelta(days=6),
+                planned_finish_date=datetime.now(UTC) + timedelta(days=10),
+            )
+            db.session.add_all([task_a, task_b])
+            db.session.commit()
+
+            # Create predecessor: A -> B
+            predecessor_rel = TaskPredecessor(
+                predecessor_id=task_a.id,
+                successor_id=task_b.id,
+                type="FS",
+                lag_minutes=0,
+            )
+            db.session.add(predecessor_rel)
+            db.session.commit()
+
+            task_a_id = task_a.id
+            task_b_id = task_b.id
+
+        # Try to update task A with predecessor B (creates cycle: A -> B -> A)
+        payload = {
+            "predecessors": [
+                {
+                    "predecessor_task_id": str(task_b_id),
+                    "type": "FS",
+                    "lag": 0,
+                }
+            ]
+        }
+
+        response = authenticated_client.patch(
+            f"/v0/projects/{test_project.id}/tasks/{task_a_id}", json=payload
+        )
+
+        assert response.status_code == 409
+        data = response.get_json()
+
+        # Verify correlation_id in response body
+        assert "correlation_id" in data
+        assert data["correlation_id"] is not None
+        assert len(data["correlation_id"]) > 0
+
+        # Verify X-Correlation-ID header
+        assert "X-Correlation-ID" in response.headers
+        assert response.headers["X-Correlation-ID"] == data["correlation_id"]
+
+        # Verify error message
+        assert "circular" in data["message"].lower() or "dependency" in data["message"].lower()
+
 
 class TestTaskDelete:
     """Tests for DELETE /v0/projects/{project_id}/tasks/{id} endpoint."""
@@ -554,6 +637,15 @@ class TestTaskDelete:
         assert response.status_code == 409
         data = response.get_json()
         assert "predecessor" in data["message"].lower()
+
+        # Verify correlation_id in response body
+        assert "correlation_id" in data
+        assert data["correlation_id"] is not None
+        assert len(data["correlation_id"]) > 0
+
+        # Verify X-Correlation-ID header
+        assert "X-Correlation-ID" in response.headers
+        assert response.headers["X-Correlation-ID"] == data["correlation_id"]
 
     @patch("app.services.guardian_service.requests.post")
     def test_delete_task_not_found(

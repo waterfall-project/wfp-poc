@@ -228,6 +228,126 @@ class TestTaskBulkCreate:
 
         assert response.status_code == 422
 
+    @patch("app.services.guardian_service.requests.post")
+    def test_bulk_create_tasks_with_invalid_predecessors(
+        self,
+        mock_guardian: MagicMock,
+        authenticated_client: FlaskClient,
+        test_project: Project,
+        app: Flask,
+    ) -> None:
+        """Test bulk creation with invalid predecessor references.
+
+        Given: Tasks with predecessor IDs that don't exist
+        When: POST /v0/projects/{id}/tasks/bulk is called
+        Then: Returns 201 but tracks invalid predecessors in errors
+        """
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"access_granted": True, "reason": "granted"}
+        mock_guardian.return_value = mock_response
+
+        # Create a valid task first
+        with app.app_context():
+            valid_task = Task(
+                project_id=test_project.id,
+                name="Existing Task",
+                type="task",
+                status="not_started",
+                planned_start_date=datetime.now(UTC),
+                planned_finish_date=datetime.now(UTC) + timedelta(days=5),
+            )
+            db.session.add(valid_task)
+            db.session.commit()
+            valid_task_id = valid_task.id
+
+        # Create fake UUID for non-existent predecessor
+        invalid_predecessor_id = str(uuid.uuid4())
+
+        payload = {
+            "tasks": [
+                {
+                    "name": "Task with Valid Predecessor",
+                    "start": "2026-02-01T09:00:00Z",
+                    "finish": "2026-02-15T18:00:00Z",
+                    "wbs": "1.1",
+                    "predecessors": [
+                        {
+                            "predecessor_task_id": str(valid_task_id),
+                            "type": "FS",
+                            "lag": 0,
+                        }
+                    ],
+                },
+                {
+                    "name": "Task with Invalid Predecessor",
+                    "start": "2026-02-16T09:00:00Z",
+                    "finish": "2026-03-15T18:00:00Z",
+                    "wbs": "1.2",
+                    "predecessors": [
+                        {
+                            "predecessor_task_id": invalid_predecessor_id,
+                            "type": "FS",
+                            "lag": 0,
+                        }
+                    ],
+                },
+                {
+                    "name": "Task with Multiple Invalid Predecessors",
+                    "start": "2026-03-16T09:00:00Z",
+                    "finish": "2026-05-15T18:00:00Z",
+                    "wbs": "1.3",
+                    "predecessors": [
+                        {
+                            "predecessor_task_id": str(uuid.uuid4()),
+                            "type": "FS",
+                            "lag": 0,
+                        },
+                        {
+                            "predecessor_task_id": str(uuid.uuid4()),
+                            "type": "FS",
+                            "lag": 0,
+                        },
+                    ],
+                },
+            ]
+        }
+
+        response = authenticated_client.post(
+            f"/v0/projects/{test_project.id}/tasks/bulk", json=payload
+        )
+
+        assert response.status_code == 201
+        data = response.get_json()
+
+        # All tasks should be created
+        assert data["data"]["created_count"] == 3
+
+        # But errors should be tracked for invalid predecessors
+        # The failed_count reflects tasks with errors (invalid predecessors)
+        assert data["data"]["failed_count"] == 2  # Two tasks have invalid predecessors
+        assert len(data["data"]["errors"]) == 2  # Two tasks have invalid predecessors
+
+        # Verify error details
+        errors = data["data"]["errors"]
+        error_indices = [err["index"] for err in errors]
+        assert 1 in error_indices  # Second task (index 1)
+        assert 2 in error_indices  # Third task (index 2)
+
+        # Verify error messages mention predecessors
+        for error in errors:
+            assert "predecessors" in error["errors"]
+            assert "Invalid predecessor" in error["errors"]["predecessors"]
+
+        # Verify all 3 tasks were created in the response
+        assert len(data["data"]["tasks"]) == 3
+
+        # Verify tasks were created in database
+        with app.app_context():
+            tasks = Task.query.filter_by(project_id=test_project.id).order_by(Task.name).all()
+            # Should have: Existing Task + 3 new tasks = 4 total
+            assert len(tasks) == 4
+
 
 class TestTaskSync:
     """Tests for PUT /v0/projects/{project_id}/tasks/sync endpoint."""
