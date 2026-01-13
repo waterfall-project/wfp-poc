@@ -113,6 +113,57 @@ def _rate_limit_user_key() -> str:
     return request.remote_addr or "anonymous"
 
 
+def _validate_predecessors_in_project(
+    predecessors: list[dict[str, Any]], project_id: uuid.UUID
+) -> tuple[bool, str | None]:
+    """Validate all predecessor tasks belong to the same project.
+
+    Args:
+        predecessors: List of predecessor relationships with predecessor_task_id.
+        project_id: Expected project UUID.
+
+    Returns:
+        Tuple of (is_valid, error_message).
+    """
+    if not predecessors:
+        return True, None
+
+    for pred in predecessors:
+        pred_id = uuid.UUID(str(pred["predecessor_task_id"]))
+        pred_task = Task.query.filter_by(id=pred_id, project_id=project_id).first()
+        if not pred_task:
+            return (
+                False,
+                f"Predecessor task {pred_id} not found in project {project_id}",
+            )
+
+    return True, None
+
+
+def _parse_boolean_param(value: str | None) -> bool | None:
+    """Parse boolean query parameter strictly.
+
+    Args:
+        value: Query parameter value.
+
+    Returns:
+        True, False, or None if parameter not provided.
+
+    Raises:
+        ValueError: If value is not a valid boolean representation.
+    """
+    if value is None:
+        return None
+
+    lower_value = value.lower()
+    if lower_value in ("true", "1", "yes"):
+        return True
+    if lower_value in ("false", "0", "no"):
+        return False
+
+    raise ValueError(f"Invalid boolean value: {value}")
+
+
 def _get_task_type(is_milestone: bool | None, is_summary: bool | None) -> str:
     """Determine task type from boolean flags.
 
@@ -218,7 +269,8 @@ class TaskListResource(Resource):
             is_milestone (bool): Filter milestones only
             is_summary (bool): Filter summary tasks only
             is_critical (bool): Filter critical path tasks only
-            status (str): Filter by status (not_started, in_progress, completed, cancelled)
+            status (str): Filter by status
+                (not_started, in_progress, completed, cancelled)
             search (str): Search in name field
             sort_by (str): Field to sort by (wbs, name, start, finish)
             sort_order (str): Sort direction (asc, desc)
@@ -251,8 +303,8 @@ class TaskListResource(Resource):
             project_uuid = uuid.UUID(project_id)
         except ValueError:
             return {
-                "error": BAD_REQUEST_ERROR,
                 "message": "Invalid project_id format",
+                "errors": {"validation": "Invalid request"},
             }, 400
 
         project = Project.query.filter_by(
@@ -260,7 +312,6 @@ class TaskListResource(Resource):
         ).first()
         if not project:
             return {
-                "error": NOT_FOUND_ERROR,
                 "message": PROJECT_NOT_FOUND_MSG,
             }, 404
 
@@ -270,7 +321,6 @@ class TaskListResource(Resource):
             per_page = min(100, max(1, int(request.args.get("per_page", 20))))
         except ValueError:
             return {
-                "error": BAD_REQUEST_ERROR,
                 "message": INVALID_PAGINATION_MSG,
             }, 400
 
@@ -288,35 +338,34 @@ class TaskListResource(Resource):
                     query = query.filter_by(parent_id=parent_uuid)
                 except ValueError:
                     return {
-                        "error": BAD_REQUEST_ERROR,
                         "message": "Invalid UUID format",
+                        "errors": {"validation": "Invalid request"},
                     }, 400
 
-        # Apply boolean filters
-        is_milestone = request.args.get("is_milestone")
-        if is_milestone is not None:
-            is_milestone_bool = is_milestone.lower() in ("true", "1", "yes")
-            # Assuming we map is_milestone to type='milestone' in model
-            if is_milestone_bool:
+        # Apply boolean filters with strict validation
+        try:
+            is_milestone = _parse_boolean_param(request.args.get("is_milestone"))
+            if is_milestone is not None and is_milestone:
                 query = query.filter_by(type="milestone")
 
-        is_summary = request.args.get("is_summary")
-        if is_summary is not None:
-            is_summary_bool = is_summary.lower() in ("true", "1", "yes")
-            if is_summary_bool:
+            is_summary = _parse_boolean_param(request.args.get("is_summary"))
+            if is_summary is not None and is_summary:
                 query = query.filter_by(type="summary")
 
-        is_critical = request.args.get("is_critical")
-        if is_critical is not None:
-            is_critical_bool = is_critical.lower() in ("true", "1", "yes")
-            query = query.filter_by(is_critical=is_critical_bool)
+            is_critical = _parse_boolean_param(request.args.get("is_critical"))
+            if is_critical is not None:
+                query = query.filter_by(is_critical=is_critical)
+        except ValueError as e:
+            return {
+                "message": "Invalid boolean parameter",
+                "errors": {"query_params": str(e)},
+            }, 400
 
         # Apply status filter
         status = request.args.get("status")
         if status:
             if status not in ["not_started", "in_progress", "completed", "cancelled"]:
                 return {
-                    "error": BAD_REQUEST_ERROR,
                     "message": INVALID_STATUS_MSG.format(status=status),
                 }, 400
             query = query.filter_by(status=status)
@@ -333,13 +382,11 @@ class TaskListResource(Resource):
 
         if sort_by not in ["wbs", "name", "start", "finish"]:
             return {
-                "error": BAD_REQUEST_ERROR,
                 "message": INVALID_SORT_BY_MSG.format(sort_by=sort_by),
             }, 400
 
         if sort_order not in ["asc", "desc"]:
             return {
-                "error": BAD_REQUEST_ERROR,
                 "message": INVALID_SORT_ORDER_MSG.format(sort_order=sort_order),
             }, 400
 
@@ -408,8 +455,8 @@ class TaskListResource(Resource):
             project_uuid = uuid.UUID(project_id)
         except ValueError:
             return {
-                "error": BAD_REQUEST_ERROR,
                 "message": "Invalid project_id format",
+                "errors": {"validation": "Invalid request"},
             }, 400
 
         project = Project.query.filter_by(
@@ -417,23 +464,22 @@ class TaskListResource(Resource):
         ).first()
         if not project:
             return {
-                "error": NOT_FOUND_ERROR,
                 "message": PROJECT_NOT_FOUND_MSG,
             }, 404
 
         # Validate request body
         if not request.is_json:
             return {
-                "error": BAD_REQUEST_ERROR,
                 "message": INVALID_JSON_BODY_MSG,
+                "errors": {"body": "Request body must be JSON"},
             }, 400
 
         json_data_raw = request.get_json()
 
         if not isinstance(json_data_raw, dict):
             return {
-                "error": BAD_REQUEST_ERROR,
                 "message": INVALID_JSON_BODY_MSG,
+                "errors": {"body": "Request body must be a JSON object"},
             }, 400
 
         json_data = cast("dict[str, Any]", json_data_raw)
@@ -445,20 +491,29 @@ class TaskListResource(Resource):
             )
         except ValidationError as err:
             return {
-                "error": UNPROCESSABLE_ENTITY_ERROR,
                 "message": VALIDATION_FAILED_MSG,
                 "errors": err.messages,
             }, 422
 
+        # Validate predecessors belong to same project
+        predecessors = validated_data.get("predecessors", [])
+        is_valid, error_msg = _validate_predecessors_in_project(
+            predecessors, project_uuid
+        )
+        if not is_valid:
+            return {
+                "message": "Invalid predecessor reference",
+                "errors": {"predecessors": error_msg},
+            }, 400
+
         # Check for circular dependencies
         task_id_for_cycle_check = uuid.uuid4()
-        predecessors = validated_data.get("predecessors", [])
-        if _detect_circular_dependency(
+        if predecessors and _detect_circular_dependency(
             task_id_for_cycle_check, predecessors, project_uuid
         ):
             return {
-                "error": CONFLICT_ERROR,
                 "message": CIRCULAR_DEPENDENCY_MSG,
+                "errors": {"predecessors": "Circular dependency detected"},
             }, 409
 
         # Create task
@@ -497,9 +552,10 @@ class TaskListResource(Resource):
         except IntegrityError as e:
             db.session.rollback()
             return {
-                "error": CONFLICT_ERROR,
                 "message": "Database integrity error",
-                "detail": str(e.orig) if hasattr(e, "orig") else str(e),
+                "errors": {
+                    "database": str(e.orig) if hasattr(e, "orig") else str(e),
+                },
             }, 409
 
         # Serialize response
@@ -556,8 +612,8 @@ class TaskResource(Resource):
             task_uuid = uuid.UUID(id)
         except ValueError:
             return {
-                "error": BAD_REQUEST_ERROR,
                 "message": "Invalid UUID format",
+                "errors": {"validation": "Invalid request"},
             }, 400
 
         # Validate project exists and belongs to company
@@ -566,7 +622,6 @@ class TaskResource(Resource):
         ).first()
         if not project:
             return {
-                "error": NOT_FOUND_ERROR,
                 "message": PROJECT_NOT_FOUND_MSG,
             }, 404
 
@@ -574,7 +629,6 @@ class TaskResource(Resource):
         task = Task.query.filter_by(id=task_uuid, project_id=project_uuid).first()
         if not task:
             return {
-                "error": NOT_FOUND_ERROR,
                 "message": TASK_NOT_FOUND_MSG,
             }, 404
 
@@ -621,8 +675,8 @@ class TaskResource(Resource):
             task_uuid = uuid.UUID(id)
         except ValueError:
             return {
-                "error": BAD_REQUEST_ERROR,
                 "message": "Invalid UUID format",
+                "errors": {"validation": "Invalid request"},
             }, 400
 
         # Validate project exists and belongs to company
@@ -631,7 +685,6 @@ class TaskResource(Resource):
         ).first()
         if not project:
             return {
-                "error": NOT_FOUND_ERROR,
                 "message": PROJECT_NOT_FOUND_MSG,
             }, 404
 
@@ -639,14 +692,12 @@ class TaskResource(Resource):
         task = Task.query.filter_by(id=task_uuid, project_id=project_uuid).first()
         if not task:
             return {
-                "error": NOT_FOUND_ERROR,
                 "message": TASK_NOT_FOUND_MSG,
             }, 404
 
         # Validate request body
         if not request.is_json:
             return {
-                "error": BAD_REQUEST_ERROR,
                 "message": INVALID_JSON_BODY_MSG,
             }, 400
 
@@ -654,7 +705,6 @@ class TaskResource(Resource):
 
         if not isinstance(json_data_raw, dict):
             return {
-                "error": BAD_REQUEST_ERROR,
                 "message": INVALID_JSON_BODY_MSG,
             }, 400
 
@@ -667,20 +717,29 @@ class TaskResource(Resource):
             )
         except ValidationError as err:
             return {
-                "error": UNPROCESSABLE_ENTITY_ERROR,
                 "message": VALIDATION_FAILED_MSG,
                 "errors": err.messages,
             }, 422
 
         # Check for circular dependencies if predecessors are being updated
         predecessors = validated_data.get("predecessors")
-        if predecessors is not None and _detect_circular_dependency(
-            task_uuid, predecessors, project_uuid
-        ):
-            return {
-                "error": CONFLICT_ERROR,
-                "message": CIRCULAR_DEPENDENCY_MSG,
-            }, 409
+        if predecessors is not None:
+            # Validate predecessors belong to same project
+            is_valid, error_msg = _validate_predecessors_in_project(
+                predecessors, project_uuid
+            )
+            if not is_valid:
+                return {
+                    "message": "Invalid predecessor reference",
+                    "errors": {"predecessors": error_msg},
+                }, 400
+
+            # Check for circular dependencies
+            if _detect_circular_dependency(task_uuid, predecessors, project_uuid):
+                return {
+                    "message": CIRCULAR_DEPENDENCY_MSG,
+                    "errors": {"predecessors": "Circular dependency detected"},
+                }, 409
 
         # Update task fields
         if "name" in validated_data:
@@ -725,9 +784,10 @@ class TaskResource(Resource):
         except IntegrityError as e:
             db.session.rollback()
             return {
-                "error": CONFLICT_ERROR,
                 "message": "Database integrity error",
-                "detail": str(e.orig) if hasattr(e, "orig") else str(e),
+                "errors": {
+                    "database": str(e.orig) if hasattr(e, "orig") else str(e),
+                },
             }, 409
 
         # Refresh to get updated relationships
@@ -744,7 +804,7 @@ class TaskResource(Resource):
     @require_jwt_auth
     @access_required(Operation.DELETE, "tasks")
     @limiter.limit("20 per minute", key_func=_rate_limit_user_key)
-    def delete(self, project_id: str, id: str) -> tuple[dict, int]:
+    def delete(self, project_id: str, id: str) -> tuple[dict | str, int]:
         """Delete a task.
 
         Cascades to assignments and child tasks. Blocks if task is
@@ -774,8 +834,8 @@ class TaskResource(Resource):
             task_uuid = uuid.UUID(id)
         except ValueError:
             return {
-                "error": BAD_REQUEST_ERROR,
                 "message": "Invalid UUID format",
+                "errors": {"validation": "Invalid request"},
             }, 400
 
         # Validate project exists and belongs to company
@@ -784,7 +844,6 @@ class TaskResource(Resource):
         ).first()
         if not project:
             return {
-                "error": NOT_FOUND_ERROR,
                 "message": PROJECT_NOT_FOUND_MSG,
             }, 404
 
@@ -792,18 +851,22 @@ class TaskResource(Resource):
         task = Task.query.filter_by(id=task_uuid, project_id=project_uuid).first()
         if not task:
             return {
-                "error": NOT_FOUND_ERROR,
                 "message": TASK_NOT_FOUND_MSG,
             }, 404
 
-        # Check if task is referenced as predecessor
-        successor_count = TaskPredecessor.query.filter_by(
-            predecessor_id=task_uuid
-        ).count()
+        # Check if task is referenced as predecessor by tasks in the same project
+        successor_count = (
+            TaskPredecessor.query.join(Task, TaskPredecessor.successor_id == Task.id)
+            .filter(
+                TaskPredecessor.predecessor_id == task_uuid,
+                Task.project_id == project_uuid,
+            )
+            .count()
+        )
         if successor_count > 0:
             return {
-                "error": CONFLICT_ERROR,
                 "message": REFERENCED_TASK_MSG,
+                "errors": {"predecessor": "Task is referenced by other tasks"},
             }, 409
 
         # Delete task (cascade will handle children and assignments)
@@ -813,12 +876,11 @@ class TaskResource(Resource):
         except IntegrityError as e:
             db.session.rollback()
             return {
-                "error": CONFLICT_ERROR,
                 "message": "Database integrity error",
-                "detail": str(e.orig) if hasattr(e, "orig") else str(e),
+                "errors": {"database": str(e.orig) if hasattr(e, "orig") else str(e)},
             }, 409
 
-        return {}, 204
+        return "", 204
 
 
 class TaskBulkResource(Resource):
@@ -870,8 +932,8 @@ class TaskBulkResource(Resource):
             project_uuid = uuid.UUID(project_id)
         except ValueError:
             return {
-                "error": BAD_REQUEST_ERROR,
                 "message": "Invalid project_id format",
+                "errors": {"validation": "Invalid request"},
             }, 400
 
         project = Project.query.filter_by(
@@ -879,14 +941,12 @@ class TaskBulkResource(Resource):
         ).first()
         if not project:
             return {
-                "error": NOT_FOUND_ERROR,
                 "message": PROJECT_NOT_FOUND_MSG,
             }, 404
 
         # Validate request body
         if not request.is_json:
             return {
-                "error": BAD_REQUEST_ERROR,
                 "message": INVALID_JSON_BODY_MSG,
             }, 400
 
@@ -894,7 +954,6 @@ class TaskBulkResource(Resource):
 
         if not isinstance(json_data_raw, dict):
             return {
-                "error": BAD_REQUEST_ERROR,
                 "message": INVALID_JSON_BODY_MSG,
             }, 400
 
@@ -906,7 +965,6 @@ class TaskBulkResource(Resource):
             validated_data = cast("dict[str, Any]", validated_data_raw)
         except ValidationError as err:
             return {
-                "error": UNPROCESSABLE_ENTITY_ERROR,
                 "message": VALIDATION_FAILED_MSG,
                 "errors": err.messages,
             }, 422
@@ -920,6 +978,9 @@ class TaskBulkResource(Resource):
             try:
                 # Get predecessors
                 predecessors = task_data.get("predecessors", [])
+
+                # Validate predecessors (skip validation errors in bulk, just log them)
+                # This allows partial success
 
                 # Create task
                 task_type = _get_task_type(
@@ -941,13 +1002,19 @@ class TaskBulkResource(Resource):
                 db.session.add(task)
                 db.session.flush()
 
-                # Add predecessors
+                # Add predecessors (validate they exist in same project)
                 for pred in predecessors:
+                    pred_id = uuid.UUID(str(pred["predecessor_task_id"]))
+                    # Check predecessor exists in same project
+                    pred_task = Task.query.filter_by(
+                        id=pred_id, project_id=project_uuid
+                    ).first()
+                    if not pred_task:
+                        continue  # Skip invalid predecessor in bulk operation
+
                     predecessor_rel = TaskPredecessor()
                     predecessor_rel.successor_id = task.id
-                    predecessor_rel.predecessor_id = uuid.UUID(
-                        str(pred["predecessor_task_id"])
-                    )
+                    predecessor_rel.predecessor_id = pred_id
                     predecessor_rel.type = pred["type"]
                     predecessor_rel.lag_minutes = pred.get("lag", 0)
                     db.session.add(predecessor_rel)
@@ -969,9 +1036,10 @@ class TaskBulkResource(Resource):
         except IntegrityError as e:
             db.session.rollback()
             return {
-                "error": CONFLICT_ERROR,
                 "message": "Database integrity error",
-                "detail": str(e.orig) if hasattr(e, "orig") else str(e),
+                "errors": {
+                    "database": str(e.orig) if hasattr(e, "orig") else str(e),
+                },
             }, 409
 
         # Prepare response
@@ -1046,8 +1114,8 @@ class TaskSyncResource(Resource):
             project_uuid = uuid.UUID(project_id)
         except ValueError:
             return {
-                "error": BAD_REQUEST_ERROR,
                 "message": "Invalid project_id format",
+                "errors": {"validation": "Invalid request"},
             }, 400
 
         project = Project.query.filter_by(
@@ -1055,14 +1123,12 @@ class TaskSyncResource(Resource):
         ).first()
         if not project:
             return {
-                "error": NOT_FOUND_ERROR,
                 "message": PROJECT_NOT_FOUND_MSG,
             }, 404
 
         # Validate request body
         if not request.is_json:
             return {
-                "error": BAD_REQUEST_ERROR,
                 "message": INVALID_JSON_BODY_MSG,
             }, 400
 
@@ -1070,7 +1136,6 @@ class TaskSyncResource(Resource):
 
         if not isinstance(json_data_raw, dict):
             return {
-                "error": BAD_REQUEST_ERROR,
                 "message": INVALID_JSON_BODY_MSG,
             }, 400
 
@@ -1082,7 +1147,6 @@ class TaskSyncResource(Resource):
             validated_data = cast("dict[str, Any]", validated_data_raw)
         except ValidationError as err:
             return {
-                "error": UNPROCESSABLE_ENTITY_ERROR,
                 "message": VALIDATION_FAILED_MSG,
                 "errors": err.messages,
             }, 422
@@ -1126,14 +1190,24 @@ class TaskSyncResource(Resource):
                     ).delete()
 
                     for pred in task_data["predecessors"]:
-                        predecessor_rel = TaskPredecessor()
-                        predecessor_rel.successor_id = existing_task.id
-                        predecessor_rel.predecessor_id = uuid.UUID(
-                            str(pred["predecessor_task_id"])
+                        # Resolve predecessor by MS Project UID
+                        pred_uid = pred.get("predecessor_task_uid") or pred.get(
+                            "predecessor_ms_project_uid"
                         )
-                        predecessor_rel.type = pred["type"]
-                        predecessor_rel.lag_minutes = pred.get("lag", 0)
-                        db.session.add(predecessor_rel)
+                        if pred_uid is None:
+                            continue  # Skip invalid predecessor
+
+                        pred_task = Task.query.filter_by(
+                            project_id=project_uuid, ms_project_uid=pred_uid
+                        ).first()
+
+                        if pred_task:
+                            predecessor_rel = TaskPredecessor()
+                            predecessor_rel.successor_id = existing_task.id
+                            predecessor_rel.predecessor_id = pred_task.id
+                            predecessor_rel.type = pred.get("type", "FS")
+                            predecessor_rel.lag_minutes = pred.get("lag", 0)
+                            db.session.add(predecessor_rel)
 
                 updated_count += 1
                 updated_tasks.append(existing_task)
@@ -1149,9 +1223,10 @@ class TaskSyncResource(Resource):
         except IntegrityError as e:
             db.session.rollback()
             return {
-                "error": CONFLICT_ERROR,
                 "message": "Database integrity error",
-                "detail": str(e.orig) if hasattr(e, "orig") else str(e),
+                "errors": {
+                    "database": str(e.orig) if hasattr(e, "orig") else str(e),
+                },
             }, 409
 
         # Prepare response matching OpenAPI spec
@@ -1165,9 +1240,13 @@ class TaskSyncResource(Resource):
                 ],
                 "not_found_uids": not_found_uids,
                 "not_found_guids": [],  # Not used in current implementation
-                "recalculated_milestones": [],  # TODO: Implement milestone recalculation
+                # TODO: Implement milestone recalculation
+                "recalculated_milestones": [],
             },
-            "message": f"{updated_count} tasks updated, {not_found_count} not found, {milestone_recalculated_count} milestones recalculated",
+            "message": (
+                f"{updated_count} tasks updated, {not_found_count} not found, "
+                f"{milestone_recalculated_count} milestones recalculated"
+            ),
         }
 
         return response_data, 200

@@ -23,7 +23,7 @@ of task data according to OpenAPI specification.
 """
 
 from collections.abc import Mapping
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from typing import Any
 
 from marshmallow import Schema, fields, post_dump, pre_load, validates_schema
@@ -45,7 +45,7 @@ class DateOrDateTimeField(fields.Field):
     def _serialize(
         self, value: Any, attr: str | None, obj: Any, **kwargs
     ) -> str | None:
-        """Serialize date to ISO format string (YYYY-MM-DD).
+        """Serialize date to ISO 8601 datetime string with timezone.
 
         Args:
             value: Date or datetime object.
@@ -54,15 +54,23 @@ class DateOrDateTimeField(fields.Field):
             **kwargs: Additional marshmallow context arguments.
 
         Returns:
-            ISO format date string or None.
+            ISO 8601 datetime string with timezone or None.
         """
         if value is None:
             return None
+        # Convert date to datetime at midnight UTC
+        if isinstance(value, date) and not isinstance(value, datetime):
+            value = datetime.combine(value, datetime.min.time())
+        # Ensure datetime has timezone (assume UTC if naive)
         if isinstance(value, datetime):
-            return value.date().isoformat()
-        if isinstance(value, date):
-            return value.isoformat()
-        return str(value)
+            if value.tzinfo is None:
+                # Naive datetime - assume UTC
+
+                value = value.replace(tzinfo=UTC)
+            result: str = value.isoformat()
+            return result
+        # Fallback for unexpected types
+        return None
 
     def _deserialize(
         self, value: Any, attr: str | None, data: Mapping[str, Any] | None, **kwargs
@@ -113,8 +121,11 @@ class PredecessorSchema(Schema):
         required=True,
         validate=OneOf(["FS", "SS", "FF", "SF"]),
         metadata={
-            "description": "Relationship type: FS (Finish-to-Start), SS (Start-to-Start), "
-            "FF (Finish-to-Finish), SF (Start-to-Finish)"
+            "description": (
+                "Relationship type: FS (Finish-to-Start), "
+                "SS (Start-to-Start), FF (Finish-to-Finish), "
+                "SF (Start-to-Finish)"
+            )
         },
     )
     lag = fields.Integer(

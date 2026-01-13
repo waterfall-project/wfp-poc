@@ -297,6 +297,36 @@ class Task(UUIDMixin, TimestampMixin, Model):
         ),
     )
 
+    @property
+    def is_milestone(self) -> bool:
+        """Check if task is a milestone.
+
+        Returns:
+            True if task type is milestone.
+        """
+        return self.type == "milestone"
+
+    @property
+    def is_summary(self) -> bool:
+        """Check if task is a summary task.
+
+        Returns:
+            True if task type is summary.
+        """
+        return self.type == "summary"
+
+    @property
+    def is_deliverable(self) -> bool:
+        """Check if task is a deliverable.
+
+        For now, milestones are considered deliverables.
+        Can be extended with dedicated field if needed.
+
+        Returns:
+            True if task is a milestone.
+        """
+        return self.type == "milestone"
+
     def __repr__(self) -> str:
         """String representation of Task.
 
