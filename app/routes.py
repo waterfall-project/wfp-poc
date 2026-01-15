@@ -12,6 +12,11 @@
 from flask_restful import Api
 
 from app.resources.health import HealthResource, ReadyResource, VersionResource
+from app.resources.milestone_res import MilestoneListResource, MilestoneResource
+from app.resources.milestone_task_res import (
+    MilestoneTasksResource,
+    MilestoneTasksSyncResource,
+)
 from app.resources.project_res import ProjectListResource, ProjectResource
 from app.resources.task_res import (
     TaskBulkResource,
@@ -48,3 +53,19 @@ def register_routes(app):
     api.add_resource(TaskResource, "/v0/projects/<string:project_id>/tasks/<string:id>")
     api.add_resource(TaskBulkResource, "/v0/projects/<string:project_id>/tasks/bulk")
     api.add_resource(TaskSyncResource, "/v0/projects/<string:project_id>/tasks/sync")
+
+    # Milestones
+    api.add_resource(
+        MilestoneListResource, "/v0/projects/<string:project_id>/milestones"
+    )
+    api.add_resource(
+        MilestoneResource, "/v0/projects/<string:project_id>/milestones/<string:id>"
+    )
+
+    # Milestone-Task Links
+    api.add_resource(
+        MilestoneTasksResource, "/v0/milestones/<string:milestone_id>/tasks"
+    )
+    api.add_resource(
+        MilestoneTasksSyncResource, "/v0/milestones/<string:milestone_id>/tasks/sync"
+    )
