@@ -37,6 +37,7 @@ from app.models.types import GUID, TimestampMixin, UUIDMixin
 if TYPE_CHECKING:
     from flask_sqlalchemy.model import Model
 
+    from app.models.expense import Expense
     from app.models.milestone_task import MilestoneTask
     from app.models.project import Project
 else:
@@ -170,6 +171,12 @@ class Milestone(UUIDMixin, TimestampMixin, Model):
         back_populates="milestone",
         cascade="all, delete-orphan",
         doc="Linked tasks for this milestone",
+    )
+
+    expenses: Mapped[list["Expense"]] = relationship(
+        "Expense",
+        back_populates="milestone",
+        doc="Expenses allocated to this milestone",
     )
 
     # Constraints

@@ -16,7 +16,7 @@ authorization checks and validation.
 # mypy: disable-error-code="call-arg"
 
 import uuid
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from unittest.mock import MagicMock, patch
 
@@ -25,6 +25,7 @@ from flask import Flask
 from flask.testing import FlaskClient
 
 from app.models.db import db
+from app.models.expense import Expense
 from app.models.milestone import Milestone
 from app.models.project import Project
 
@@ -544,3 +545,54 @@ class TestMilestoneResourceDelete:
         )
 
         assert response.status_code == 401
+
+    @patch("app.services.guardian_service.requests.post")
+    def test_delete_milestone_with_expenses_conflict(
+        self,
+        mock_guardian: MagicMock,
+        authenticated_client: FlaskClient,
+        app: Flask,
+        project_data: Project,
+        milestone_data: Milestone,
+    ) -> None:
+        """Test deleting milestone with associated expenses.
+
+        Given: Milestone has associated expenses
+        When: DELETE milestone is called
+        Then: Returns 409 with descriptive error message
+        """
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"access_granted": True, "reason": "granted"}
+        mock_guardian.return_value = mock_response
+
+        # Create an expense associated with the milestone
+        with app.app_context():
+            expense = Expense(
+                project_id=project_data.id,
+                milestone_id=milestone_data.id,
+                category="material",
+                description="Test expense allocated to milestone",
+                planned_cost=Decimal("1000.00"),
+                actual_cost=Decimal("950.00"),
+                expense_date=date.today(),
+            )
+            db.session.add(expense)
+            db.session.commit()
+            db.session.refresh(expense)
+
+        response = authenticated_client.delete(
+            f"/v0/projects/{project_data.id}/milestones/{milestone_data.id}"
+        )
+
+        assert response.status_code == 409
+        assert response.json is not None
+        assert response.json["error"] == "Conflict"
+        assert "cannot delete milestone" in response.json["message"].lower()
+        assert "expense" in response.json["message"].lower()
+
+        # Verify milestone still exists
+        get_response = authenticated_client.get(
+            f"/v0/projects/{project_data.id}/milestones/{milestone_data.id}"
+        )
+        assert get_response.status_code == 200

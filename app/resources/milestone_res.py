@@ -35,9 +35,11 @@ from app.schemas.milestone_schema import (
     MilestoneUpdateSchema,
 )
 from app.services.guardian_service import Operation
+from app.utils.api_version import validate_api_version
 from app.utils.jwt_decorators import (
     access_required,
     get_current_company_id,
+    get_current_user_id,
     require_jwt_auth,
 )
 
@@ -63,6 +65,7 @@ BUDGET_WEIGHT_SUM_EXCEEDED_MSG = "Sum of milestone budget_weight would exceed 1.
 CANNOT_DELETE_MILESTONE_WITH_EXPENSES_MSG = (
     "Cannot delete milestone with {count} associated expenses"
 )
+INVALID_COMPANY_ID_CLAIM_MSG = "Invalid token: company_id claim is not a valid UUID."
 
 # Success Messages
 MILESTONE_CREATED_MSG = "Milestone created successfully"
@@ -101,6 +104,17 @@ def _normalize_datetime_fields(data: dict[str, Any]) -> dict[str, Any]:
             data[field] = _normalize_datetime(data[field])
 
     return data
+
+
+def _rate_limit_user_key() -> str:
+    """Rate limiting key based on authenticated user.
+
+    Falls back to remote address when user_id is absent.
+    """
+    user_id = get_current_user_id()
+    if user_id:
+        return str(user_id)
+    return request.remote_addr or "anonymous"
 
 
 def _calculate_budget_weight_sum(
@@ -211,7 +225,9 @@ def _apply_milestone_filters(
     if target_date_from:
         try:
             date_from = datetime.fromisoformat(target_date_from.replace("Z", "+00:00"))
-            query = query.filter(Milestone.target_date >= date_from)
+            query = query.filter(
+                Milestone.target_date >= _normalize_datetime(date_from)
+            )
         except ValueError:
             return None, (
                 {
@@ -225,7 +241,7 @@ def _apply_milestone_filters(
     if target_date_to:
         try:
             date_to = datetime.fromisoformat(target_date_to.replace("Z", "+00:00"))
-            query = query.filter(Milestone.target_date <= date_to)
+            query = query.filter(Milestone.target_date <= _normalize_datetime(date_to))
         except ValueError:
             return None, (
                 {
@@ -367,8 +383,10 @@ class MilestoneListResource(Resource):
 
     @require_jwt_auth
     @access_required(Operation.LIST, "milestones")
-    @limiter.limit("100 per minute")
-    def get(self, project_id: str) -> tuple[dict[str, Any], int]:
+    @limiter.limit("100 per minute", key_func=_rate_limit_user_key)
+    def get(
+        self, project_id: str, version: str | None = None
+    ) -> tuple[dict[str, Any], int]:
         """Retrieve paginated list of milestones for a project.
 
         Supports filtering by status, target_date range, and text search.
@@ -376,6 +394,7 @@ class MilestoneListResource(Resource):
 
         Args:
             project_id: Project UUID from path parameter.
+            version: Optional API version from path (e.g. "v0", "v1").
 
         Returns:
             Tuple of (response_dict, status_code).
@@ -384,13 +403,17 @@ class MilestoneListResource(Resource):
             404: If project not found or wrong company.
             400: If pagination/filter parameters are invalid.
         """
+        version_error = validate_api_version(version)
+        if version_error:
+            return version_error
+
         try:
             company_id = uuid.UUID(str(get_current_company_id()))
         except (TypeError, ValueError):
             return {
-                "error": BAD_REQUEST_ERROR,
-                "message": INVALID_PROJECT_OR_MILESTONE_ID_MSG,
-            }, 400
+                "error": "Unauthorized",
+                "message": INVALID_COMPANY_ID_CLAIM_MSG,
+            }, 401
 
         project_uuid, error = _parse_uuid_param(
             project_id, INVALID_PROJECT_OR_MILESTONE_ID_MSG
@@ -448,14 +471,17 @@ class MilestoneListResource(Resource):
 
     @require_jwt_auth
     @access_required(Operation.CREATE, "milestones")
-    @limiter.limit("100 per minute")
-    def post(self, project_id: str) -> tuple[dict[str, Any], int]:
+    @limiter.limit("100 per minute", key_func=_rate_limit_user_key)
+    def post(
+        self, project_id: str, version: str | None = None
+    ) -> tuple[dict[str, Any], int]:
         """Create a new milestone for a project.
 
         Validates budget_weight sum doesn't exceed 1.0.
 
         Args:
             project_id: Project UUID from path parameter.
+            version: Optional API version from path (e.g. "v0", "v1").
 
         Returns:
             Tuple of (response_dict, status_code).
@@ -465,6 +491,10 @@ class MilestoneListResource(Resource):
             400: If validation fails.
             409: If budget_weight sum would exceed 1.0.
         """
+        version_error = validate_api_version(version)
+        if version_error:
+            return version_error
+
         company_id = get_current_company_id()
 
         try:
@@ -545,13 +575,16 @@ class MilestoneResource(Resource):
 
     @require_jwt_auth
     @access_required(Operation.READ, "milestones")
-    @limiter.limit("100 per minute")
-    def get(self, project_id: str, id: str) -> tuple[dict[str, Any], int]:
+    @limiter.limit("100 per minute", key_func=_rate_limit_user_key)
+    def get(
+        self, project_id: str, id: str, version: str | None = None
+    ) -> tuple[dict[str, Any], int]:
         """Retrieve a single milestone by ID.
 
         Args:
             project_id: Project UUID from path parameter.
             id: Milestone UUID from path parameter.
+            version: Optional API version from path (e.g. "v0", "v1").
 
         Returns:
             Tuple of (response_dict, status_code).
@@ -560,13 +593,17 @@ class MilestoneResource(Resource):
             404: If milestone not found or wrong company/project.
             400: If ID format is invalid.
         """
+        version_error = validate_api_version(version)
+        if version_error:
+            return version_error
+
         try:
             company_id = uuid.UUID(str(get_current_company_id()))
         except (TypeError, ValueError):
             return {
-                "error": BAD_REQUEST_ERROR,
-                "message": INVALID_PROJECT_OR_MILESTONE_ID_MSG,
-            }, 400
+                "error": "Unauthorized",
+                "message": INVALID_COMPANY_ID_CLAIM_MSG,
+            }, 401
 
         _, _, milestone, error = _fetch_milestone_context(project_id, id, company_id)
         if error:
@@ -581,8 +618,10 @@ class MilestoneResource(Resource):
 
     @require_jwt_auth
     @access_required(Operation.UPDATE, "milestones")
-    @limiter.limit("100 per minute")
-    def patch(self, project_id: str, id: str) -> tuple[dict[str, Any], int]:
+    @limiter.limit("100 per minute", key_func=_rate_limit_user_key)
+    def patch(
+        self, project_id: str, id: str, version: str | None = None
+    ) -> tuple[dict[str, Any], int]:
         """Update a milestone (partial update).
 
         Validates budget_weight sum if budget_weight is updated.
@@ -590,6 +629,7 @@ class MilestoneResource(Resource):
         Args:
             project_id: Project UUID from path parameter.
             id: Milestone UUID from path parameter.
+            version: Optional API version from path (e.g. "v0", "v1").
 
         Returns:
             Tuple of (response_dict, status_code).
@@ -599,13 +639,17 @@ class MilestoneResource(Resource):
             400: If validation fails.
             409: If budget_weight sum would exceed 1.0.
         """
+        version_error = validate_api_version(version)
+        if version_error:
+            return version_error
+
         try:
             company_id = uuid.UUID(str(get_current_company_id()))
         except (TypeError, ValueError):
             return {
-                "error": BAD_REQUEST_ERROR,
-                "message": INVALID_PROJECT_OR_MILESTONE_ID_MSG,
-            }, 400
+                "error": "Unauthorized",
+                "message": INVALID_COMPANY_ID_CLAIM_MSG,
+            }, 401
 
         project_uuid, milestone_uuid, milestone, error = _fetch_milestone_context(
             project_id, id, company_id
@@ -664,8 +708,10 @@ class MilestoneResource(Resource):
 
     @require_jwt_auth
     @access_required(Operation.DELETE, "milestones")
-    @limiter.limit("100 per minute")
-    def delete(self, project_id: str, id: str) -> tuple[dict[str, Any], int]:
+    @limiter.limit("100 per minute", key_func=_rate_limit_user_key)
+    def delete(
+        self, project_id: str, id: str, version: str | None = None
+    ) -> tuple[dict[str, Any], int]:
         """Delete a milestone.
 
         Blocks deletion if milestone has associated expenses or deliverables.
@@ -673,6 +719,7 @@ class MilestoneResource(Resource):
         Args:
             project_id: Project UUID from path parameter.
             id: Milestone UUID from path parameter.
+            version: Optional API version from path (e.g. "v0", "v1").
 
         Returns:
             Tuple of (empty_dict, 204) on success.
@@ -681,13 +728,17 @@ class MilestoneResource(Resource):
             404: If milestone not found or wrong company/project.
             409: If milestone has associated expenses.
         """
+        version_error = validate_api_version(version)
+        if version_error:
+            return version_error
+
         try:
             company_id = uuid.UUID(str(get_current_company_id()))
         except (TypeError, ValueError):
             return {
-                "error": BAD_REQUEST_ERROR,
-                "message": INVALID_PROJECT_OR_MILESTONE_ID_MSG,
-            }, 400
+                "error": "Unauthorized",
+                "message": INVALID_COMPANY_ID_CLAIM_MSG,
+            }, 401
 
         _, _, milestone, error = _fetch_milestone_context(project_id, id, company_id)
         if error:
@@ -695,8 +746,12 @@ class MilestoneResource(Resource):
 
         assert milestone is not None
 
-        # Expense deletion guard is disabled because the Expense model currently
-        # lacks a milestone_id field. Enable this check once that field exists.
+        # Check for associated expenses
+        if milestone.expenses:
+            return {
+                "error": "Conflict",
+                "message": f"Cannot delete milestone with {len(milestone.expenses)} associated expenses",
+            }, 409
 
         # Delete milestone
         db.session.delete(milestone)
