@@ -15,7 +15,7 @@ target_date recalculation based on predecessor tasks.
 
 import uuid
 from datetime import datetime
-from typing import Any
+from typing import Any, cast
 
 from flask import request
 from flask_restful import Resource
@@ -43,6 +43,9 @@ from app.utils.jwt_decorators import (
 BAD_REQUEST_ERROR = "Bad Request"
 NOT_FOUND_ERROR = "Not Found"
 UNPROCESSABLE_ENTITY_ERROR = "Unprocessable Entity"
+INVALID_MILESTONE_ID_MSG = "Invalid milestone_id"
+
+ErrorResponse = tuple[dict[str, Any], int]
 
 # Error Messages
 INVALID_JSON_BODY_MSG = "Request body must be a JSON object"
@@ -73,7 +76,175 @@ def _recalculate_milestone_target_date(milestone_id: uuid.UUID) -> datetime | No
         .scalar()
     )
 
-    return result
+    return result  # type: ignore[no-any-return]
+
+
+def _parse_milestone_uuid(
+    milestone_id: str,
+) -> tuple[uuid.UUID | None, ErrorResponse | None]:
+    """Parse milestone UUID or return a standardized error response."""
+    try:
+        return uuid.UUID(milestone_id), None
+    except ValueError:
+        return None, (
+            {"error": BAD_REQUEST_ERROR, "message": INVALID_MILESTONE_ID_MSG},
+            400,
+        )
+
+
+def _get_milestone_for_company(
+    milestone_uuid: uuid.UUID, company_id: uuid.UUID
+) -> tuple[Milestone | None, ErrorResponse | None]:
+    """Retrieve milestone constrained to company or return 404."""
+    milestone = (
+        Milestone.query.join(Project, Milestone.project_id == Project.id)
+        .filter(Milestone.id == milestone_uuid, Project.company_id == company_id)
+        .first()
+    )
+    if not milestone:
+        return None, (
+            {"error": NOT_FOUND_ERROR, "message": MILESTONE_NOT_FOUND_MSG},
+            404,
+        )
+    return milestone, None
+
+
+def _load_link_request_body() -> tuple[dict[str, Any] | None, ErrorResponse | None]:
+    """Load and validate milestone-task link payload."""
+    if not request.is_json:
+        return None, (
+            {"error": BAD_REQUEST_ERROR, "message": INVALID_JSON_BODY_MSG},
+            400,
+        )
+
+    raw_json = request.get_json(silent=True)
+    if not isinstance(raw_json, dict):
+        return None, (
+            {"error": BAD_REQUEST_ERROR, "message": INVALID_JSON_BODY_MSG},
+            400,
+        )
+
+    try:
+        schema = MilestoneTaskLinkSchema()
+        data = cast("dict[str, Any]", schema.load(raw_json))
+    except ValidationError as err:
+        return None, (
+            {
+                "error": BAD_REQUEST_ERROR,
+                "message": VALIDATION_FAILED_MSG,
+                "errors": err.messages,
+            },
+            400,
+        )
+
+    if data is None:
+        return None, (
+            {"error": BAD_REQUEST_ERROR, "message": INVALID_JSON_BODY_MSG},
+            400,
+        )
+
+    return data, None
+
+
+def _validate_tasks_for_milestone(
+    task_ids: list[uuid.UUID], project_id: uuid.UUID
+) -> tuple[list[Task] | None, ErrorResponse | None]:
+    """Ensure tasks exist and belong to the milestone's project."""
+    tasks = db.session.query(Task).filter(Task.id.in_(task_ids)).all()
+
+    if len(tasks) != len(task_ids):
+        found_ids = {task.id for task in tasks}
+        missing_ids = set(task_ids) - found_ids
+        missing_id = list(missing_ids)[0] if missing_ids else "unknown"
+        return None, (
+            {
+                "error": NOT_FOUND_ERROR,
+                "message": TASK_NOT_FOUND_MSG.format(task_id=missing_id),
+            },
+            404,
+        )
+
+    for task in tasks:
+        if task.project_id != project_id:
+            return None, (
+                {
+                    "error": UNPROCESSABLE_ENTITY_ERROR,
+                    "message": TASK_NOT_FOUND_MSG.format(task_id=task.id),
+                },
+                422,
+            )
+
+    return tasks, None
+
+
+def _build_predecessor_tasks(
+    tasks: list[Task], include_wbs: bool = True
+) -> list[dict[str, Any]]:
+    """Serialize tasks for milestone predecessor response payloads."""
+    serialized: list[dict[str, Any]] = []
+    for task in tasks:
+        item: dict[str, Any] = {
+            "id": str(task.id),
+            "name": task.name,
+            "planned_finish_date": task.planned_finish_date.isoformat()
+            if task.planned_finish_date
+            else None,
+            "is_critical": bool(task.is_critical)
+            if task.is_critical is not None
+            else False,
+        }
+        if include_wbs:
+            item["wbs"] = task.wbs_code
+            item["ms_project_uid"] = task.ms_project_uid
+        serialized.append(item)
+    return serialized
+
+
+def _create_missing_links(milestone_uuid: uuid.UUID, task_ids: list[uuid.UUID]) -> int:
+    """Create milestone-task links for missing associations and return count."""
+    linked_count = 0
+    for task_id in task_ids:
+        existing = (
+            db.session.query(MilestoneTask)
+            .filter_by(milestone_id=milestone_uuid, task_id=task_id)
+            .first()
+        )
+        if not existing:
+            link = MilestoneTask()
+            link.milestone_id = milestone_uuid
+            link.task_id = task_id
+            db.session.add(link)
+            linked_count += 1
+    return linked_count
+
+
+def _sync_links(milestone_uuid: uuid.UUID, task_ids: list[uuid.UUID]) -> None:
+    """Synchronize milestone-task links to match provided IDs."""
+    current_links = (
+        db.session.query(MilestoneTask).filter_by(milestone_id=milestone_uuid).all()
+    )
+    current_task_ids = {link.task_id for link in current_links}
+    task_ids_set = set(task_ids)
+
+    for link in current_links:
+        if link.task_id not in task_ids_set:
+            db.session.delete(link)
+
+    for task_id in task_ids:
+        if task_id not in current_task_ids:
+            link = MilestoneTask()
+            link.milestone_id = milestone_uuid
+            link.task_id = task_id
+            db.session.add(link)
+
+
+def _commit_or_rollback_on_error(err: IntegrityError) -> ErrorResponse:
+    """Rollback transaction and build integrity error response."""
+    db.session.rollback()
+    return {
+        "error": BAD_REQUEST_ERROR,
+        "message": f"Database integrity error: {str(err.orig)}",
+    }, 400
 
 
 class MilestoneTasksResource(Resource):
@@ -85,7 +256,7 @@ class MilestoneTasksResource(Resource):
     """
 
     @require_jwt_auth
-    @access_required(Operation.UPDATE)
+    @access_required(Operation.UPDATE, "milestones")
     @limiter.limit("100 per minute")
     def post(self, milestone_id: str) -> tuple[dict[str, Any], int]:
         """Link tasks to milestone as predecessors.
@@ -103,77 +274,41 @@ class MilestoneTasksResource(Resource):
             400: If validation fails.
             422: If tasks belong to different project/company.
         """
-        company_id = get_current_company_id()
-
         try:
-            milestone_uuid = uuid.UUID(milestone_id)
-        except ValueError:
+            company_id = uuid.UUID(str(get_current_company_id()))
+        except (TypeError, ValueError):
             return {
                 "error": BAD_REQUEST_ERROR,
-                "message": "Invalid milestone_id",
+                "message": INVALID_MILESTONE_ID_MSG,
             }, 400
 
-        # Get milestone and verify company
-        milestone = db.session.get(Milestone, milestone_uuid)
-        if not milestone:
-            return {"error": NOT_FOUND_ERROR, "message": MILESTONE_NOT_FOUND_MSG}, 404
+        milestone_uuid, error = _parse_milestone_uuid(milestone_id)
+        if error:
+            return error
 
-        # Get project to verify company
-        project = db.session.get(Project, milestone.project_id)
-        if not project or project.company_id != company_id:
-            return {"error": NOT_FOUND_ERROR, "message": MILESTONE_NOT_FOUND_MSG}, 404
+        assert milestone_uuid is not None
 
-        # Validate request body
-        if not request.is_json:
-            return {"error": BAD_REQUEST_ERROR, "message": INVALID_JSON_BODY_MSG}, 400
+        milestone, error = _get_milestone_for_company(milestone_uuid, company_id)
+        if error:
+            return error
 
-        try:
-            schema = MilestoneTaskLinkSchema()
-            data = schema.load(request.json)
-        except ValidationError as err:
-            return {
-                "error": BAD_REQUEST_ERROR,
-                "message": VALIDATION_FAILED_MSG,
-                "errors": err.messages,
-            }, 400
+        assert milestone is not None
 
-        task_ids = [uuid.UUID(tid) for tid in data["task_ids"]]
+        data, error = _load_link_request_body()
+        if error:
+            return error
 
-        # Verify all tasks exist and belong to same project
-        tasks = db.session.query(Task).filter(Task.id.in_(task_ids)).all()
+        assert data is not None
 
-        if len(tasks) != len(task_ids):
-            found_ids = {task.id for task in tasks}
-            missing_ids = set(task_ids) - found_ids
-            return {
-                "error": UNPROCESSABLE_ENTITY_ERROR,
-                "message": TASK_NOT_FOUND_MSG.format(task_id=list(missing_ids)[0]),
-            }, 422
+        task_ids = data["task_ids"]
+        tasks, error = _validate_tasks_for_milestone(task_ids, milestone.project_id)
+        if error:
+            return error
 
-        # Verify all tasks belong to same project
-        for task in tasks:
-            if task.project_id != milestone.project_id:
-                return {
-                    "error": UNPROCESSABLE_ENTITY_ERROR,
-                    "message": TASK_NOT_FOUND_MSG.format(task_id=task.id),
-                }, 422
+        assert tasks is not None
 
-        # Create milestone-task links (skip duplicates)
-        linked_count = 0
-        for task_id in task_ids:
-            # Check if link already exists
-            existing = (
-                db.session.query(MilestoneTask)
-                .filter_by(milestone_id=milestone_uuid, task_id=task_id)
-                .first()
-            )
+        linked_count = _create_missing_links(milestone_uuid, task_ids)
 
-            if not existing:
-                link = MilestoneTask(milestone_id=milestone_uuid, task_id=task_id)
-                db.session.add(link)
-                linked_count += 1
-
-        # Recalculate milestone target_date
         new_target_date = _recalculate_milestone_target_date(milestone_uuid)
         if new_target_date:
             milestone.target_date = new_target_date
@@ -181,25 +316,9 @@ class MilestoneTasksResource(Resource):
         try:
             db.session.commit()
         except IntegrityError as err:
-            db.session.rollback()
-            return {
-                "error": BAD_REQUEST_ERROR,
-                "message": f"Database integrity error: {str(err.orig)}",
-            }, 400
+            return _commit_or_rollback_on_error(err)
 
-        # Build response with predecessor task details
-        predecessor_tasks = []
-        for task in tasks:
-            predecessor_tasks.append(
-                {
-                    "id": str(task.id),
-                    "name": task.name,
-                    "planned_finish_date": task.planned_finish_date.isoformat()
-                    if task.planned_finish_date
-                    else None,
-                    "is_critical": task.is_critical or False,
-                }
-            )
+        predecessor_tasks = _build_predecessor_tasks(tasks, include_wbs=False)
 
         response = {
             "data": {
@@ -207,16 +326,16 @@ class MilestoneTasksResource(Resource):
                 "target_date": milestone.target_date.isoformat()
                 if milestone.target_date
                 else None,
-                "linked_task_count": len(task_ids),
+                "linked_task_count": linked_count,
                 "predecessor_tasks": predecessor_tasks,
             },
             "message": TASKS_LINKED_MSG,
         }
 
-        return response, 200
+        return response, 201
 
     @require_jwt_auth
-    @access_required(Operation.READ)
+    @access_required(Operation.READ, "milestones")
     @limiter.limit("100 per minute")
     def get(self, milestone_id: str) -> tuple[dict[str, Any], int]:
         """Get all predecessor tasks linked to a milestone.
@@ -230,27 +349,26 @@ class MilestoneTasksResource(Resource):
         Raises:
             404: If milestone not found or wrong company.
         """
-        company_id = get_current_company_id()
-
         try:
-            milestone_uuid = uuid.UUID(milestone_id)
-        except ValueError:
+            company_id = uuid.UUID(str(get_current_company_id()))
+        except (TypeError, ValueError):
             return {
                 "error": BAD_REQUEST_ERROR,
-                "message": "Invalid milestone_id",
+                "message": INVALID_MILESTONE_ID_MSG,
             }, 400
 
-        # Get milestone and verify company
-        milestone = db.session.get(Milestone, milestone_uuid)
-        if not milestone:
-            return {"error": NOT_FOUND_ERROR, "message": MILESTONE_NOT_FOUND_MSG}, 404
+        milestone_uuid, error = _parse_milestone_uuid(milestone_id)
+        if error:
+            return error
 
-        # Get project to verify company
-        project = db.session.get(Project, milestone.project_id)
-        if not project or project.company_id != company_id:
-            return {"error": NOT_FOUND_ERROR, "message": MILESTONE_NOT_FOUND_MSG}, 404
+        assert milestone_uuid is not None
 
-        # Get all linked tasks
+        milestone, error = _get_milestone_for_company(milestone_uuid, company_id)
+        if error:
+            return error
+
+        assert milestone is not None
+
         tasks = (
             db.session.query(Task)
             .join(MilestoneTask, MilestoneTask.task_id == Task.id)
@@ -258,20 +376,7 @@ class MilestoneTasksResource(Resource):
             .all()
         )
 
-        predecessor_tasks = []
-        for task in tasks:
-            predecessor_tasks.append(
-                {
-                    "id": str(task.id),
-                    "name": task.name,
-                    "wbs": task.wbs_code,
-                    "planned_finish_date": task.planned_finish_date.isoformat()
-                    if task.planned_finish_date
-                    else None,
-                    "is_critical": task.is_critical or False,
-                    "ms_project_uid": task.ms_project_uid,
-                }
-            )
+        predecessor_tasks = _build_predecessor_tasks(tasks)
 
         response = {
             "data": {
@@ -295,7 +400,7 @@ class MilestoneTasksSyncResource(Resource):
     """
 
     @require_jwt_auth
-    @access_required(Operation.UPDATE)
+    @access_required(Operation.UPDATE, "milestones")
     @limiter.limit("100 per minute")
     def put(self, milestone_id: str) -> tuple[dict[str, Any], int]:
         """Sync milestone-task links (upsert operation).
@@ -314,80 +419,41 @@ class MilestoneTasksSyncResource(Resource):
             400: If validation fails.
             422: If tasks belong to different project/company.
         """
-        company_id = get_current_company_id()
-
         try:
-            milestone_uuid = uuid.UUID(milestone_id)
-        except ValueError:
+            company_id = uuid.UUID(str(get_current_company_id()))
+        except (TypeError, ValueError):
             return {
                 "error": BAD_REQUEST_ERROR,
-                "message": "Invalid milestone_id",
+                "message": INVALID_MILESTONE_ID_MSG,
             }, 400
 
-        # Get milestone and verify company
-        milestone = db.session.get(Milestone, milestone_uuid)
-        if not milestone:
-            return {"error": NOT_FOUND_ERROR, "message": MILESTONE_NOT_FOUND_MSG}, 404
+        milestone_uuid, error = _parse_milestone_uuid(milestone_id)
+        if error:
+            return error
 
-        # Get project to verify company
-        project = db.session.get(Project, milestone.project_id)
-        if not project or project.company_id != company_id:
-            return {"error": NOT_FOUND_ERROR, "message": MILESTONE_NOT_FOUND_MSG}, 404
+        assert milestone_uuid is not None
 
-        # Validate request body
-        if not request.is_json:
-            return {"error": BAD_REQUEST_ERROR, "message": INVALID_JSON_BODY_MSG}, 400
+        milestone, error = _get_milestone_for_company(milestone_uuid, company_id)
+        if error:
+            return error
 
-        try:
-            schema = MilestoneTaskLinkSchema()
-            data = schema.load(request.json)
-        except ValidationError as err:
-            return {
-                "error": BAD_REQUEST_ERROR,
-                "message": VALIDATION_FAILED_MSG,
-                "errors": err.messages,
-            }, 400
+        assert milestone is not None
 
-        task_ids = [uuid.UUID(tid) for tid in data["task_ids"]]
+        data, error = _load_link_request_body()
+        if error:
+            return error
 
-        # Verify all tasks exist and belong to same project
-        tasks = db.session.query(Task).filter(Task.id.in_(task_ids)).all()
+        assert data is not None
 
-        if len(tasks) != len(task_ids):
-            found_ids = {task.id for task in tasks}
-            missing_ids = set(task_ids) - found_ids
-            return {
-                "error": UNPROCESSABLE_ENTITY_ERROR,
-                "message": TASK_NOT_FOUND_MSG.format(task_id=list(missing_ids)[0]),
-            }, 422
+        task_ids = data["task_ids"]
+        tasks, error = _validate_tasks_for_milestone(task_ids, milestone.project_id)
+        if error:
+            return error
 
-        # Verify all tasks belong to same project
-        for task in tasks:
-            if task.project_id != milestone.project_id:
-                return {
-                    "error": UNPROCESSABLE_ENTITY_ERROR,
-                    "message": TASK_NOT_FOUND_MSG.format(task_id=task.id),
-                }, 422
+        assert tasks is not None
 
-        # Get current links
-        current_links = (
-            db.session.query(MilestoneTask).filter_by(milestone_id=milestone_uuid).all()
-        )
-        current_task_ids = {link.task_id for link in current_links}
+        _sync_links(milestone_uuid, task_ids)
 
-        # Remove links not in new task_ids
-        task_ids_set = set(task_ids)
-        for link in current_links:
-            if link.task_id not in task_ids_set:
-                db.session.delete(link)
-
-        # Add new links
-        for task_id in task_ids:
-            if task_id not in current_task_ids:
-                link = MilestoneTask(milestone_id=milestone_uuid, task_id=task_id)
-                db.session.add(link)
-
-        # Recalculate milestone target_date
         new_target_date = _recalculate_milestone_target_date(milestone_uuid)
         if new_target_date:
             milestone.target_date = new_target_date
@@ -395,25 +461,9 @@ class MilestoneTasksSyncResource(Resource):
         try:
             db.session.commit()
         except IntegrityError as err:
-            db.session.rollback()
-            return {
-                "error": BAD_REQUEST_ERROR,
-                "message": f"Database integrity error: {str(err.orig)}",
-            }, 400
+            return _commit_or_rollback_on_error(err)
 
-        # Build response with predecessor task details
-        predecessor_tasks = []
-        for task in tasks:
-            predecessor_tasks.append(
-                {
-                    "id": str(task.id),
-                    "name": task.name,
-                    "planned_finish_date": task.planned_finish_date.isoformat()
-                    if task.planned_finish_date
-                    else None,
-                    "is_critical": task.is_critical or False,
-                }
-            )
+        predecessor_tasks = _build_predecessor_tasks(tasks, include_wbs=False)
 
         response = {
             "data": {

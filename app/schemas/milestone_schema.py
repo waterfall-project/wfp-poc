@@ -13,9 +13,7 @@ Provides schemas for validation, serialization, and deserialization
 of milestone data according to OpenAPI specification.
 """
 
-from decimal import Decimal
-
-from marshmallow import Schema, ValidationError, fields, validates, validates_schema
+from marshmallow import Schema, ValidationError, fields, validates_schema
 from marshmallow.validate import Length, OneOf, Range
 from marshmallow_sqlalchemy import SQLAlchemyAutoSchema
 
@@ -55,7 +53,7 @@ class MilestoneSchema(SQLAlchemyAutoSchema):
 
     budget_weight = fields.Decimal(
         required=True,
-        as_string=False,
+        as_string=True,
         places=6,
         validate=Range(min=0, max=1),
     )
@@ -63,7 +61,7 @@ class MilestoneSchema(SQLAlchemyAutoSchema):
     is_achieved = fields.Boolean(required=True, dump_default=False)
 
     ms_project_uid = fields.Integer(allow_none=True)
-    current_rae = fields.Decimal(allow_none=True, as_string=False, places=2)
+    current_rae = fields.Decimal(allow_none=True, as_string=True, places=2)
     current_rae_date = fields.DateTime(allow_none=True)
 
     created_at = fields.DateTime(dump_only=True)
@@ -83,23 +81,10 @@ class MilestoneCreateSchema(Schema):
 
     budget_weight = fields.Decimal(
         required=True,
-        as_string=False,
+        as_string=True,
         places=6,
         validate=Range(min=0, max=1),
     )
-
-    @validates("budget_weight")
-    def validate_budget_weight(self, value: Decimal) -> None:
-        """Validate budget_weight is between 0 and 1.
-
-        Args:
-            value: The budget_weight value to validate.
-
-        Raises:
-            ValidationError: If value is not in valid range.
-        """
-        if value < 0 or value > 1:
-            raise ValidationError("budget_weight must be between 0.0 and 1.0")
 
 
 class MilestoneUpdateSchema(Schema):
@@ -116,8 +101,10 @@ class MilestoneUpdateSchema(Schema):
     actual_date = fields.DateTime(allow_none=True)
     achieved_date = fields.DateTime(allow_none=True)
 
+    status = fields.String(validate=OneOf(["upcoming", "achieved", "missed"]))
+
     budget_weight = fields.Decimal(
-        as_string=False,
+        as_string=True,
         places=6,
         validate=Range(min=0, max=1),
     )

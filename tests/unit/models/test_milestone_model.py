@@ -14,7 +14,8 @@ and business logic for the Milestone entity.
 """
 
 import uuid
-from datetime import UTC, date, datetime
+from datetime import UTC, datetime
+from decimal import Decimal
 
 import pytest
 from sqlalchemy.exc import IntegrityError
@@ -45,13 +46,15 @@ class TestMilestoneModel:
     def test_create_milestone_minimal(self, app, project):
         """Test creating a milestone with minimal required fields.
 
-        Given: Required fields only (project_id, name)
+        Given: Required fields only (project_id, name, target_date, budget_weight)
         When: Creating a Milestone instance
         Then: Milestone is created with correct defaults
         """
         milestone = Milestone(
             project_id=project.id,
             name="Test Milestone",
+            target_date=DEFAULT_FINISH_DATE,
+            budget_weight=Decimal("0.25"),
         )
         db.session.add(milestone)
         db.session.commit()
@@ -60,11 +63,12 @@ class TestMilestoneModel:
         assert isinstance(milestone.id, uuid.UUID)
         assert milestone.project_id == project.id
         assert milestone.name == "Test Milestone"
-        assert milestone.status == "not_reached"  # Default value
+        assert milestone.status == "upcoming"
         assert milestone.ms_project_uid is None
         assert milestone.description is None
-        assert milestone.planned_date is None
+        assert milestone.target_date == DEFAULT_FINISH_DATE.replace(tzinfo=None)
         assert milestone.actual_date is None
+        assert milestone.is_achieved is False
         assert milestone.created_at is not None
         assert milestone.updated_at is not None
 
@@ -80,9 +84,12 @@ class TestMilestoneModel:
             ms_project_uid=100,
             name="Full Test Milestone",
             description="A comprehensive milestone description",
-            planned_date=date(2026, 6, 30),
-            actual_date=date(2026, 7, 5),
-            status="reached",
+            target_date=datetime(2026, 6, 30, 12, 0, tzinfo=UTC),
+            actual_date=datetime(2026, 7, 5, 18, 0, tzinfo=UTC),
+            achieved_date=datetime(2026, 7, 5, 18, 0, tzinfo=UTC),
+            status="achieved",
+            budget_weight=Decimal("0.15"),
+            is_achieved=True,
         )
         db.session.add(milestone)
         db.session.commit()
@@ -92,9 +99,16 @@ class TestMilestoneModel:
         assert milestone.ms_project_uid == 100
         assert milestone.name == "Full Test Milestone"
         assert milestone.description == "A comprehensive milestone description"
-        assert milestone.planned_date == date(2026, 6, 30)
-        assert milestone.actual_date == date(2026, 7, 5)
-        assert milestone.status == "reached"
+        assert milestone.target_date == datetime(2026, 6, 30, 12, 0).replace(
+            tzinfo=None
+        )
+        assert milestone.actual_date == datetime(2026, 7, 5, 18, 0).replace(tzinfo=None)
+        assert milestone.achieved_date == datetime(2026, 7, 5, 18, 0).replace(
+            tzinfo=None
+        )
+        assert milestone.status == "achieved"
+        assert milestone.is_achieved is True
+        assert milestone.budget_weight == Decimal("0.15")
 
     def test_milestone_status_values(self, app, project):
         """Test valid status values.
@@ -103,13 +117,15 @@ class TestMilestoneModel:
         When: Creating milestones with each status
         Then: Milestones are created successfully
         """
-        statuses = ["not_reached", "reached", "missed"]
+        statuses = ["upcoming", "achieved", "missed"]
 
         for status in statuses:
             milestone = Milestone(
                 project_id=project.id,
                 name=f"Milestone {status}",
                 status=status,
+                target_date=DEFAULT_FINISH_DATE,
+                budget_weight=Decimal("0.1"),
             )
             db.session.add(milestone)
             db.session.commit()
@@ -129,6 +145,8 @@ class TestMilestoneModel:
             project_id=project.id,
             name="Milestone 1",
             ms_project_uid=100,
+            target_date=DEFAULT_FINISH_DATE,
+            budget_weight=Decimal("0.1"),
         )
         db.session.add(milestone1)
         db.session.commit()
@@ -137,6 +155,8 @@ class TestMilestoneModel:
             project_id=project.id,
             name="Milestone 2",
             ms_project_uid=100,
+            target_date=DEFAULT_FINISH_DATE,
+            budget_weight=Decimal("0.1"),
         )
         db.session.add(milestone2)
 
@@ -174,11 +194,15 @@ class TestMilestoneModel:
             project_id=project1.id,
             name="Milestone 1",
             ms_project_uid=100,
+            target_date=DEFAULT_FINISH_DATE,
+            budget_weight=Decimal("0.1"),
         )
         milestone2 = Milestone(
             project_id=project2.id,
             name="Milestone 2",
             ms_project_uid=100,
+            target_date=DEFAULT_FINISH_DATE,
+            budget_weight=Decimal("0.1"),
         )
         db.session.add_all([milestone1, milestone2])
         db.session.commit()
@@ -186,30 +210,31 @@ class TestMilestoneModel:
         assert milestone1.ms_project_uid == milestone2.ms_project_uid
         assert milestone1.project_id != milestone2.project_id
 
-    def test_milestone_planned_vs_actual_date(self, app, project):
-        """Test planned vs actual date tracking.
+    def test_milestone_target_vs_actual_date(self, app, project):
+        """Test target vs actual date tracking.
 
-        Given: A milestone with planned date
-        When: Setting actual date
+        Given: A milestone with target_date
+        When: Setting actual_date
         Then: Both dates are tracked independently
         """
         milestone = Milestone(
             project_id=project.id,
             name="Date Milestone",
-            planned_date=date(2026, 6, 1),
+            target_date=datetime(2026, 6, 1, 12, 0, tzinfo=UTC),
+            budget_weight=Decimal("0.1"),
         )
         db.session.add(milestone)
         db.session.commit()
 
-        assert milestone.planned_date == date(2026, 6, 1)
+        assert milestone.target_date == datetime(2026, 6, 1, 12, 0).replace(tzinfo=None)
         assert milestone.actual_date is None
 
         # Update actual date
-        milestone.actual_date = date(2026, 6, 5)
+        milestone.actual_date = datetime(2026, 6, 5, 12, 0, tzinfo=UTC)
         db.session.commit()
 
-        assert milestone.actual_date == date(2026, 6, 5)
-        assert milestone.planned_date == date(2026, 6, 1)
+        assert milestone.actual_date == datetime(2026, 6, 5, 12, 0).replace(tzinfo=None)
+        assert milestone.target_date == datetime(2026, 6, 1, 12, 0).replace(tzinfo=None)
 
     def test_milestone_repr(self, app, project):
         """Test string representation of Milestone.
@@ -221,7 +246,9 @@ class TestMilestoneModel:
         milestone = Milestone(
             project_id=project.id,
             name="Test Milestone",
-            status="reached",
+            status="achieved",
+            target_date=DEFAULT_FINISH_DATE,
+            budget_weight=Decimal("0.2"),
         )
         db.session.add(milestone)
         db.session.commit()
@@ -242,6 +269,8 @@ class TestMilestoneModel:
         milestone = Milestone(
             project_id=project.id,
             name="Test Milestone",
+            target_date=DEFAULT_FINISH_DATE,
+            budget_weight=Decimal("0.2"),
         )
         db.session.add(milestone)
         db.session.commit()
@@ -263,6 +292,8 @@ class TestMilestoneModel:
         milestone = Milestone(
             project_id=project.id,
             name="Test Milestone",
+            target_date=DEFAULT_FINISH_DATE,
+            budget_weight=Decimal("0.2"),
         )
         db.session.add(milestone)
         db.session.commit()
@@ -287,10 +318,14 @@ class TestMilestoneModel:
         milestone1 = Milestone(
             project_id=project.id,
             name="Milestone Without UID 1",
+            target_date=DEFAULT_FINISH_DATE,
+            budget_weight=Decimal("0.1"),
         )
         milestone2 = Milestone(
             project_id=project.id,
             name="Milestone Without UID 2",
+            target_date=DEFAULT_FINISH_DATE,
+            budget_weight=Decimal("0.1"),
         )
 
         db.session.add_all([milestone1, milestone2])

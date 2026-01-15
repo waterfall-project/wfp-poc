@@ -46,6 +46,9 @@ BAD_REQUEST_ERROR = "Bad Request"
 NOT_FOUND_ERROR = "Not Found"
 CONFLICT_ERROR = "Conflict"
 UNPROCESSABLE_ENTITY_ERROR = "Unprocessable Entity"
+INVALID_PROJECT_OR_MILESTONE_ID_MSG = "Invalid project_id or milestone id"
+
+ErrorResponse = tuple[dict[str, Any], int]
 
 # Error Messages
 INVALID_PAGINATION_MSG = "Invalid pagination parameters"
@@ -150,6 +153,210 @@ def _validate_budget_weight_sum(
     return True, None
 
 
+def _parse_uuid_param(
+    value: str, message: str
+) -> tuple[uuid.UUID | None, ErrorResponse | None]:
+    """Parse UUID or return a standardized error response."""
+    try:
+        return uuid.UUID(value), None
+    except ValueError:
+        return None, ({"error": BAD_REQUEST_ERROR, "message": message}, 400)
+
+
+def _get_project_or_404(
+    project_uuid: uuid.UUID, company_id: uuid.UUID
+) -> tuple[Project | None, ErrorResponse | None]:
+    """Retrieve project scoped to company or return 404 error response."""
+    project = Project.query.filter_by(id=project_uuid, company_id=company_id).first()
+    if not project:
+        return None, ({"error": NOT_FOUND_ERROR, "message": PROJECT_NOT_FOUND_MSG}, 404)
+    return project, None
+
+
+def _parse_pagination_args(
+    args: dict[str, str],
+) -> tuple[tuple[int, int] | None, ErrorResponse | None]:
+    """Validate and parse pagination parameters from query args."""
+    try:
+        page = int(args.get("page", 1))
+        per_page = min(int(args.get("per_page", 20)), 100)
+        if page < 1 or per_page < 1:
+            raise ValueError
+    except (TypeError, ValueError):
+        return None, (
+            {"error": BAD_REQUEST_ERROR, "message": INVALID_PAGINATION_MSG},
+            400,
+        )
+
+    return (page, per_page), None
+
+
+def _apply_milestone_filters(
+    query, args: dict[str, str]
+) -> tuple[Any | None, ErrorResponse | None]:
+    """Apply filter parameters to the milestone query."""
+    status = args.get("status")
+    if status:
+        if status not in ["upcoming", "achieved", "missed"]:
+            return None, (
+                {
+                    "error": BAD_REQUEST_ERROR,
+                    "message": INVALID_STATUS_MSG.format(status=status),
+                },
+                400,
+            )
+        query = query.filter(Milestone.status == status)
+
+    target_date_from = args.get("target_date_from")
+    if target_date_from:
+        try:
+            date_from = datetime.fromisoformat(target_date_from.replace("Z", "+00:00"))
+            query = query.filter(Milestone.target_date >= date_from)
+        except ValueError:
+            return None, (
+                {
+                    "error": BAD_REQUEST_ERROR,
+                    "message": "Invalid target_date_from format",
+                },
+                400,
+            )
+
+    target_date_to = args.get("target_date_to")
+    if target_date_to:
+        try:
+            date_to = datetime.fromisoformat(target_date_to.replace("Z", "+00:00"))
+            query = query.filter(Milestone.target_date <= date_to)
+        except ValueError:
+            return None, (
+                {
+                    "error": BAD_REQUEST_ERROR,
+                    "message": "Invalid target_date_to format",
+                },
+                400,
+            )
+
+    search = args.get("search")
+    if search:
+        search_pattern = f"%{search}%"
+        query = query.filter(
+            (Milestone.name.ilike(search_pattern))
+            | (Milestone.description.ilike(search_pattern))
+        )
+
+    return query, None
+
+
+def _apply_milestone_sorting(
+    query, sort_by: str, sort_order: str
+) -> tuple[Any | None, ErrorResponse | None]:
+    """Apply sorting to milestone query with validation."""
+    if sort_by not in ["target_date", "name", "status", "budget_weight", "created_at"]:
+        return None, (
+            {
+                "error": BAD_REQUEST_ERROR,
+                "message": INVALID_SORT_BY_MSG.format(sort_by=sort_by),
+            },
+            400,
+        )
+
+    if sort_order not in ["asc", "desc"]:
+        return None, (
+            {
+                "error": BAD_REQUEST_ERROR,
+                "message": INVALID_SORT_ORDER_MSG.format(sort_order=sort_order),
+            },
+            400,
+        )
+
+    sort_column = getattr(Milestone, sort_by)
+    query = query.order_by(
+        sort_column.desc() if sort_order == "desc" else sort_column.asc()
+    )
+    return query, None
+
+
+def _fetch_milestone_context(
+    project_id: str, milestone_id: str, company_id: uuid.UUID
+) -> tuple[
+    uuid.UUID | None,
+    uuid.UUID | None,
+    Milestone | None,
+    ErrorResponse | None,
+]:
+    """Resolve project and milestone with access checks."""
+    project_uuid, error = _parse_uuid_param(
+        project_id, INVALID_PROJECT_OR_MILESTONE_ID_MSG
+    )
+    if error:
+        return None, None, None, error
+
+    milestone_uuid, error = _parse_uuid_param(
+        milestone_id, INVALID_PROJECT_OR_MILESTONE_ID_MSG
+    )
+    if error:
+        return None, None, None, error
+
+    project = Project.query.filter_by(id=project_uuid, company_id=company_id).first()
+    if not project:
+        return (
+            project_uuid,
+            milestone_uuid,
+            None,
+            (
+                {"error": NOT_FOUND_ERROR, "message": PROJECT_NOT_FOUND_MSG},
+                404,
+            ),
+        )
+
+    milestone = Milestone.query.filter_by(
+        id=milestone_uuid, project_id=project_uuid
+    ).first()
+    if not milestone:
+        return (
+            project_uuid,
+            milestone_uuid,
+            None,
+            (
+                {"error": NOT_FOUND_ERROR, "message": MILESTONE_NOT_FOUND_MSG},
+                404,
+            ),
+        )
+
+    return project_uuid, milestone_uuid, milestone, None
+
+
+def _load_milestone_update_payload() -> tuple[
+    dict[str, Any] | None, ErrorResponse | None
+]:
+    """Load and validate milestone update payload."""
+    if not request.is_json:
+        return None, (
+            {"error": BAD_REQUEST_ERROR, "message": INVALID_JSON_BODY_MSG},
+            400,
+        )
+
+    try:
+        schema = MilestoneUpdateSchema()
+        data = schema.load(request.json)
+    except ValidationError as err:
+        return None, (
+            {
+                "error": BAD_REQUEST_ERROR,
+                "message": VALIDATION_FAILED_MSG,
+                "errors": err.messages,
+            },
+            400,
+        )
+
+    if not isinstance(data, dict):
+        return None, (
+            {"error": BAD_REQUEST_ERROR, "message": INVALID_JSON_BODY_MSG},
+            400,
+        )
+
+    return _normalize_datetime_fields(data), None
+
+
 class MilestoneListResource(Resource):
     """Resource for milestone collection operations.
 
@@ -159,7 +366,7 @@ class MilestoneListResource(Resource):
     """
 
     @require_jwt_auth
-    @access_required(Operation.LIST)
+    @access_required(Operation.LIST, "milestones")
     @limiter.limit("100 per minute")
     def get(self, project_id: str) -> tuple[dict[str, Any], int]:
         """Retrieve paginated list of milestones for a project.
@@ -177,112 +384,55 @@ class MilestoneListResource(Resource):
             404: If project not found or wrong company.
             400: If pagination/filter parameters are invalid.
         """
-        company_id = get_current_company_id()
-
         try:
-            project_uuid = uuid.UUID(project_id)
-        except ValueError:
-            return {"error": BAD_REQUEST_ERROR, "message": "Invalid project_id"}, 400
-
-        # Verify project exists and belongs to company
-        project = db.session.get(Project, project_uuid)
-        if not project or project.company_id != company_id:
-            return {"error": NOT_FOUND_ERROR, "message": PROJECT_NOT_FOUND_MSG}, 404
-
-        # Pagination parameters
-        try:
-            page = int(request.args.get("page", 1))
-            per_page = min(int(request.args.get("per_page", 20)), 100)
-            if page < 1 or per_page < 1:
-                raise ValueError
-        except ValueError:
+            company_id = uuid.UUID(str(get_current_company_id()))
+        except (TypeError, ValueError):
             return {
                 "error": BAD_REQUEST_ERROR,
-                "message": INVALID_PAGINATION_MSG,
+                "message": INVALID_PROJECT_OR_MILESTONE_ID_MSG,
             }, 400
 
-        # Build query
-        query = db.session.query(Milestone).filter(Milestone.project_id == project_uuid)
-
-        # Filter by status
-        status = request.args.get("status")
-        if status:
-            if status not in ["upcoming", "achieved", "missed"]:
-                return {
-                    "error": BAD_REQUEST_ERROR,
-                    "message": INVALID_STATUS_MSG.format(status=status),
-                }, 400
-            query = query.filter(Milestone.status == status)
-
-        # Filter by target_date range
-        target_date_from = request.args.get("target_date_from")
-        if target_date_from:
-            try:
-                date_from = datetime.fromisoformat(
-                    target_date_from.replace("Z", "+00:00")
-                )
-                query = query.filter(Milestone.target_date >= date_from)
-            except ValueError:
-                return {
-                    "error": BAD_REQUEST_ERROR,
-                    "message": "Invalid target_date_from format",
-                }, 400
-
-        target_date_to = request.args.get("target_date_to")
-        if target_date_to:
-            try:
-                date_to = datetime.fromisoformat(target_date_to.replace("Z", "+00:00"))
-                query = query.filter(Milestone.target_date <= date_to)
-            except ValueError:
-                return {
-                    "error": BAD_REQUEST_ERROR,
-                    "message": "Invalid target_date_to format",
-                }, 400
-
-        # Text search
-        search = request.args.get("search")
-        if search:
-            search_pattern = f"%{search}%"
-            query = query.filter(
-                (Milestone.name.ilike(search_pattern))
-                | (Milestone.description.ilike(search_pattern))
-            )
-
-        # Sorting
-        sort_by = request.args.get("sort_by", "target_date")
-        sort_order = request.args.get("sort_order", "asc")
-
-        if sort_by not in [
-            "target_date",
-            "name",
-            "status",
-            "budget_weight",
-            "created_at",
-        ]:
-            return {
-                "error": BAD_REQUEST_ERROR,
-                "message": INVALID_SORT_BY_MSG.format(sort_by=sort_by),
-            }, 400
-
-        if sort_order not in ["asc", "desc"]:
-            return {
-                "error": BAD_REQUEST_ERROR,
-                "message": INVALID_SORT_ORDER_MSG.format(sort_order=sort_order),
-            }, 400
-
-        sort_column = getattr(Milestone, sort_by)
-        query = query.order_by(
-            sort_column.desc() if sort_order == "desc" else sort_column.asc()
+        project_uuid, error = _parse_uuid_param(
+            project_id, INVALID_PROJECT_OR_MILESTONE_ID_MSG
         )
+        if error:
+            return error
 
-        # Get total count
+        assert project_uuid is not None
+
+        project, error = _get_project_or_404(project_uuid, company_id)
+        if error:
+            return error
+
+        assert project is not None
+
+        args = request.args.to_dict(flat=True)
+        pagination, error = _parse_pagination_args(args)
+        if error:
+            return error
+        assert pagination is not None
+        page, per_page = pagination
+
+        query = db.session.query(Milestone).filter(Milestone.project_id == project.id)
+
+        filtered_query, error = _apply_milestone_filters(query, args)
+        if error:
+            return error
+        assert filtered_query is not None
+        query = filtered_query
+
+        sort_by = args.get("sort_by", "target_date")
+        sort_order = args.get("sort_order", "asc")
+        sorted_query, error = _apply_milestone_sorting(query, sort_by, sort_order)
+        if error:
+            return error
+        assert sorted_query is not None
+        query = sorted_query
+
         total = query.count()
         total_pages = math.ceil(total / per_page) if total > 0 else 1
-
-        # Apply pagination
         milestones = query.limit(per_page).offset((page - 1) * per_page).all()
 
-        # Serialize
         schema = MilestoneSchema(many=True)
         data = schema.dump(milestones)
 
@@ -297,7 +447,7 @@ class MilestoneListResource(Resource):
         return response, 200
 
     @require_jwt_auth
-    @access_required(Operation.CREATE)
+    @access_required(Operation.CREATE, "milestones")
     @limiter.limit("100 per minute")
     def post(self, project_id: str) -> tuple[dict[str, Any], int]:
         """Create a new milestone for a project.
@@ -323,8 +473,10 @@ class MilestoneListResource(Resource):
             return {"error": BAD_REQUEST_ERROR, "message": "Invalid project_id"}, 400
 
         # Verify project exists and belongs to company
-        project = db.session.get(Project, project_uuid)
-        if not project or project.company_id != company_id:
+        project = Project.query.filter_by(
+            id=project_uuid, company_id=company_id
+        ).first()
+        if not project:
             return {"error": NOT_FOUND_ERROR, "message": PROJECT_NOT_FOUND_MSG}, 404
 
         # Validate request body
@@ -342,6 +494,8 @@ class MilestoneListResource(Resource):
             }, 400
 
         # Normalize datetime fields
+        if not isinstance(data, dict):
+            return {"error": BAD_REQUEST_ERROR, "message": INVALID_JSON_BODY_MSG}, 400
         data = _normalize_datetime_fields(data)
 
         # Validate budget_weight sum
@@ -351,15 +505,14 @@ class MilestoneListResource(Resource):
             return {"error": CONFLICT_ERROR, "message": error_msg}, 409
 
         # Create milestone
-        milestone = Milestone(
-            project_id=project_uuid,
-            name=data["name"],
-            description=data.get("description"),
-            target_date=data["target_date"],
-            budget_weight=new_weight,
-            status="upcoming",
-            is_achieved=False,
-        )
+        milestone = Milestone()
+        milestone.project_id = project_uuid
+        milestone.name = data["name"]
+        milestone.description = data.get("description")
+        milestone.target_date = data["target_date"]
+        milestone.budget_weight = new_weight
+        milestone.status = "upcoming"
+        milestone.is_achieved = False
 
         try:
             db.session.add(milestone)
@@ -391,7 +544,7 @@ class MilestoneResource(Resource):
     """
 
     @require_jwt_auth
-    @access_required(Operation.READ)
+    @access_required(Operation.READ, "milestones")
     @limiter.limit("100 per minute")
     def get(self, project_id: str, id: str) -> tuple[dict[str, Any], int]:
         """Retrieve a single milestone by ID.
@@ -407,35 +560,27 @@ class MilestoneResource(Resource):
             404: If milestone not found or wrong company/project.
             400: If ID format is invalid.
         """
-        company_id = get_current_company_id()
-
         try:
-            project_uuid = uuid.UUID(project_id)
-            milestone_uuid = uuid.UUID(id)
-        except ValueError:
+            company_id = uuid.UUID(str(get_current_company_id()))
+        except (TypeError, ValueError):
             return {
                 "error": BAD_REQUEST_ERROR,
-                "message": "Invalid project_id or milestone id",
+                "message": INVALID_PROJECT_OR_MILESTONE_ID_MSG,
             }, 400
 
-        # Verify project exists and belongs to company
-        project = db.session.get(Project, project_uuid)
-        if not project or project.company_id != company_id:
-            return {"error": NOT_FOUND_ERROR, "message": PROJECT_NOT_FOUND_MSG}, 404
+        _, _, milestone, error = _fetch_milestone_context(project_id, id, company_id)
+        if error:
+            return error
 
-        # Get milestone
-        milestone = db.session.get(Milestone, milestone_uuid)
-        if not milestone or milestone.project_id != project_uuid:
-            return {"error": NOT_FOUND_ERROR, "message": MILESTONE_NOT_FOUND_MSG}, 404
+        assert milestone is not None
 
-        # Serialize response
         schema = MilestoneSchema()
         response = {"data": schema.dump(milestone)}
 
         return response, 200
 
     @require_jwt_auth
-    @access_required(Operation.UPDATE)
+    @access_required(Operation.UPDATE, "milestones")
     @limiter.limit("100 per minute")
     def patch(self, project_id: str, id: str) -> tuple[dict[str, Any], int]:
         """Update a milestone (partial update).
@@ -454,48 +599,33 @@ class MilestoneResource(Resource):
             400: If validation fails.
             409: If budget_weight sum would exceed 1.0.
         """
-        company_id = get_current_company_id()
-
         try:
-            project_uuid = uuid.UUID(project_id)
-            milestone_uuid = uuid.UUID(id)
-        except ValueError:
+            company_id = uuid.UUID(str(get_current_company_id()))
+        except (TypeError, ValueError):
             return {
                 "error": BAD_REQUEST_ERROR,
-                "message": "Invalid project_id or milestone id",
+                "message": INVALID_PROJECT_OR_MILESTONE_ID_MSG,
             }, 400
 
-        # Verify project exists and belongs to company
-        project = db.session.get(Project, project_uuid)
-        if not project or project.company_id != company_id:
-            return {"error": NOT_FOUND_ERROR, "message": PROJECT_NOT_FOUND_MSG}, 404
+        project_uuid, milestone_uuid, milestone, error = _fetch_milestone_context(
+            project_id, id, company_id
+        )
+        if error:
+            return error
 
-        # Get milestone
-        milestone = db.session.get(Milestone, milestone_uuid)
-        if not milestone or milestone.project_id != project_uuid:
-            return {"error": NOT_FOUND_ERROR, "message": MILESTONE_NOT_FOUND_MSG}, 404
+        assert project_uuid is not None
+        assert milestone_uuid is not None
+        assert milestone is not None
 
-        # Validate request body
-        if not request.is_json:
-            return {"error": BAD_REQUEST_ERROR, "message": INVALID_JSON_BODY_MSG}, 400
+        data, error = _load_milestone_update_payload()
+        if error:
+            return error
 
-        try:
-            schema = MilestoneUpdateSchema()
-            data = schema.load(request.json)
-        except ValidationError as err:
-            return {
-                "error": BAD_REQUEST_ERROR,
-                "message": VALIDATION_FAILED_MSG,
-                "errors": err.messages,
-            }, 400
-
-        # Normalize datetime fields
-        data = _normalize_datetime_fields(data)
+        assert data is not None
 
         # Validate budget_weight sum if updating budget_weight
         if "budget_weight" in data:
             new_weight = Decimal(str(data["budget_weight"]))
-            # Exclude current milestone from sum calculation
             is_valid, error_msg = _validate_budget_weight_sum(
                 project_uuid, new_weight, exclude_milestone_id=milestone_uuid
             )
@@ -533,7 +663,7 @@ class MilestoneResource(Resource):
         return response, 200
 
     @require_jwt_auth
-    @access_required(Operation.DELETE)
+    @access_required(Operation.DELETE, "milestones")
     @limiter.limit("100 per minute")
     def delete(self, project_id: str, id: str) -> tuple[dict[str, Any], int]:
         """Delete a milestone.
@@ -551,44 +681,22 @@ class MilestoneResource(Resource):
             404: If milestone not found or wrong company/project.
             409: If milestone has associated expenses.
         """
-        company_id = get_current_company_id()
-
         try:
-            project_uuid = uuid.UUID(project_id)
-            milestone_uuid = uuid.UUID(id)
-        except ValueError:
+            company_id = uuid.UUID(str(get_current_company_id()))
+        except (TypeError, ValueError):
             return {
                 "error": BAD_REQUEST_ERROR,
-                "message": "Invalid project_id or milestone id",
+                "message": INVALID_PROJECT_OR_MILESTONE_ID_MSG,
             }, 400
 
-        # Verify project exists and belongs to company
-        project = db.session.get(Project, project_uuid)
-        if not project or project.company_id != company_id:
-            return {"error": NOT_FOUND_ERROR, "message": PROJECT_NOT_FOUND_MSG}, 404
+        _, _, milestone, error = _fetch_milestone_context(project_id, id, company_id)
+        if error:
+            return error
 
-        # Get milestone
-        milestone = db.session.get(Milestone, milestone_uuid)
-        if not milestone or milestone.project_id != project_uuid:
-            return {"error": NOT_FOUND_ERROR, "message": MILESTONE_NOT_FOUND_MSG}, 404
+        assert milestone is not None
 
-        # Check for associated expenses
-        # TODO: Uncomment when Expense model has milestone_id field
-        # expense_count = (
-        #     db.session.query(func.count(Expense.id))
-        #     .filter(Expense.milestone_id == milestone_uuid)
-        #     .scalar()
-        # )
-        #
-        # if expense_count > 0:
-        #     return {
-        #         "error": CONFLICT_ERROR,
-        #         "message": CANNOT_DELETE_MILESTONE_WITH_EXPENSES_MSG.format(
-        #             count=expense_count
-        #         ),
-        #     }, 409
-
-        # For now, allow deletion (expenses model needs milestone_id field)
+        # Expense deletion guard is disabled because the Expense model currently
+        # lacks a milestone_id field. Enable this check once that field exists.
 
         # Delete milestone
         db.session.delete(milestone)

@@ -32,6 +32,8 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.types import GUID, TimestampMixin, UUIDMixin
 
+CASCADE_ALL_DELETE_ORPHAN = "all, delete-orphan"
+
 if TYPE_CHECKING:
     from flask_sqlalchemy.model import Model
 
@@ -246,42 +248,42 @@ class Project(UUIDMixin, TimestampMixin, Model):
     tasks: Mapped[list["Task"]] = relationship(
         "Task",
         back_populates="project",
-        cascade="all, delete-orphan",
+        cascade=CASCADE_ALL_DELETE_ORPHAN,
         doc="Tasks in this project",
     )
 
     milestones: Mapped[list["Milestone"]] = relationship(
         "Milestone",
         back_populates="project",
-        cascade="all, delete-orphan",
+        cascade=CASCADE_ALL_DELETE_ORPHAN,
         doc="Milestones in this project",
     )
 
     expenses: Mapped[list["Expense"]] = relationship(
         "Expense",
         back_populates="project",
-        cascade="all, delete-orphan",
+        cascade=CASCADE_ALL_DELETE_ORPHAN,
         doc="Expenses for this project",
     )
 
     assignments: Mapped[list["Assignment"]] = relationship(
         "Assignment",
         back_populates="project",
-        cascade="all, delete-orphan",
+        cascade=CASCADE_ALL_DELETE_ORPHAN,
         doc="Resource assignments in this project",
     )
 
     progress_updates: Mapped[list["ProgressUpdate"]] = relationship(
         "ProgressUpdate",
         back_populates="project",
-        cascade="all, delete-orphan",
+        cascade=CASCADE_ALL_DELETE_ORPHAN,
         doc="Progress update history for this project",
     )
 
     evm_snapshots: Mapped[list["EVMSnapshot"]] = relationship(
         "EVMSnapshot",
         back_populates="project",
-        cascade="all, delete-orphan",
+        cascade=CASCADE_ALL_DELETE_ORPHAN,
         doc="EVM calculation snapshots for this project",
     )
 
