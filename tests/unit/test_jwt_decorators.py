@@ -190,6 +190,28 @@ class TestRequireJWTAuth:
         assert data["company_id"] == "company-456"
         assert data["email"] == "test@example.com"
 
+    def test_require_jwt_auth_allows_bearer_header_token(
+        self, app: Flask, client: Any
+    ) -> None:
+        """Valid JWT in Authorization header also allows access.
+
+        Given: Valid JWT token in Authorization header
+        When: Protected route is accessed without cookie
+        Then: Status is 200 and claims are in context
+        """
+        token = generate_valid_token(app)
+
+        response = client.get(
+            "/protected",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data["user_id"] == "user-123"
+        assert data["company_id"] == "company-456"
+        assert data["email"] == "test@example.com"
+
     def test_require_jwt_auth_rejects_missing_token(
         self, app: Flask, client: Any
     ) -> None:

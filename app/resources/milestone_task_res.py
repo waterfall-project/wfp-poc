@@ -33,9 +33,11 @@ from app.schemas.milestone_schema import (
     MilestoneTaskLinkSchema,
 )
 from app.services.guardian_service import Operation
+from app.utils.api_version import validate_api_version
 from app.utils.jwt_decorators import (
     access_required,
     get_current_company_id,
+    get_current_user_id,
     require_jwt_auth,
 )
 
@@ -53,10 +55,22 @@ VALIDATION_FAILED_MSG = "Validation failed"
 MILESTONE_NOT_FOUND_MSG = "Milestone not found"
 TASK_NOT_FOUND_MSG = "Task {task_id} not found or belongs to different project"
 TASKS_CROSS_COMPANY_MSG = "All tasks must belong to the same company"
+INVALID_COMPANY_ID_CLAIM_MSG = "Invalid token: company_id claim is not a valid UUID."
 
 # Success Messages
 TASKS_LINKED_MSG = "Tasks linked successfully, milestone target_date recalculated"
 TASKS_SYNCED_MSG = "Milestone-task links synchronized successfully"
+
+
+def _rate_limit_user_key() -> str:
+    """Rate limiting key based on authenticated user.
+
+    Falls back to remote address when user_id is absent.
+    """
+    user_id = get_current_user_id()
+    if user_id:
+        return str(user_id)
+    return request.remote_addr or "anonymous"
 
 
 def _recalculate_milestone_target_date(milestone_id: uuid.UUID) -> datetime | None:
@@ -257,14 +271,17 @@ class MilestoneTasksResource(Resource):
 
     @require_jwt_auth
     @access_required(Operation.UPDATE, "milestones")
-    @limiter.limit("100 per minute")
-    def post(self, milestone_id: str) -> tuple[dict[str, Any], int]:
+    @limiter.limit("100 per minute", key_func=_rate_limit_user_key)
+    def post(
+        self, milestone_id: str, version: str | None = None
+    ) -> tuple[dict[str, Any], int]:
         """Link tasks to milestone as predecessors.
 
         Automatically recalculates milestone target_date as MAX(tasks.planned_finish_date).
 
         Args:
             milestone_id: Milestone UUID from path parameter.
+            version: Optional API version from path (e.g. "v0", "v1").
 
         Returns:
             Tuple of (response_dict, status_code).
@@ -274,13 +291,17 @@ class MilestoneTasksResource(Resource):
             400: If validation fails.
             422: If tasks belong to different project/company.
         """
+        version_error = validate_api_version(version)
+        if version_error:
+            return version_error
+
         try:
             company_id = uuid.UUID(str(get_current_company_id()))
         except (TypeError, ValueError):
             return {
-                "error": BAD_REQUEST_ERROR,
-                "message": INVALID_MILESTONE_ID_MSG,
-            }, 400
+                "error": "Unauthorized",
+                "message": INVALID_COMPANY_ID_CLAIM_MSG,
+            }, 401
 
         milestone_uuid, error = _parse_milestone_uuid(milestone_id)
         if error:
@@ -332,16 +353,19 @@ class MilestoneTasksResource(Resource):
             "message": TASKS_LINKED_MSG,
         }
 
-        return response, 201
+        return response, 200
 
     @require_jwt_auth
     @access_required(Operation.READ, "milestones")
-    @limiter.limit("100 per minute")
-    def get(self, milestone_id: str) -> tuple[dict[str, Any], int]:
+    @limiter.limit("100 per minute", key_func=_rate_limit_user_key)
+    def get(
+        self, milestone_id: str, version: str | None = None
+    ) -> tuple[dict[str, Any], int]:
         """Get all predecessor tasks linked to a milestone.
 
         Args:
             milestone_id: Milestone UUID from path parameter.
+            version: Optional API version from path (e.g. "v0", "v1").
 
         Returns:
             Tuple of (response_dict, status_code).
@@ -349,13 +373,17 @@ class MilestoneTasksResource(Resource):
         Raises:
             404: If milestone not found or wrong company.
         """
+        version_error = validate_api_version(version)
+        if version_error:
+            return version_error
+
         try:
             company_id = uuid.UUID(str(get_current_company_id()))
         except (TypeError, ValueError):
             return {
-                "error": BAD_REQUEST_ERROR,
-                "message": INVALID_MILESTONE_ID_MSG,
-            }, 400
+                "error": "Unauthorized",
+                "message": INVALID_COMPANY_ID_CLAIM_MSG,
+            }, 401
 
         milestone_uuid, error = _parse_milestone_uuid(milestone_id)
         if error:
@@ -401,8 +429,10 @@ class MilestoneTasksSyncResource(Resource):
 
     @require_jwt_auth
     @access_required(Operation.UPDATE, "milestones")
-    @limiter.limit("100 per minute")
-    def put(self, milestone_id: str) -> tuple[dict[str, Any], int]:
+    @limiter.limit("100 per minute", key_func=_rate_limit_user_key)
+    def put(
+        self, milestone_id: str, version: str | None = None
+    ) -> tuple[dict[str, Any], int]:
         """Sync milestone-task links (upsert operation).
 
         Removes links not in task_ids, adds new links, preserves existing.
@@ -410,6 +440,7 @@ class MilestoneTasksSyncResource(Resource):
 
         Args:
             milestone_id: Milestone UUID from path parameter.
+            version: Optional API version from path (e.g. "v0", "v1").
 
         Returns:
             Tuple of (response_dict, status_code).
@@ -419,13 +450,17 @@ class MilestoneTasksSyncResource(Resource):
             400: If validation fails.
             422: If tasks belong to different project/company.
         """
+        version_error = validate_api_version(version)
+        if version_error:
+            return version_error
+
         try:
             company_id = uuid.UUID(str(get_current_company_id()))
         except (TypeError, ValueError):
             return {
-                "error": BAD_REQUEST_ERROR,
-                "message": INVALID_MILESTONE_ID_MSG,
-            }, 400
+                "error": "Unauthorized",
+                "message": INVALID_COMPANY_ID_CLAIM_MSG,
+            }, 401
 
         milestone_uuid, error = _parse_milestone_uuid(milestone_id)
         if error:

@@ -166,7 +166,7 @@ class TestMilestoneTasksResourcePost:
             json=link_data,
         )
 
-        assert response.status_code == 201
+        assert response.status_code == 200
         data = response.get_json()
 
         assert "data" in data
@@ -202,7 +202,7 @@ class TestMilestoneTasksResourcePost:
             json=link_data,
         )
 
-        assert response.status_code == 201
+        assert response.status_code == 200
 
         # Verify milestone target_date was updated
         with app.app_context():
@@ -238,7 +238,7 @@ class TestMilestoneTasksResourcePost:
                 f"/v0/milestones/{milestone_data.id}/tasks",
                 json=link_data,
             )
-            assert response.status_code == 201
+            assert response.status_code == 200
 
         # Verify target_date is the latest finish date
         with app.app_context():
@@ -286,14 +286,14 @@ class TestMilestoneTasksResourcePost:
             f"/v0/milestones/{milestone_data.id}/tasks",
             json=link_data,
         )
-        assert response1.status_code == 201
+        assert response1.status_code == 200
 
         # Second link - should succeed but skip duplicate (idempotent)
         response2 = authenticated_client.post(
             f"/v0/milestones/{milestone_data.id}/tasks",
             json=link_data,
         )
-        assert response2.status_code == 201
+        assert response2.status_code == 200
         data2 = response2.get_json()
         # Verify duplicate was skipped (linked_count should be 0)
         assert data2["data"]["linked_task_count"] == 0

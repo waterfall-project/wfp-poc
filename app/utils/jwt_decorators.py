@@ -82,8 +82,13 @@ def require_jwt_auth(f: Callable[..., Any]) -> Callable[..., Any]:
         Returns:
             Response from wrapped function or error response.
         """
-        # Get token from cookie
+        # Get token from cookie (browser-style) or Authorization header (service-style)
         token = request.cookies.get(current_app.config["JWT_COOKIE_NAME"])
+
+        if not token:
+            auth_header = request.headers.get("Authorization", "")
+            if auth_header.startswith("Bearer "):
+                token = auth_header.removeprefix("Bearer ").strip()
 
         if not token:
             current_app.logger.warning(
@@ -304,8 +309,10 @@ def access_required(
                     401,
                 )
 
-            # Build context from route parameters
-            context = {key: str(value) for key, value in kwargs.items()}
+            # Build context from route parameters (exclude API version segment)
+            context = {
+                key: str(value) for key, value in kwargs.items() if key != "version"
+            }
 
             try:
                 # Check access with Guardian

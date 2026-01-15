@@ -40,6 +40,7 @@ from app.schemas.task_schema import (
     TaskUpdateSchema,
 )
 from app.services.guardian_service import Operation
+from app.utils.api_version import validate_api_version
 from app.utils.jwt_decorators import (
     access_required,
     get_current_company_id,
@@ -269,7 +270,7 @@ class TaskListResource(Resource):
     @require_jwt_auth
     @access_required(Operation.LIST, "tasks")
     @limiter.limit("100 per minute", key_func=_rate_limit_user_key)
-    def get(self, project_id: str) -> tuple[dict, int]:
+    def get(self, project_id: str, version: str | None = None) -> tuple[dict, int]:
         """Retrieve paginated list of tasks for a project.
 
         Query Parameters:
@@ -287,6 +288,7 @@ class TaskListResource(Resource):
 
         Args:
             project_id: Project UUID.
+            version: Optional API version from path (e.g. "v0", "v1").
 
         Returns:
             Tuple of (response_dict, status_code):
@@ -306,6 +308,10 @@ class TaskListResource(Resource):
                 "total_pages": 3
             }
         """
+        version_error = validate_api_version(version)
+        if version_error:
+            return version_error
+
         company_id = get_current_company_id()
 
         # Validate project exists and belongs to company
@@ -434,11 +440,12 @@ class TaskListResource(Resource):
     @require_jwt_auth
     @access_required(Operation.CREATE, "tasks")
     @limiter.limit("30 per minute", key_func=_rate_limit_user_key)
-    def post(self, project_id: str) -> tuple[dict, int]:
+    def post(self, project_id: str, version: str | None = None) -> tuple[dict, int]:
         """Create a new task within a project.
 
         Args:
             project_id: Project UUID.
+            version: Optional API version from path (e.g. "v0", "v1").
 
         Returns:
             Tuple of (response_dict, status_code):
@@ -458,6 +465,10 @@ class TaskListResource(Resource):
                 "finish": "2026-02-15T18:00:00Z"
             }
         """
+        version_error = validate_api_version(version)
+        if version_error:
+            return version_error
+
         company_id = get_current_company_id()
 
         # Validate project exists and belongs to company
@@ -587,12 +598,15 @@ class TaskResource(Resource):
     @require_jwt_auth
     @access_required(Operation.READ, "tasks")
     @limiter.limit("200 per minute", key_func=_rate_limit_user_key)
-    def get(self, project_id: str, id: str) -> tuple[dict, int]:
+    def get(
+        self, project_id: str, id: str, version: str | None = None
+    ) -> tuple[dict, int]:
         """Retrieve a specific task by ID.
 
         Args:
             project_id: Project UUID.
             id: Task UUID.
+            version: Optional API version from path (e.g. "v0", "v1").
 
         Returns:
             Tuple of (response_dict, status_code):
@@ -608,6 +622,10 @@ class TaskResource(Resource):
                 "message": null
             }
         """
+        version_error = validate_api_version(version)
+        if version_error:
+            return version_error
+
         company_id = get_current_company_id()
 
         # Validate UUIDs
@@ -647,13 +665,14 @@ class TaskResource(Resource):
     @access_required(Operation.UPDATE, "tasks")
     @limiter.limit("50 per minute", key_func=_rate_limit_user_key)
     def patch(
-        self, project_id: str, id: str
+        self, project_id: str, id: str, version: str | None = None
     ) -> tuple[dict, int] | tuple[dict, int, dict[str, str]]:
         """Update a task (partial update).
 
         Args:
             project_id: Project UUID.
             id: Task UUID.
+            version: Optional API version from path (e.g. "v0", "v1").
 
         Returns:
             Tuple of (response_dict, status_code):
@@ -672,6 +691,10 @@ class TaskResource(Resource):
                 "percent_complete": 25
             }
         """
+        version_error = validate_api_version(version)
+        if version_error:
+            return version_error
+
         company_id = get_current_company_id()
 
         # Validate UUIDs
@@ -816,7 +839,7 @@ class TaskResource(Resource):
     @access_required(Operation.DELETE, "tasks")
     @limiter.limit("20 per minute", key_func=_rate_limit_user_key)
     def delete(
-        self, project_id: str, id: str
+        self, project_id: str, id: str, version: str | None = None
     ) -> tuple[dict | str, int] | tuple[dict, int, dict[str, str]]:
         """Delete a task.
 
@@ -826,6 +849,7 @@ class TaskResource(Resource):
         Args:
             project_id: Project UUID.
             id: Task UUID.
+            version: Optional API version from path (e.g. "v0", "v1").
 
         Returns:
             Tuple of (response_dict, status_code):
@@ -839,6 +863,10 @@ class TaskResource(Resource):
             >>> DELETE /v0/projects/{project_uuid}/tasks/{task_uuid}
             204 No Content
         """
+        version_error = validate_api_version(version)
+        if version_error:
+            return version_error
+
         company_id = get_current_company_id()
 
         # Validate UUIDs
@@ -918,13 +946,14 @@ class TaskBulkResource(Resource):
     @require_jwt_auth
     @access_required(Operation.CREATE, "tasks")
     @limiter.limit("10 per minute", key_func=_rate_limit_user_key)
-    def post(self, project_id: str) -> tuple[dict, int]:
+    def post(self, project_id: str, version: str | None = None) -> tuple[dict, int]:
         """Bulk create tasks for a project.
 
         Allows partial success - returns created tasks and errors for failed items.
 
         Args:
             project_id: Project UUID.
+            version: Optional API version from path (e.g. "v0", "v1").
 
         Returns:
             Tuple of (response_dict, status_code):
@@ -944,6 +973,10 @@ class TaskBulkResource(Resource):
                 ]
             }
         """
+        version_error = validate_api_version(version)
+        if version_error:
+            return version_error
+
         company_id = get_current_company_id()
 
         # Validate project exists and belongs to company
@@ -1107,7 +1140,7 @@ class TaskSyncResource(Resource):
     @require_jwt_auth
     @access_required(Operation.UPDATE, "tasks")
     @limiter.limit("10 per minute", key_func=_rate_limit_user_key)
-    def put(self, project_id: str) -> tuple[dict, int]:
+    def put(self, project_id: str, version: str | None = None) -> tuple[dict, int]:
         """Sync tasks using ms_project_uid as reconciliation key.
 
         Updates existing tasks by ms_project_uid. Tasks not found are tracked
@@ -1116,6 +1149,7 @@ class TaskSyncResource(Resource):
 
         Args:
             project_id: Project UUID.
+            version: Optional API version from path (e.g. "v0", "v1").
 
         Returns:
             Tuple of (response_dict, status_code):
@@ -1139,6 +1173,10 @@ class TaskSyncResource(Resource):
                 ]
             }
         """
+        version_error = validate_api_version(version)
+        if version_error:
+            return version_error
+
         company_id = get_current_company_id()
 
         # Validate project exists and belongs to company

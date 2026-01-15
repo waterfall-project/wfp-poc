@@ -271,7 +271,7 @@ class TestMilestoneTasksLinking:
 
         Given: Milestone and tasks with different finish dates exist
         When: POST /v0/milestones/{id}/tasks links both tasks
-        Then: Response is 201 and milestone target_date becomes max planned_finish_date
+        Then: Response is 200 and milestone target_date becomes max planned_finish_date
         """
 
         with app.app_context():
@@ -318,7 +318,7 @@ class TestMilestoneTasksLinking:
             json={"task_ids": task_ids},
         )
 
-        assert response.status_code == 201
+        assert response.status_code == 200
         data = response.get_json()
         assert (
             data["message"]
