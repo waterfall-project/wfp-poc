@@ -14,7 +14,7 @@ the EVM system with multi-tenancy support and comprehensive tracking.
 """
 
 import uuid
-from datetime import datetime, time
+from datetime import UTC, date, datetime, time
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
@@ -28,7 +28,7 @@ from sqlalchemy import (
     Time,
     UniqueConstraint,
 )
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship, validates
 
 from app.models.types import GUID, TimestampMixin, UUIDMixin
 
@@ -307,3 +307,31 @@ class Project(UUIDMixin, TimestampMixin, Model):
             Human-readable string with key attributes.
         """
         return f"<Project(id={self.id}, name='{self.name}', status='{self.status}')>"
+
+    @staticmethod
+    def _normalize_datetime(value: datetime | date | None) -> datetime | None:
+        """Normalize datetimes to naive UTC for consistent storage."""
+        if value is None:
+            return None
+
+        if isinstance(value, date) and not isinstance(value, datetime):
+            value = datetime.combine(value, datetime.min.time())
+
+        if value.tzinfo is not None and value.utcoffset() is not None:
+            value = value.astimezone(UTC).replace(tzinfo=None)
+
+        return value
+
+    @validates(
+        "start_date",
+        "planned_start_date",
+        "finish_date",
+        "planned_finish_date",
+        "creation_date",
+        "last_saved_date",
+    )
+    def _validate_datetime_field(
+        self, key: str, value: datetime | date | None
+    ) -> datetime | None:
+        """Ensure project datetime fields are stored as naive UTC values."""
+        return self._normalize_datetime(value)

@@ -15,7 +15,7 @@ are used for EVM milestone completion method and expense allocation.
 """
 
 import uuid
-from datetime import datetime
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
@@ -30,7 +30,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
 )
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship, validates
 
 from app.models.types import GUID, TimestampMixin, UUIDMixin
 
@@ -93,7 +93,7 @@ class Milestone(UUIDMixin, TimestampMixin, Model):
     )
 
     target_date: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
+        DateTime,
         nullable=False,
         index=True,
         doc="Target completion date (auto-calculated from predecessor tasks)",
@@ -135,13 +135,13 @@ class Milestone(UUIDMixin, TimestampMixin, Model):
     )
 
     actual_date: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True),
+        DateTime,
         nullable=True,
         doc="Actual milestone completion date",
     )
 
     achieved_date: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True),
+        DateTime,
         nullable=True,
         index=True,
         doc="Date when milestone was achieved (for EV milestone method)",
@@ -154,7 +154,7 @@ class Milestone(UUIDMixin, TimestampMixin, Model):
     )
 
     current_rae_date: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True),
+        DateTime,
         nullable=True,
         doc="Date of last RAE update",
     )
@@ -206,3 +206,34 @@ class Milestone(UUIDMixin, TimestampMixin, Model):
             f"<Milestone(id={self.id}, name='{self.name}', "
             f"status='{self.status}', budget_weight={self.budget_weight})>"
         )
+
+    @staticmethod
+    def _normalize_datetime(value: datetime | date | None) -> datetime | None:
+        """Normalize datetimes to naive UTC for storage consistency.
+
+        Converts date inputs to midnight datetimes and strips timezone
+        information while preserving the absolute UTC instant.
+
+        Args:
+            value: Date or datetime value to normalize.
+
+        Returns:
+            Naive datetime or None.
+        """
+        if value is None:
+            return None
+
+        if isinstance(value, date) and not isinstance(value, datetime):
+            value = datetime.combine(value, datetime.min.time())
+
+        if value.tzinfo is not None and value.utcoffset() is not None:
+            value = value.astimezone(UTC).replace(tzinfo=None)
+
+        return value
+
+    @validates("target_date", "actual_date", "achieved_date", "current_rae_date")
+    def _validate_datetime_field(
+        self, key: str, value: datetime | date | None
+    ) -> datetime | None:
+        """Ensure datetime fields are stored as naive UTC values."""
+        return self._normalize_datetime(value)

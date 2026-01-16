@@ -93,7 +93,7 @@ class TestAssignmentModel:
         assert assignment.planned_work_minutes is None
         assert assignment.actual_work_minutes is None
         assert assignment.planned_cost is None
-        assert assignment.actual_cost is None
+        assert assignment.actual_cost == Decimal("0.00")
         assert assignment.created_at is not None
         assert assignment.updated_at is not None
 

@@ -16,7 +16,7 @@ to specific tasks with planned work and actual effort tracking.
 import uuid
 from typing import TYPE_CHECKING
 
-from sqlalchemy import ForeignKey, Integer, Numeric, UniqueConstraint
+from sqlalchemy import CheckConstraint, ForeignKey, Integer, Numeric, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.types import GUID, TimestampMixin, UUIDMixin
@@ -44,6 +44,8 @@ class Assignment(UUIDMixin, TimestampMixin, Model):
         task_id: Task identifier (UUID, required, foreign key).
         resource_id: Resource identifier (UUID, required, foreign key).
         project_id: Project identifier for denormalization (UUID, required, foreign key).
+        ms_project_uid: Optional MS Project assignment UID for reconciliation.
+        percent_allocation: Allocation percentage (0-100).
         planned_work_minutes: Planned work effort in minutes.
         actual_work_minutes: Actual work effort in minutes.
         planned_cost: Planned cost for this assignment.
@@ -80,6 +82,19 @@ class Assignment(UUIDMixin, TimestampMixin, Model):
     )
 
     # Optional Fields
+    ms_project_uid: Mapped[int | None] = mapped_column(
+        Integer,
+        nullable=True,
+        doc="MS Project assignment UID",
+    )
+
+    percent_allocation: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=100,
+        doc="Allocation percentage (0-100)",
+    )
+
     planned_work_minutes: Mapped[int | None] = mapped_column(
         Integer,
         nullable=True,
@@ -101,6 +116,7 @@ class Assignment(UUIDMixin, TimestampMixin, Model):
     actual_cost: Mapped[float | None] = mapped_column(
         Numeric(15, 2),
         nullable=True,
+        default=0,
         doc="Actual cost incurred for this assignment",
     )
 
@@ -129,6 +145,14 @@ class Assignment(UUIDMixin, TimestampMixin, Model):
             "task_id",
             "resource_id",
             name="uq_assignments_task_resource",
+        ),
+        CheckConstraint(
+            "percent_allocation >= 0",
+            name="ck_assignment_percent_allocation_min",
+        ),
+        CheckConstraint(
+            "percent_allocation <= 100",
+            name="ck_assignment_percent_allocation_max",
         ),
     )
 

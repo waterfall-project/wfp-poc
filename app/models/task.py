@@ -14,7 +14,7 @@ projects with EVM tracking, predecessor relationships, and multi-level WBS.
 """
 
 import uuid
-from datetime import datetime
+from datetime import UTC, date, datetime
 from typing import TYPE_CHECKING
 
 from sqlalchemy import (
@@ -28,7 +28,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
 )
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship, validates
 
 from app.models.types import GUID, TimestampMixin, UUIDMixin
 
@@ -334,3 +334,29 @@ class Task(UUIDMixin, TimestampMixin, Model):
             Human-readable string with key attributes.
         """
         return f"<Task(id={self.id}, name='{self.name}', status='{self.status}')>"
+
+    @staticmethod
+    def _normalize_datetime(value: datetime | date | None) -> datetime | None:
+        """Normalize datelike inputs to naive UTC datetimes."""
+        if value is None:
+            return None
+
+        if isinstance(value, date) and not isinstance(value, datetime):
+            value = datetime.combine(value, datetime.min.time())
+
+        if value.tzinfo is not None and value.utcoffset() is not None:
+            value = value.astimezone(UTC).replace(tzinfo=None)
+
+        return value
+
+    @validates(
+        "planned_start_date",
+        "planned_finish_date",
+        "actual_start_date",
+        "actual_finish_date",
+    )
+    def _validate_datetime_field(
+        self, key: str, value: datetime | date | None
+    ) -> datetime | None:
+        """Ensure task datetime fields are stored as naive UTC values."""
+        return self._normalize_datetime(value)

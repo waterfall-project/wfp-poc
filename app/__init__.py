@@ -32,7 +32,7 @@ from prometheus_client import Gauge
 from prometheus_flask_exporter import PrometheusMetrics
 
 # Initialize extensions
-db = SQLAlchemy()
+db = SQLAlchemy(session_options={"expire_on_commit": False})
 migrate = Migrate()
 ma = Marshmallow()
 limiter = Limiter(key_func=get_remote_address)
@@ -67,6 +67,8 @@ def create_app(config_class: str = "app.config.DevelopmentConfig") -> Flask:
 
     # Initialize extensions
     db.init_app(app)
+    # Keep primary keys accessible after commits to avoid DetachedInstanceError in tests
+    db.session.expire_on_commit = False  # type: ignore[attr-defined]
     migrate.init_app(app, db)
     ma.init_app(app)
 
