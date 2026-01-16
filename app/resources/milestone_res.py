@@ -750,7 +750,9 @@ class MilestoneResource(Resource):
         if milestone.expenses:
             return {
                 "error": "Conflict",
-                "message": CANNOT_DELETE_MILESTONE_WITH_EXPENSES_MSG.format(count=len(milestone.expenses)),
+                "message": CANNOT_DELETE_MILESTONE_WITH_EXPENSES_MSG.format(
+                    count=len(milestone.expenses)
+                ),
             }, 409
 
         # Delete milestone
