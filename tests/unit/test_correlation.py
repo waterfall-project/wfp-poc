@@ -10,9 +10,7 @@
 """Unit tests for correlation utility functions."""
 
 import uuid
-from unittest.mock import MagicMock, patch
 
-import pytest
 from flask import Flask, g
 
 from app.utils.correlation import error_response, get_correlation_id
@@ -101,7 +99,9 @@ class TestErrorResponse:
         Then: Returns tuple with body, status, and headers
         """
         with app.test_request_context():
-            body, status, headers = error_response("Test error", 400)
+            result = error_response("Test error", 400)
+            assert len(result) == 3
+            body, status, headers = result
 
             assert status == 400
             assert body["message"] == "Test error"
@@ -117,9 +117,11 @@ class TestErrorResponse:
         Then: Includes error field in body
         """
         with app.test_request_context():
-            body, status, headers = error_response(
+            result = error_response(
                 "Validation failed", 400, error="Bad Request"
             )
+            assert len(result) == 3
+            body, status, headers = result
 
             assert status == 400
             assert body["message"] == "Validation failed"
@@ -135,9 +137,11 @@ class TestErrorResponse:
         """
         with app.test_request_context():
             validation_errors = {"field1": ["Required"], "field2": ["Invalid"]}
-            body, status, headers = error_response(
+            result = error_response(
                 "Validation failed", 400, errors=validation_errors
             )
+            assert len(result) == 3
+            body, status, headers = result
 
             assert status == 400
             assert body["message"] == "Validation failed"
@@ -159,7 +163,9 @@ class TestErrorResponse:
             if hasattr(g, "correlation_id"):
                 delattr(g, "correlation_id")
 
-            body, status, headers = error_response("Error", 500)
+            result = error_response("Error", 500)
+            assert len(result) == 3
+            body, status, headers = result
 
             assert body["correlation_id"] == provided_id
             assert headers["X-Correlation-ID"] == provided_id
@@ -173,12 +179,14 @@ class TestErrorResponse:
         """
         with app.test_request_context():
             errors_dict = {"name": ["Required field"]}
-            body, status, headers = error_response(
+            result = error_response(
                 "Validation failed",
                 400,
                 error="Bad Request",
                 errors=errors_dict,
             )
+            assert len(result) == 3
+            body, status, headers = result
 
             assert status == 400
             assert body["message"] == "Validation failed"
