@@ -708,9 +708,9 @@ class TestMilestoneTasksSyncResourcePut:
         authenticated_client: FlaskClient,
         milestone_data: Milestone,
     ) -> None:
-        """Test sync without task_idss field.
+        """Test sync without task_ids field.
 
-        Given: Missing task_idss in request
+        Given: Missing task_ids in request
         When: PUT sync
         Then: Returns 400 validation error
         """
