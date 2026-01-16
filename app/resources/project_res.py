@@ -35,6 +35,7 @@ from app.schemas.project_schema import (
     ProjectUpdateSchema,
 )
 from app.services.guardian_service import Operation
+from app.utils.api_version import validate_api_version
 from app.utils.jwt_decorators import (
     access_required,
     get_current_company_id,
@@ -160,7 +161,7 @@ class ProjectListResource(Resource):
     @require_jwt_auth
     @access_required(Operation.LIST, "projects")
     @limiter.limit("100 per minute", key_func=_rate_limit_user_key)
-    def get(self) -> tuple[dict, int]:
+    def get(self, version: str | None = None) -> tuple[dict, int]:
         """Retrieve paginated list of projects for authenticated company.
 
         Query Parameters:
@@ -190,6 +191,10 @@ class ProjectListResource(Resource):
                 "total_pages": 8
             }
         """
+        version_error = validate_api_version(version)
+        if version_error:
+            return version_error
+
         company_id = get_current_company_id()
 
         # Parse and validate pagination parameters
@@ -300,7 +305,7 @@ class ProjectListResource(Resource):
     @require_jwt_auth
     @access_required(Operation.CREATE, "projects")
     @limiter.limit("100 per minute", key_func=_rate_limit_user_key)
-    def post(self) -> tuple[dict, int]:
+    def post(self, version: str | None = None) -> tuple[dict, int]:
         """Create a new project for the authenticated company.
 
         Request Body:
@@ -347,6 +352,10 @@ class ProjectListResource(Resource):
                 "message": "Project created successfully"
             }
         """
+        version_error = validate_api_version(version)
+        if version_error:
+            return version_error
+
         json_payload_raw = request.get_json(silent=True)
         if json_payload_raw is None:
             json_payload: dict[str, Any] = {}
@@ -419,7 +428,12 @@ class ProjectResource(Resource):
     @require_jwt_auth
     @access_required(Operation.READ, "projects")
     @limiter.limit("100 per minute", key_func=_rate_limit_user_key)
-    def get(self, project_id: str) -> tuple[dict, int]:
+    def get(
+        self,
+        project_id: str | None = None,
+        id: str | None = None,
+        version: str | None = None,
+    ) -> tuple[dict, int]:
         """Retrieve a single project by ID.
 
         Path Parameters:
@@ -448,7 +462,15 @@ class ProjectResource(Resource):
                 }
             }
         """
-        project = self._get_project(project_id)
+        version_error = validate_api_version(version)
+        if version_error:
+            return version_error
+
+        effective_id = project_id or id
+        if not effective_id:
+            return {"error": BAD_REQUEST_ERROR, "message": "Missing project id"}, 400
+
+        project = self._get_project(effective_id)
         if project is None:
             return {"error": NOT_FOUND_ERROR, "message": PROJECT_NOT_FOUND_MSG}, 404
 
@@ -457,7 +479,12 @@ class ProjectResource(Resource):
     @require_jwt_auth
     @access_required(Operation.UPDATE, "projects")
     @limiter.limit("50 per minute", key_func=_rate_limit_user_key)
-    def patch(self, project_id: str) -> tuple[dict, int]:
+    def patch(
+        self,
+        project_id: str | None = None,
+        id: str | None = None,
+        version: str | None = None,
+    ) -> tuple[dict, int]:
         """Partially update a project.
 
         Path Parameters:
@@ -503,7 +530,15 @@ class ProjectResource(Resource):
                 "message": "Project updated successfully"
             }
         """
-        project = self._get_project(project_id)
+        version_error = validate_api_version(version)
+        if version_error:
+            return version_error
+
+        effective_id = project_id or id
+        if not effective_id:
+            return {"error": BAD_REQUEST_ERROR, "message": "Missing project id"}, 400
+
+        project = self._get_project(effective_id)
         if project is None:
             return {"error": NOT_FOUND_ERROR, "message": PROJECT_NOT_FOUND_MSG}, 404
 
@@ -578,7 +613,12 @@ class ProjectResource(Resource):
     @require_jwt_auth
     @access_required(Operation.DELETE, "projects")
     @limiter.limit("50 per minute", key_func=_rate_limit_user_key)
-    def delete(self, project_id: str) -> tuple[dict, int]:
+    def delete(
+        self,
+        project_id: str | None = None,
+        id: str | None = None,
+        version: str | None = None,
+    ) -> tuple[dict, int]:
         """Delete a project if no related entities exist.
 
         Path Parameters:
@@ -592,7 +632,15 @@ class ProjectResource(Resource):
                 - 404: Project not found or not accessible (wrong company)
                 - 409: Conflict (project has related tasks, assignments, milestones, or EVM snapshots)
         """
-        project = self._get_project(project_id)
+        version_error = validate_api_version(version)
+        if version_error:
+            return version_error
+
+        effective_id = project_id or id
+        if not effective_id:
+            return {"error": BAD_REQUEST_ERROR, "message": "Missing project id"}, 400
+
+        project = self._get_project(effective_id)
         if project is None:
             return {"error": NOT_FOUND_ERROR, "message": PROJECT_NOT_FOUND_MSG}, 404
 

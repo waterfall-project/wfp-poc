@@ -59,6 +59,22 @@ def integration_projects(app, company_id):
 class TestProjectListIntegration:
     """Integration tests for project listing."""
 
+    def test_list_projects_supports_openapi_versioned_path(
+        self, integration_client, integration_projects
+    ) -> None:
+        """Versioned path /{version}/projects works (OpenAPI contract).
+
+        Given: Authenticated client and existing projects
+        When: GET /v1/projects is called
+        Then: Returns 200 and a paginated response
+        """
+        response = integration_client.get("/v1/projects?page=1&per_page=5")
+
+        assert response.status_code == 200
+        data = response.get_json()
+        assert isinstance(data, dict)
+        assert "data" in data
+
     def test_list_projects_full_flow(
         self, integration_client, integration_projects
     ) -> None:

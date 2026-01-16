@@ -15,6 +15,7 @@ and business logic for the MilestoneTask entity.
 
 import uuid
 from datetime import UTC, datetime
+from decimal import Decimal
 
 import pytest
 from sqlalchemy.exc import IntegrityError
@@ -48,6 +49,8 @@ class TestMilestoneTaskModel:
         milestone = Milestone(
             project_id=project.id,
             name="Test Milestone",
+            target_date=DEFAULT_FINISH_DATE,
+            budget_weight=Decimal("0.1"),
         )
         db.session.add(milestone)
         db.session.commit()
@@ -155,10 +158,14 @@ class TestMilestoneTaskModel:
         milestone1 = Milestone(
             project_id=project.id,
             name="Milestone 1",
+            target_date=DEFAULT_FINISH_DATE,
+            budget_weight=Decimal("0.1"),
         )
         milestone2 = Milestone(
             project_id=project.id,
             name="Milestone 2",
+            target_date=DEFAULT_FINISH_DATE,
+            budget_weight=Decimal("0.2"),
         )
         db.session.add_all([milestone1, milestone2])
         db.session.commit()

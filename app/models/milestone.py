@@ -10,18 +10,22 @@
 """Milestone model definition.
 
 This module defines the Milestone model for tracking key project deliverables
-and decision points linked to specific dates and associated tasks.
+and decision points linked to specific dates and associated tasks. Milestones
+are used for EVM milestone completion method and expense allocation.
 """
 
 import uuid
 from datetime import datetime
+from decimal import Decimal
 from typing import TYPE_CHECKING
 
 from sqlalchemy import (
+    Boolean,
     CheckConstraint,
-    Date,
+    DateTime,
     ForeignKey,
     Integer,
+    Numeric,
     String,
     Text,
     UniqueConstraint,
@@ -33,6 +37,7 @@ from app.models.types import GUID, TimestampMixin, UUIDMixin
 if TYPE_CHECKING:
     from flask_sqlalchemy.model import Model
 
+    from app.models.expense import Expense
     from app.models.milestone_task import MilestoneTask
     from app.models.project import Project
 else:
@@ -45,7 +50,8 @@ class Milestone(UUIDMixin, TimestampMixin, Model):
     """Milestone model for project milestone tracking.
 
     Represents a milestone in the project schedule, marking key deliverables
-    or decision points. Milestones can be linked to one or more tasks.
+    or decision points. Milestones can be linked to one or more predecessor tasks.
+    Used for EVM milestone completion method and expense allocation.
 
     Attributes:
         id: Unique identifier (UUID, primary key).
@@ -53,9 +59,16 @@ class Milestone(UUIDMixin, TimestampMixin, Model):
         ms_project_uid: MS Project unique ID for import reconciliation.
         name: Milestone name (required).
         description: Optional milestone description.
-        planned_date: Planned milestone date.
-        actual_date: Actual milestone achievement date (nullable).
-        status: Milestone status (not_reached, reached, missed).
+        target_date: Target completion date (required). Auto-calculated as
+            MAX(predecessor_tasks.planned_finish_date) when tasks are linked.
+        actual_date: Actual completion date (nullable).
+        status: Milestone status (upcoming, achieved, missed). Auto-updated.
+        budget_weight: Weight for EV milestone calculation (0.0-1.0, required).
+            Sum across all project milestones must equal 1.0.
+        is_achieved: True if milestone has been achieved (default False).
+        achieved_date: Date when milestone was achieved (for EV milestone method).
+        current_rae: Current Reste À Engager value (nullable).
+        current_rae_date: Date of last RAE update (nullable).
         created_at: Timestamp of creation (auto-generated).
         updated_at: Timestamp of last update (auto-updated).
     """
@@ -79,12 +92,33 @@ class Milestone(UUIDMixin, TimestampMixin, Model):
         doc="Milestone name",
     )
 
+    target_date: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        index=True,
+        doc="Target completion date (auto-calculated from predecessor tasks)",
+    )
+
     status: Mapped[str] = mapped_column(
         String(20),
         nullable=False,
-        default="not_reached",
+        default="upcoming",
         index=True,
-        doc="Milestone status: not_reached, reached, missed",
+        doc="Milestone status: upcoming, achieved, missed",
+    )
+
+    budget_weight: Mapped[Decimal] = mapped_column(
+        Numeric(precision=10, scale=6),
+        nullable=False,
+        doc="Weight for EV milestone calculation (sum must equal 1.0 per project)",
+    )
+
+    is_achieved: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+        index=True,
+        doc="True if milestone has been achieved",
     )
 
     # Optional Fields
@@ -100,17 +134,29 @@ class Milestone(UUIDMixin, TimestampMixin, Model):
         doc="Milestone description",
     )
 
-    planned_date: Mapped[datetime | None] = mapped_column(
-        Date,
+    actual_date: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
         nullable=True,
-        index=True,
-        doc="Planned milestone date",
+        doc="Actual milestone completion date",
     )
 
-    actual_date: Mapped[datetime | None] = mapped_column(
-        Date,
+    achieved_date: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
         nullable=True,
-        doc="Actual milestone achievement date",
+        index=True,
+        doc="Date when milestone was achieved (for EV milestone method)",
+    )
+
+    current_rae: Mapped[Decimal | None] = mapped_column(
+        Numeric(precision=15, scale=2),
+        nullable=True,
+        doc="Current Reste À Engager value",
+    )
+
+    current_rae_date: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        doc="Date of last RAE update",
     )
 
     # Relationships
@@ -127,6 +173,12 @@ class Milestone(UUIDMixin, TimestampMixin, Model):
         doc="Linked tasks for this milestone",
     )
 
+    expenses: Mapped[list["Expense"]] = relationship(
+        "Expense",
+        back_populates="milestone",
+        doc="Expenses allocated to this milestone",
+    )
+
     # Constraints
     __table_args__ = (
         UniqueConstraint(
@@ -135,8 +187,12 @@ class Milestone(UUIDMixin, TimestampMixin, Model):
             name="uq_milestones_project_uid",
         ),
         CheckConstraint(
-            "status IN ('not_reached', 'reached', 'missed')",
+            "status IN ('upcoming', 'achieved', 'missed')",
             name="ck_milestones_status",
+        ),
+        CheckConstraint(
+            "budget_weight >= 0 AND budget_weight <= 1",
+            name="ck_milestones_budget_weight_range",
         ),
     )
 
@@ -146,4 +202,7 @@ class Milestone(UUIDMixin, TimestampMixin, Model):
         Returns:
             Human-readable string with key attributes.
         """
-        return f"<Milestone(id={self.id}, name='{self.name}', status='{self.status}')>"
+        return (
+            f"<Milestone(id={self.id}, name='{self.name}', "
+            f"status='{self.status}', budget_weight={self.budget_weight})>"
+        )

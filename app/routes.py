@@ -12,6 +12,11 @@
 from flask_restful import Api
 
 from app.resources.health import HealthResource, ReadyResource, VersionResource
+from app.resources.milestone_res import MilestoneListResource, MilestoneResource
+from app.resources.milestone_task_res import (
+    MilestoneTasksResource,
+    MilestoneTasksSyncResource,
+)
 from app.resources.project_res import ProjectListResource, ProjectResource
 from app.resources.task_res import (
     TaskBulkResource,
@@ -40,11 +45,55 @@ def register_routes(app):
 
     # Versioned API endpoints
     # Projects
-    api.add_resource(ProjectListResource, "/v0/projects")
-    api.add_resource(ProjectResource, "/v0/projects/<string:project_id>")
+    api.add_resource(ProjectListResource, "/v0/projects", "/<string:version>/projects")
+    api.add_resource(
+        ProjectResource,
+        "/v0/projects/<string:project_id>",
+        "/<string:version>/projects/<string:id>",
+    )
 
     # Tasks
-    api.add_resource(TaskListResource, "/v0/projects/<string:project_id>/tasks")
-    api.add_resource(TaskResource, "/v0/projects/<string:project_id>/tasks/<string:id>")
-    api.add_resource(TaskBulkResource, "/v0/projects/<string:project_id>/tasks/bulk")
-    api.add_resource(TaskSyncResource, "/v0/projects/<string:project_id>/tasks/sync")
+    api.add_resource(
+        TaskListResource,
+        "/v0/projects/<string:project_id>/tasks",
+        "/<string:version>/projects/<string:project_id>/tasks",
+    )
+    api.add_resource(
+        TaskResource,
+        "/v0/projects/<string:project_id>/tasks/<string:id>",
+        "/<string:version>/projects/<string:project_id>/tasks/<string:id>",
+    )
+    api.add_resource(
+        TaskBulkResource,
+        "/v0/projects/<string:project_id>/tasks/bulk",
+        "/<string:version>/projects/<string:project_id>/tasks/bulk",
+    )
+    api.add_resource(
+        TaskSyncResource,
+        "/v0/projects/<string:project_id>/tasks/sync",
+        "/<string:version>/projects/<string:project_id>/tasks/sync",
+    )
+
+    # Milestones
+    api.add_resource(
+        MilestoneListResource,
+        "/v0/projects/<string:project_id>/milestones",
+        "/<string:version>/projects/<string:project_id>/milestones",
+    )
+    api.add_resource(
+        MilestoneResource,
+        "/v0/projects/<string:project_id>/milestones/<string:id>",
+        "/<string:version>/projects/<string:project_id>/milestones/<string:id>",
+    )
+
+    # Milestone-Task Links
+    api.add_resource(
+        MilestoneTasksResource,
+        "/v0/milestones/<string:milestone_id>/tasks",
+        "/<string:version>/milestones/<string:milestone_id>/tasks",
+    )
+    api.add_resource(
+        MilestoneTasksSyncResource,
+        "/v0/milestones/<string:milestone_id>/tasks/sync",
+        "/<string:version>/milestones/<string:milestone_id>/tasks/sync",
+    )

@@ -25,6 +25,7 @@ from app.models.types import GUID, TimestampMixin, UUIDMixin
 if TYPE_CHECKING:
     from flask_sqlalchemy.model import Model
 
+    from app.models.milestone import Milestone
     from app.models.project import Project
     from app.models.resource import Resource
 else:
@@ -42,6 +43,7 @@ class Expense(UUIDMixin, TimestampMixin, Model):
     Attributes:
         id: Unique identifier (UUID, primary key).
         project_id: Parent project identifier (UUID, required, foreign key).
+        milestone_id: Optional milestone allocation (UUID, nullable, foreign key).
         resource_id: Optional associated resource (UUID, nullable, foreign key).
         category: Expense category (material, fixed, other).
         description: Expense description (required).
@@ -61,6 +63,14 @@ class Expense(UUIDMixin, TimestampMixin, Model):
         nullable=False,
         index=True,
         doc="Parent project ID",
+    )
+
+    milestone_id: Mapped[uuid.UUID | None] = mapped_column(
+        GUID(),
+        ForeignKey("milestones.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+        doc="Allocated milestone ID (auto-assigned based on expense date)",
     )
 
     resource_id: Mapped[uuid.UUID | None] = mapped_column(
@@ -111,6 +121,12 @@ class Expense(UUIDMixin, TimestampMixin, Model):
         "Project",
         back_populates="expenses",
         doc="Parent project",
+    )
+
+    milestone: Mapped["Milestone | None"] = relationship(
+        "Milestone",
+        back_populates="expenses",
+        doc="Allocated milestone",
     )
 
     resource: Mapped["Resource | None"] = relationship(

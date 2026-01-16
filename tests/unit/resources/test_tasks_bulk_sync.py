@@ -479,7 +479,7 @@ class TestTaskSync:
             assert updated_task.name == "Updated Name"
             # Verify tracking data is preserved
             assert updated_task.status == "not_started"
-            assert updated_task.percent_complete == 0.0
+            assert updated_task.percent_complete == pytest.approx(0.0)
 
     @patch("app.services.guardian_service.requests.post")
     def test_sync_tasks_mixed_operations(
@@ -603,5 +603,5 @@ class TestTaskSync:
             assert updated_task.name == "Updated Planning"
             # Tracking data preserved
             assert updated_task.status == "in_progress"
-            assert updated_task.percent_complete == 50.0
+            assert updated_task.percent_complete == pytest.approx(50.0)
             assert updated_task.actual_start_date is not None
