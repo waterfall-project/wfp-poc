@@ -13,7 +13,6 @@ This module provides decorators for JWT-based authentication and
 Guardian-based authorization, extracting user claims and checking permissions.
 """
 
-import uuid
 from collections.abc import Callable
 from functools import wraps
 from typing import Any
@@ -23,47 +22,10 @@ from flask import current_app, g, request
 from jwt.exceptions import DecodeError, ExpiredSignatureError, InvalidTokenError
 
 from app.services.guardian_service import GuardianError, GuardianService, Operation
+from app.utils.correlation import error_response as _error_response
 
 # Typing helper for Flask-style responses (body, status[, headers])
 ResponseTuple = tuple[Any, int] | tuple[Any, int, dict[str, str]]
-
-
-def _get_correlation_id() -> str:
-    """Return current correlation ID or generate one."""
-    correlation_id = getattr(g, "correlation_id", None)
-    if correlation_id:
-        return str(correlation_id)
-
-    header_value = request.headers.get("X-Correlation-ID")
-    if header_value:
-        g.correlation_id = header_value
-        return header_value
-
-    generated = str(uuid.uuid4())
-    g.correlation_id = generated
-    return generated
-
-
-def _error_response(
-    message: str,
-    status_code: int,
-    *,
-    error: str | None = None,
-    errors: Any = None,
-) -> ResponseTuple:
-    """Build a spec-compliant error response with correlation header."""
-    correlation_id = _get_correlation_id()
-
-    body: dict[str, Any] = {
-        "message": message,
-        "correlation_id": correlation_id,
-    }
-    if error:
-        body["error"] = error
-    if errors:
-        body["errors"] = errors
-
-    return body, status_code, {"X-Correlation-ID": correlation_id}
 
 
 class JWTError(Exception):

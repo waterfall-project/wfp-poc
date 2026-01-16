@@ -17,7 +17,7 @@ import math
 import uuid
 from typing import Any, cast
 
-from flask import g, request
+from flask import request
 from flask_restful import Resource
 from marshmallow import ValidationError
 from sqlalchemy import func
@@ -36,6 +36,7 @@ from app.schemas.resource_schema import (
 )
 from app.services.guardian_service import Operation
 from app.utils.api_version import validate_api_version
+from app.utils.correlation import error_response as _error_response
 from app.utils.jwt_decorators import (
     access_required,
     get_current_company_id,
@@ -69,43 +70,8 @@ RESOURCE_UPDATED_MSG = "Resource updated successfully"
 # Typing helper for Flask-style responses (body, status[, headers])
 ResponseTuple = tuple[Any, int] | tuple[Any, int, dict[str, str]]
 
-
-def _get_correlation_id() -> str:
-    """Return current correlation ID or generate one."""
-    correlation_id = getattr(g, "correlation_id", None)
-    if correlation_id:
-        return str(correlation_id)
-
-    header_value = request.headers.get("X-Correlation-ID")
-    if header_value:
-        g.correlation_id = header_value
-        return header_value
-
-    generated = str(uuid.uuid4())
-    g.correlation_id = generated
-    return generated
-
-
-def _error_response(
-    message: str,
-    status_code: int,
-    *,
-    errors: Any = None,
-    error: str | None = None,
-) -> ResponseTuple:
-    """Build a spec-compliant error response with correlation header."""
-    correlation_id = _get_correlation_id()
-
-    body: dict[str, Any] = {
-        "message": message,
-        "correlation_id": correlation_id,
-    }
-    if error:
-        body["error"] = error
-    if errors:
-        body["errors"] = errors
-
-    return body, status_code, {"X-Correlation-ID": correlation_id}
+# Allowed sort fields for resource listing
+ALLOWED_SORT_FIELDS = ["name", "type", "email", "standard_rate", "overtime_rate", "created_at", "updated_at"]
 
 
 def _rate_limit_user_key() -> str:
@@ -212,7 +178,13 @@ class ResourceListResource(Resource):
                 error=BAD_REQUEST_ERROR,
             )
 
-        sort_column = getattr(ResourceModel, sort_by, None) or ResourceModel.created_at
+        # Validate sort_by against whitelist, fall back to created_at if invalid
+        # This provides permissive handling - invalid values gracefully degrade
+        # to default sort rather than returning an error
+        if sort_by not in ALLOWED_SORT_FIELDS:
+            sort_by = "created_at"
+
+        sort_column = getattr(ResourceModel, sort_by)
         sort_column = sort_column.desc() if sort_order == "desc" else sort_column.asc()
         query = query.order_by(sort_column)
 
@@ -280,10 +252,19 @@ class ResourceListResource(Resource):
             db.session.commit()
         except IntegrityError as exc:  # pragma: no cover - guarded by tests
             db.session.rollback()
+            # Check for unique constraint violation on (company_id, name)
+            # This is more robust than string matching on error messages
+            constraint_name = getattr(exc.orig, "constraint_name", None)
+            if constraint_name == "uq_resources_company_name":
+                return _error_response(
+                    DUPLICATE_RESOURCE_NAME_MSG, 409, error=CONFLICT_ERROR
+                )
+            # Fallback: check error message for database-specific constraint indicators
             error_message = str(exc.orig).lower()
-            if (
-                "uq_resources_company_name" in error_message
-                or "resources.company_id, resources.name" in error_message
+            if "uq_resources_company_name" in error_message or (
+                "unique" in error_message
+                and "company_id" in error_message
+                and "name" in error_message
             ):
                 return _error_response(
                     DUPLICATE_RESOURCE_NAME_MSG, 409, error=CONFLICT_ERROR
@@ -405,10 +386,19 @@ class ResourceResource(Resource):
             db.session.commit()
         except IntegrityError as exc:  # pragma: no cover - guarded by tests
             db.session.rollback()
+            # Check for unique constraint violation on (company_id, name)
+            # This is more robust than string matching on error messages
+            constraint_name = getattr(exc.orig, "constraint_name", None)
+            if constraint_name == "uq_resources_company_name":
+                return _error_response(
+                    DUPLICATE_RESOURCE_NAME_MSG, 409, error=CONFLICT_ERROR
+                )
+            # Fallback: check error message for database-specific constraint indicators
             error_message = str(exc.orig).lower()
-            if (
-                "uq_resources_company_name" in error_message
-                or "resources.company_id, resources.name" in error_message
+            if "uq_resources_company_name" in error_message or (
+                "unique" in error_message
+                and "company_id" in error_message
+                and "name" in error_message
             ):
                 return _error_response(
                     DUPLICATE_RESOURCE_NAME_MSG, 409, error=CONFLICT_ERROR

@@ -66,7 +66,7 @@ class TestResourceCreate:
         """
 
         with app.app_context():
-            resource = Resource(  # type: ignore[call-arg]
+            resource = Resource(
                 company_id=uuid.UUID(company_id),
                 name="Duplicate Resource",
                 type="labor",
@@ -127,7 +127,7 @@ class TestResourceRetrieve:
         """
 
         with app.app_context():
-            resource = Resource(  # type: ignore[call-arg]
+            resource = Resource(
                 company_id=uuid.UUID(company_id),
                 name="Fetch Resource",
                 type="material",
@@ -178,7 +178,7 @@ class TestResourceRetrieve:
         other_company = generate_uuid()
 
         with app.app_context():
-            resource = Resource(  # type: ignore[call-arg]
+            resource = Resource(
                 company_id=uuid.UUID(other_company),
                 name="Other Company Resource",
                 type="labor",
@@ -199,7 +199,7 @@ class TestResourceUpdate:
         """Update resource fields successfully."""
 
         with app.app_context():
-            resource = Resource(  # type: ignore[call-arg]
+            resource = Resource(
                 company_id=uuid.UUID(company_id),
                 name="Patch Target",
                 type="labor",
@@ -237,7 +237,7 @@ class TestResourceUpdate:
         """Invalid payload returns 400."""
 
         with app.app_context():
-            resource = Resource(  # type: ignore[call-arg]
+            resource = Resource(
                 company_id=uuid.UUID(company_id),
                 name="Invalid Patch",
                 type="labor",
@@ -260,7 +260,7 @@ class TestResourceUpdate:
         """Empty body returns 400."""
 
         with app.app_context():
-            resource = Resource(  # type: ignore[call-arg]
+            resource = Resource(
                 company_id=uuid.UUID(company_id),
                 name="No Payload",
                 type="labor",
@@ -283,7 +283,7 @@ class TestResourceDelete:
         """Delete resource without assignments."""
 
         with app.app_context():
-            resource = Resource(  # type: ignore[call-arg]
+            resource = Resource(
                 company_id=uuid.UUID(company_id),
                 name="Delete Me",
                 type="labor",
@@ -323,7 +323,7 @@ class TestResourceDelete:
             db.session.add(task)
             db.session.commit()
 
-            resource = Resource(  # type: ignore[call-arg]
+            resource = Resource(
                 company_id=uuid.UUID(company_id),
                 name="Assigned Resource",
                 type="labor",
@@ -346,3 +346,92 @@ class TestResourceDelete:
         assert response.status_code == 409
         data = response.get_json()
         assert "Cannot delete resource" in data["message"]
+
+
+class TestResourceCorrelationTracking:
+    """Integration tests for correlation ID tracking in error responses."""
+
+    def test_validation_error_includes_correlation_id(
+        self, integration_client
+    ) -> None:
+        """Validation error includes correlation_id and header.
+
+        Given: Invalid resource data (negative rate)
+        When: POST /v0/resources is called
+        Then: Returns 400 with correlation_id in body and header
+        """
+        payload = {"name": "Test", "standard_rate": -5}
+
+        response = integration_client.post("/v0/resources", json=payload)
+
+        assert response.status_code == 400
+        data = response.get_json()
+        assert "correlation_id" in data
+        assert data["correlation_id"] is not None
+        assert "X-Correlation-ID" in response.headers
+        assert response.headers["X-Correlation-ID"] == data["correlation_id"]
+
+    def test_not_found_error_includes_correlation_id(
+        self, integration_client
+    ) -> None:
+        """Not found error includes correlation_id and header.
+
+        Given: Non-existent resource ID
+        When: GET /v0/resources/{id} is called
+        Then: Returns 404 with correlation_id in body and header
+        """
+        response = integration_client.get(f"/v0/resources/{uuid.uuid4()}")
+
+        assert response.status_code == 404
+        data = response.get_json()
+        assert "correlation_id" in data
+        assert data["correlation_id"] is not None
+        assert "X-Correlation-ID" in response.headers
+        assert response.headers["X-Correlation-ID"] == data["correlation_id"]
+
+    def test_conflict_error_includes_correlation_id(
+        self, integration_client, app, company_id
+    ) -> None:
+        """Conflict error includes correlation_id and header.
+
+        Given: Resource with duplicate name exists
+        When: POST /v0/resources with duplicate name
+        Then: Returns 409 with correlation_id in body and header
+        """
+        with app.app_context():
+            resource = Resource(
+                company_id=uuid.UUID(company_id),
+                name="Duplicate Correlation",
+                type="labor",
+            )
+            db.session.add(resource)
+            db.session.commit()
+
+        payload = {"name": "Duplicate Correlation", "type": "labor", "email": "test@example.com"}
+        response = integration_client.post("/v0/resources", json=payload)
+
+        assert response.status_code == 409
+        data = response.get_json()
+        assert "correlation_id" in data
+        assert data["correlation_id"] is not None
+        assert "X-Correlation-ID" in response.headers
+        assert response.headers["X-Correlation-ID"] == data["correlation_id"]
+
+    def test_provided_correlation_id_is_preserved(self, integration_client) -> None:
+        """Provided X-Correlation-ID header is preserved in response.
+
+        Given: Request with X-Correlation-ID header
+        When: Request fails with error
+        Then: Same correlation_id is returned in body and header
+        """
+        provided_id = str(uuid.uuid4())
+        headers = {"X-Correlation-ID": provided_id}
+
+        response = integration_client.get(
+            f"/v0/resources/{uuid.uuid4()}", headers=headers
+        )
+
+        assert response.status_code == 404
+        data = response.get_json()
+        assert data["correlation_id"] == provided_id
+        assert response.headers["X-Correlation-ID"] == provided_id

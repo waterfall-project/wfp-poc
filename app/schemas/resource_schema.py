@@ -31,9 +31,24 @@ from app.models.resource import Resource
 
 
 def _validate_ms_project_uid(value: Any) -> None:
-    """Validate MS Project UID accepts integer or numeric string."""
+    """Validate MS Project UID accepts integer or numeric string.
+
+    This validator is designed to be reusable for both required and optional
+    fields. When the value is ``None``, it returns without error and relies
+    on the Marshmallow field configuration (``required``/``allow_none``) to
+    decide whether ``None`` is acceptable.
+
+    Args:
+        value: Value to validate (int, str, or None).
+
+    Raises:
+        ValidationError: If value is not a non-negative integer or numeric string.
+    """
+    # Allow None to pass through so that optional fields using this validator
+    # do not fail validation solely due to a null value. Marshmallow will
+    # enforce required/allow_none semantics at the field level.
     if value is None:
-        raise ValidationError("ms_project_uid cannot be null")
+        return
 
     if isinstance(value, int):
         if value < 0:
@@ -44,10 +59,14 @@ def _validate_ms_project_uid(value: Any) -> None:
         trimmed = value.strip()
         if not trimmed:
             raise ValidationError("ms_project_uid cannot be empty")
+        # Only accept non-negative numeric strings for consistency
         if trimmed.isdigit():
             return
+        # Check for negative numeric string and reject it
+        if trimmed.startswith("-") and trimmed[1:].isdigit():
+            raise ValidationError("ms_project_uid must be non-negative")
 
-    raise ValidationError("ms_project_uid must be an integer or numeric string")
+    raise ValidationError("ms_project_uid must be a non-negative integer or numeric string")
 
 
 class ResourceSchema(SQLAlchemyAutoSchema):
@@ -97,7 +116,7 @@ class ResourceSchema(SQLAlchemyAutoSchema):
 class ResourceCreateSchema(Schema):
     """Schema for creating a new resource."""
 
-    ms_project_uid = fields.Raw(validate=_validate_ms_project_uid)
+    ms_project_uid = fields.Raw(validate=_validate_ms_project_uid, allow_none=True)
     name = fields.String(required=True, validate=Length(min=1, max=255))
     type = fields.String(
         validate=OneOf(["labor", "material", "cost"]), load_default="labor"
@@ -108,12 +127,16 @@ class ResourceCreateSchema(Schema):
     overtime_rate = fields.Decimal(
         allow_none=False, places=2, validate=Range(min=0), load_default=0
     )
-    email = fields.Email(validate=Length(max=255))
+    email = fields.Email(required=True, validate=Length(max=255))
     is_active = fields.Boolean(load_default=True)
 
     @post_load
     def normalize_ms_project_uid(self, data: dict, **kwargs) -> dict:
-        """Convert ms_project_uid numeric strings to integers."""
+        """Convert ms_project_uid numeric strings to integers.
+
+        Handles both positive numeric strings. Negative values are rejected
+        during validation, ensuring consistency between validation and normalization.
+        """
         uid = data.get("ms_project_uid")
         if isinstance(uid, str) and uid.strip().isdigit():
             data["ms_project_uid"] = int(uid.strip())
