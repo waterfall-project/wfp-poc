@@ -49,7 +49,6 @@ from app.utils.jwt_decorators import (
     require_jwt_auth,
 )
 
-
 # HTTP Error Types
 BAD_REQUEST_ERROR = "Bad Request"
 NOT_FOUND_ERROR = "Not Found"
