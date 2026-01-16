@@ -14,12 +14,40 @@ resource data according to the OpenAPI specification.
 """
 
 from decimal import Decimal
+from typing import Any
 
-from marshmallow import Schema, ValidationError, fields, post_dump, validates_schema
+from marshmallow import (
+    Schema,
+    ValidationError,
+    fields,
+    post_dump,
+    post_load,
+    validates_schema,
+)
 from marshmallow.validate import Length, OneOf, Range
 from marshmallow_sqlalchemy import SQLAlchemyAutoSchema
 
 from app.models.resource import Resource
+
+
+def _validate_ms_project_uid(value: Any) -> None:
+    """Validate MS Project UID accepts integer or numeric string."""
+    if value is None:
+        raise ValidationError("ms_project_uid cannot be null")
+
+    if isinstance(value, int):
+        if value < 0:
+            raise ValidationError("ms_project_uid must be non-negative")
+        return
+
+    if isinstance(value, str):
+        trimmed = value.strip()
+        if not trimmed:
+            raise ValidationError("ms_project_uid cannot be empty")
+        if trimmed.isdigit():
+            return
+
+    raise ValidationError("ms_project_uid must be an integer or numeric string")
 
 
 class ResourceSchema(SQLAlchemyAutoSchema):
@@ -46,10 +74,10 @@ class ResourceSchema(SQLAlchemyAutoSchema):
         validate=OneOf(["labor", "material", "cost"]), load_default="labor"
     )
     standard_rate = fields.Decimal(
-        allow_none=True, places=2, validate=Range(min=0), load_default=0
+        allow_none=False, places=2, validate=Range(min=0), load_default=0
     )
     overtime_rate = fields.Decimal(
-        allow_none=True, places=2, validate=Range(min=0), load_default=0
+        allow_none=False, places=2, validate=Range(min=0), load_default=0
     )
     email = fields.Email(allow_none=True, validate=Length(max=255))
     is_active = fields.Boolean(load_default=True)
@@ -69,27 +97,35 @@ class ResourceSchema(SQLAlchemyAutoSchema):
 class ResourceCreateSchema(Schema):
     """Schema for creating a new resource."""
 
-    ms_project_uid = fields.Integer(allow_none=True)
+    ms_project_uid = fields.Raw(validate=_validate_ms_project_uid)
     name = fields.String(required=True, validate=Length(min=1, max=255))
     type = fields.String(
         validate=OneOf(["labor", "material", "cost"]), load_default="labor"
     )
     standard_rate = fields.Decimal(
-        allow_none=True, places=2, validate=Range(min=0), load_default=0
+        allow_none=False, places=2, validate=Range(min=0), load_default=0
     )
     overtime_rate = fields.Decimal(
-        allow_none=True, places=2, validate=Range(min=0), load_default=0
+        allow_none=False, places=2, validate=Range(min=0), load_default=0
     )
-    email = fields.Email(allow_none=True, validate=Length(max=255))
+    email = fields.Email(validate=Length(max=255))
     is_active = fields.Boolean(load_default=True)
+
+    @post_load
+    def normalize_ms_project_uid(self, data: dict, **kwargs) -> dict:
+        """Convert ms_project_uid numeric strings to integers."""
+        uid = data.get("ms_project_uid")
+        if isinstance(uid, str) and uid.strip().isdigit():
+            data["ms_project_uid"] = int(uid.strip())
+        return data
 
 
 class ResourceUpdateSchema(Schema):
     """Schema for partially updating a resource."""
 
     name = fields.String(validate=Length(min=1, max=255))
-    standard_rate = fields.Decimal(allow_none=True, places=2, validate=Range(min=0))
-    overtime_rate = fields.Decimal(allow_none=True, places=2, validate=Range(min=0))
+    standard_rate = fields.Decimal(allow_none=False, places=2, validate=Range(min=0))
+    overtime_rate = fields.Decimal(allow_none=False, places=2, validate=Range(min=0))
     email = fields.Email(allow_none=True, validate=Length(max=255))
     is_active = fields.Boolean()
 
