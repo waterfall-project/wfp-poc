@@ -41,22 +41,13 @@ from app.schemas.task_schema import (
 )
 from app.services.guardian_service import Operation
 from app.utils.api_version import validate_api_version
+from app.utils.correlation import get_correlation_id as _get_correlation_id
 from app.utils.jwt_decorators import (
     access_required,
     get_current_company_id,
     get_current_user_id,
     require_jwt_auth,
 )
-
-
-def _get_correlation_id() -> str:
-    """Get or generate correlation ID for request tracing.
-
-    Returns:
-        Correlation ID from header or newly generated UUID.
-    """
-    return request.headers.get("X-Correlation-ID", str(uuid.uuid4()))
-
 
 # HTTP Error Types
 BAD_REQUEST_ERROR = "Bad Request"
