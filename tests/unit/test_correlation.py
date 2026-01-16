@@ -117,9 +117,7 @@ class TestErrorResponse:
         Then: Includes error field in body
         """
         with app.test_request_context():
-            result = error_response(
-                "Validation failed", 400, error="Bad Request"
-            )
+            result = error_response("Validation failed", 400, error="Bad Request")
             assert len(result) == 3
             body, status, headers = result
 
@@ -137,9 +135,7 @@ class TestErrorResponse:
         """
         with app.test_request_context():
             validation_errors = {"field1": ["Required"], "field2": ["Invalid"]}
-            result = error_response(
-                "Validation failed", 400, errors=validation_errors
-            )
+            result = error_response("Validation failed", 400, errors=validation_errors)
             assert len(result) == 3
             body, status, headers = result
 
@@ -148,9 +144,7 @@ class TestErrorResponse:
             assert body["errors"] == validation_errors
             assert "correlation_id" in body
 
-    def test_error_response_preserves_provided_correlation_id(
-        self, app: Flask
-    ) -> None:
+    def test_error_response_preserves_provided_correlation_id(self, app: Flask) -> None:
         """Preserve correlation ID from request header.
 
         Given: Request with X-Correlation-ID header

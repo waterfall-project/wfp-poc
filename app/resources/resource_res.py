@@ -71,7 +71,15 @@ RESOURCE_UPDATED_MSG = "Resource updated successfully"
 ResponseTuple = tuple[Any, int] | tuple[Any, int, dict[str, str]]
 
 # Allowed sort fields for resource listing
-ALLOWED_SORT_FIELDS = ["name", "type", "email", "standard_rate", "overtime_rate", "created_at", "updated_at"]
+ALLOWED_SORT_FIELDS = [
+    "name",
+    "type",
+    "email",
+    "standard_rate",
+    "overtime_rate",
+    "created_at",
+    "updated_at",
+]
 
 
 def _rate_limit_user_key() -> str:

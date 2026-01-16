@@ -66,7 +66,9 @@ def _validate_ms_project_uid(value: Any) -> None:
         if trimmed.startswith("-") and trimmed[1:].isdigit():
             raise ValidationError("ms_project_uid must be non-negative")
 
-    raise ValidationError("ms_project_uid must be a non-negative integer or numeric string")
+    raise ValidationError(
+        "ms_project_uid must be a non-negative integer or numeric string"
+    )
 
 
 class ResourceSchema(SQLAlchemyAutoSchema):

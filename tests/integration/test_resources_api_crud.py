@@ -351,9 +351,7 @@ class TestResourceDelete:
 class TestResourceCorrelationTracking:
     """Integration tests for correlation ID tracking in error responses."""
 
-    def test_validation_error_includes_correlation_id(
-        self, integration_client
-    ) -> None:
+    def test_validation_error_includes_correlation_id(self, integration_client) -> None:
         """Validation error includes correlation_id and header.
 
         Given: Invalid resource data (negative rate)
@@ -371,9 +369,7 @@ class TestResourceCorrelationTracking:
         assert "X-Correlation-ID" in response.headers
         assert response.headers["X-Correlation-ID"] == data["correlation_id"]
 
-    def test_not_found_error_includes_correlation_id(
-        self, integration_client
-    ) -> None:
+    def test_not_found_error_includes_correlation_id(self, integration_client) -> None:
         """Not found error includes correlation_id and header.
 
         Given: Non-existent resource ID
@@ -407,7 +403,11 @@ class TestResourceCorrelationTracking:
             db.session.add(resource)
             db.session.commit()
 
-        payload = {"name": "Duplicate Correlation", "type": "labor", "email": "test@example.com"}
+        payload = {
+            "name": "Duplicate Correlation",
+            "type": "labor",
+            "email": "test@example.com",
+        }
         response = integration_client.post("/v0/resources", json=payload)
 
         assert response.status_code == 409
