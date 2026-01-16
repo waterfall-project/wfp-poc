@@ -22,6 +22,10 @@ from flask import current_app, g, request
 from jwt.exceptions import DecodeError, ExpiredSignatureError, InvalidTokenError
 
 from app.services.guardian_service import GuardianError, GuardianService, Operation
+from app.utils.correlation import error_response as _error_response
+
+# Typing helper for Flask-style responses (body, status[, headers])
+ResponseTuple = tuple[Any, int] | tuple[Any, int, dict[str, str]]
 
 
 class JWTError(Exception):
@@ -95,12 +99,10 @@ def require_jwt_auth(f: Callable[..., Any]) -> Callable[..., Any]:
                 "Missing JWT token",
                 extra={"correlation_id": getattr(g, "correlation_id", "N/A")},
             )
-            return (
-                {
-                    "error": "Unauthorized",
-                    "message": "Authentication required. No token provided.",
-                },
+            return _error_response(
+                "Authentication required. No token provided.",
                 401,
+                error="Unauthorized",
             )
 
         try:
@@ -126,12 +128,10 @@ def require_jwt_auth(f: Callable[..., Any]) -> Callable[..., Any]:
                         "has_company_id": bool(g.company_id),
                     },
                 )
-                return (
-                    {
-                        "error": "Unauthorized",
-                        "message": "Invalid token: missing required claims.",
-                    },
+                return _error_response(
+                    "Invalid token: missing required claims.",
                     401,
+                    error="Unauthorized",
                 )
 
             current_app.logger.debug(
@@ -151,19 +151,13 @@ def require_jwt_auth(f: Callable[..., Any]) -> Callable[..., Any]:
                 "JWT token expired",
                 extra={"correlation_id": getattr(g, "correlation_id", "N/A")},
             )
-            return (
-                {"error": "Unauthorized", "message": "Token has expired."},
-                401,
-            )
+            return _error_response("Token has expired.", 401, error="Unauthorized")
         except DecodeError:
             current_app.logger.error(
                 "JWT decode error",
                 extra={"correlation_id": getattr(g, "correlation_id", "N/A")},
             )
-            return (
-                {"error": "Unauthorized", "message": "Invalid token format."},
-                401,
-            )
+            return _error_response("Invalid token format.", 401, error="Unauthorized")
         except InvalidTokenError as e:
             current_app.logger.error(
                 "JWT validation error",
@@ -172,10 +166,7 @@ def require_jwt_auth(f: Callable[..., Any]) -> Callable[..., Any]:
                     "error": str(e),
                 },
             )
-            return (
-                {"error": "Unauthorized", "message": "Invalid token."},
-                401,
-            )
+            return _error_response("Invalid token.", 401, error="Unauthorized")
 
     return decorated_function
 
@@ -282,12 +273,10 @@ def access_required(
                         "correlation_id": getattr(g, "correlation_id", "N/A"),
                     },
                 )
-                return (
-                    {
-                        "error": "Internal Server Error",
-                        "message": "Cannot determine resource for authorization.",
-                    },
+                return _error_response(
+                    "Cannot determine resource for authorization.",
                     500,
+                    error="Internal Server Error",
                 )
 
             # Get user context from JWT (set by @require_jwt_auth)
@@ -301,12 +290,10 @@ def access_required(
                         "correlation_id": getattr(g, "correlation_id", "N/A"),
                     },
                 )
-                return (
-                    {
-                        "error": "Unauthorized",
-                        "message": "User context missing. Use @require_jwt_auth first.",
-                    },
+                return _error_response(
+                    "User context missing. Use @require_jwt_auth first.",
                     401,
+                    error="Unauthorized",
                 )
 
             # Build context from route parameters (exclude API version segment)
@@ -336,12 +323,8 @@ def access_required(
                             "correlation_id": getattr(g, "correlation_id", "N/A"),
                         },
                     )
-                    return (
-                        {
-                            "error": "Forbidden",
-                            "message": f"Access denied: {reason}",
-                        },
-                        403,
+                    return _error_response(
+                        f"Access denied: {reason}", 403, error="Forbidden"
                     )
 
                 # Access granted, call original function
@@ -355,12 +338,10 @@ def access_required(
                         "correlation_id": getattr(g, "correlation_id", "N/A"),
                     },
                 )
-                return (
-                    {
-                        "error": "Service Unavailable",
-                        "message": "Authorization service unavailable.",
-                    },
+                return _error_response(
+                    "Authorization service unavailable.",
                     503,
+                    error="Service Unavailable",
                 )
 
         return decorated_function

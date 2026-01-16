@@ -143,6 +143,41 @@ class Resource(UUIDMixin, TimestampMixin, Model):
         ),
     )
 
+    def __init__(
+        self,
+        company_id: uuid.UUID,
+        name: str,
+        type: str = "labor",
+        ms_project_uid: int | None = None,
+        standard_rate: float | None = None,
+        overtime_rate: float | None = None,
+        email: str | None = None,
+        is_active: bool = True,
+        **kwargs,
+    ) -> None:
+        """Initialize a Resource instance.
+
+        Args:
+            company_id: Company UUID for multi-tenancy.
+            name: Resource name.
+            type: Resource type (labor, material, cost). Defaults to "labor".
+            ms_project_uid: Optional MS Project UID.
+            standard_rate: Optional standard rate.
+            overtime_rate: Optional overtime rate.
+            email: Optional email address.
+            is_active: Active status. Defaults to True.
+            **kwargs: Additional keyword arguments passed to parent.
+        """
+        super().__init__(**kwargs)
+        self.company_id = company_id
+        self.name = name
+        self.type = type
+        self.ms_project_uid = ms_project_uid
+        self.standard_rate = standard_rate
+        self.overtime_rate = overtime_rate
+        self.email = email
+        self.is_active = is_active
+
     def __repr__(self) -> str:
         """String representation of Resource.
 
