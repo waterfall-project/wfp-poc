@@ -232,7 +232,7 @@ def _apply_expense_filters(
 def _get_sort_clause_or_error() -> tuple[Any, ResponseTuple | None]:
     """Return sort clause or an error response."""
     sort_by = request.args.get("sort_by", "date")
-    sort_order = request.args.get("sort_order", "asc")
+    sort_order = request.args.get("sort_order", "desc")
 
     sort_column = ALLOWED_SORT_FIELDS.get(sort_by)
     if not sort_column:

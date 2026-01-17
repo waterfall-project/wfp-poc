@@ -177,6 +177,7 @@ line-ending = "auto"
 python_version = "3.11"
 warn_return_any = true
 warn_unused_configs = true
+exclude = "tools/guardian_mock/"
 disallow_untyped_defs = false  # Start with false, enable gradually
 disallow_incomplete_defs = false
 check_untyped_defs = true

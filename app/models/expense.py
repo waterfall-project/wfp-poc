@@ -205,10 +205,11 @@ class Expense(UUIDMixin, TimestampMixin, Model):
             name="ck_expenses_amount_non_negative",
         ),
         UniqueConstraint(
+            "project_id",
             "reference_number",
             "date",
             "amount",
-            name="uq_expenses_reference_date_amount",
+            name="uq_expenses_project_reference_date_amount",
         ),
         CheckConstraint(
             "period IS NULL OR (period >= 1 AND period <= 12)",

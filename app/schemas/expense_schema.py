@@ -32,7 +32,7 @@ class ExpenseSchema(Schema):
     milestone_id = fields.UUID(allow_none=True)
     resource_id = fields.UUID(allow_none=True)
     date = fields.DateTime(required=True)
-    amount = fields.Decimal(required=True, as_string=True, places=2)
+    amount = fields.Decimal(required=True, as_string=False, places=2)
     category = fields.String(required=True, validate=OneOf(EXPENSE_CATEGORIES))
     description = fields.String(validate=Length(max=500), allow_none=True)
     reference_number = fields.String(validate=Length(max=50), allow_none=True)
@@ -87,7 +87,7 @@ class ExpenseUpdateSchema(Schema):
     date = fields.DateTime()
     amount = fields.Decimal(as_string=True, places=2, validate=Range(min=0))
     category = fields.String(validate=OneOf(EXPENSE_CATEGORIES))
-    description = fields.String(validate=Length(max=500))
+    description = fields.String(validate=Length(max=500), allow_none=True)
 
     @validates_schema
     def validate_non_empty(self, data: dict[str, Any], **kwargs: Any) -> None:

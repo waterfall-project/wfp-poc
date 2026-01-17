@@ -10,8 +10,7 @@ config = context.config
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.
-if config.config_file_name:
-    fileConfig(config.config_file_name)
+fileConfig(config.config_file_name)
 logger = logging.getLogger('alembic.env')
 
 
@@ -36,8 +35,6 @@ def get_engine_url():
 # for 'autogenerate' support
 # from myapp import mymodel
 # target_metadata = mymodel.Base.metadata
-from app.models import Dummy  # noqa: F401 - Import models for autogenerate
-
 config.set_main_option('sqlalchemy.url', get_engine_url())
 target_db = current_app.extensions['migrate'].db
 

@@ -136,7 +136,7 @@ class TestExpenseCreate:
         assert response.status_code == 201
         body = response.get_json()
         assert body["data"]["milestone_id"] == str(milestone_early.id)
-        assert body["data"]["amount"] == "1500.00"
+        assert body["data"]["amount"] == 1500.0
 
     @patch("app.utils.jwt_decorators.GuardianService.check_access")
     def test_create_expense_duplicate_returns_conflict(
