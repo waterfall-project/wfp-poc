@@ -432,6 +432,74 @@ class TestMilestoneListPost:
         assert "errors" in data
 
     @patch("app.services.guardian_service.requests.post")
+    def test_create_milestone_target_date_outside_project_range(
+        self,
+        mock_guardian: MagicMock,
+        authenticated_client: FlaskClient,
+        project_data: Project,
+    ) -> None:
+        """Test target_date outside project date range.
+
+        Given: target_date is after project finish_date
+        When: Creating milestone
+        Then: Returns 422 unprocessable entity
+        """
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"access_granted": True, "reason": "granted"}
+        mock_guardian.return_value = mock_response
+
+        target_date = project_data.finish_date + timedelta(days=1)
+        milestone_data = {
+            "name": "Out of range Milestone",
+            "target_date": target_date.isoformat(),
+            "budget_weight": 0.1,
+        }
+
+        response = authenticated_client.post(
+            f"/v0/projects/{project_data.id}/milestones",
+            json=milestone_data,
+        )
+
+        assert response.status_code == 422
+        data = response.get_json()
+        assert "target_date" in data["message"]
+
+    @patch("app.services.guardian_service.requests.post")
+    def test_create_milestone_duplicate_target_date(
+        self,
+        mock_guardian: MagicMock,
+        authenticated_client: FlaskClient,
+        milestones_data: list[Milestone],
+    ) -> None:
+        """Test creating milestone with duplicate target_date.
+
+        Given: Existing milestone with a target_date
+        When: Creating another milestone with same target_date
+        Then: Returns 400 bad request
+        """
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"access_granted": True, "reason": "granted"}
+        mock_guardian.return_value = mock_response
+
+        milestone = milestones_data[0]
+        milestone_data_payload = {
+            "name": "Duplicate date",
+            "target_date": milestone.target_date.isoformat(),
+            "budget_weight": 0.1,
+        }
+
+        response = authenticated_client.post(
+            f"/v0/projects/{milestone.project_id}/milestones",
+            json=milestone_data_payload,
+        )
+
+        assert response.status_code == 400
+        data = response.get_json()
+        assert "overlap" in data["message"]
+
+    @patch("app.services.guardian_service.requests.post")
     def test_create_milestone_missing_required_fields(
         self,
         mock_guardian: MagicMock,

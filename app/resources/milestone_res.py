@@ -65,6 +65,9 @@ BUDGET_WEIGHT_SUM_EXCEEDED_MSG = "Sum of milestone budget_weight would exceed 1.
 CANNOT_DELETE_MILESTONE_WITH_EXPENSES_MSG = (
     "Cannot delete milestone with {count} associated expenses"
 )
+INVALID_TARGET_DATE_RANGE_MSG = "target_date must fall within project date range"
+INVALID_ACTUAL_DATE_RANGE_MSG = "actual_date must fall within project date range"
+MILESTONE_OVERLAP_MSG = "milestones must not overlap"
 INVALID_COMPANY_ID_CLAIM_MSG = "Invalid token: company_id claim is not a valid UUID."
 
 # Success Messages
@@ -104,6 +107,128 @@ def _normalize_datetime_fields(data: dict[str, Any]) -> dict[str, Any]:
             data[field] = _normalize_datetime(data[field])
 
     return data
+
+
+def _derive_milestone_status(
+    target_date: datetime | None, actual_date: datetime | None
+) -> str:
+    """Derive milestone status from target and actual dates.
+
+    Args:
+        target_date: Planned milestone completion date.
+        actual_date: Actual milestone completion date.
+
+    Returns:
+        Milestone status: upcoming, achieved, or missed.
+    """
+    if actual_date is None:
+        return "upcoming"
+    if target_date and actual_date > target_date:
+        return "missed"
+    return "achieved"
+
+
+def _prepare_milestone_update_data(
+    data: dict[str, Any],
+) -> dict[str, Any]:
+    """Normalize milestone update payload for achieved status logic.
+
+    Args:
+        data: Incoming update payload.
+
+    Returns:
+        Updated payload with derived achieved fields.
+    """
+    normalized = data.copy()
+
+    if normalized.get("is_achieved") and "actual_date" not in normalized:
+        achieved_date = normalized.get("achieved_date")
+        normalized["actual_date"] = (
+            achieved_date
+            if isinstance(achieved_date, datetime)
+            else datetime.now(UTC).replace(tzinfo=None)
+        )
+
+    if "actual_date" in normalized:
+        if normalized["actual_date"] is None:
+            normalized["is_achieved"] = False
+            normalized.setdefault("achieved_date", None)
+        else:
+            normalized["is_achieved"] = True
+            normalized.setdefault("achieved_date", normalized["actual_date"])
+
+    return normalized
+
+
+def _validate_milestone_date_range(
+    project: Project,
+    target_date: datetime | None,
+    actual_date: datetime | None,
+) -> ErrorResponse | None:
+    """Validate milestone dates are within project date range.
+
+    Args:
+        project: Parent project.
+        target_date: Planned milestone date.
+        actual_date: Actual milestone date.
+
+    Returns:
+        Error response if validation fails, otherwise None.
+    """
+    start_date = _normalize_datetime(project.start_date)
+    finish_date = _normalize_datetime(project.finish_date)
+
+    if (
+        target_date
+        and start_date is not None
+        and finish_date is not None
+        and (target_date < start_date or target_date > finish_date)
+    ):
+        return {
+            "error": UNPROCESSABLE_ENTITY_ERROR,
+            "message": INVALID_TARGET_DATE_RANGE_MSG,
+        }, 422
+
+    if (
+        actual_date
+        and start_date is not None
+        and finish_date is not None
+        and (actual_date < start_date or actual_date > finish_date)
+    ):
+        return {
+            "error": UNPROCESSABLE_ENTITY_ERROR,
+            "message": INVALID_ACTUAL_DATE_RANGE_MSG,
+        }, 422
+
+    return None
+
+
+def _validate_milestone_target_date_uniqueness(
+    project_id: uuid.UUID,
+    target_date: datetime | None,
+    exclude_milestone_id: uuid.UUID | None = None,
+) -> ErrorResponse | None:
+    """Ensure milestone target_date is unique per project.
+
+    Args:
+        project_id: Project UUID.
+        target_date: Target date to validate.
+        exclude_milestone_id: Optional milestone ID to exclude (for updates).
+
+    Returns:
+        Error response if duplicate found, otherwise None.
+    """
+    if target_date is None:
+        return None
+
+    query = Milestone.query.filter_by(project_id=project_id, target_date=target_date)
+    if exclude_milestone_id:
+        query = query.filter(Milestone.id != exclude_milestone_id)
+
+    if query.first():
+        return {"error": BAD_REQUEST_ERROR, "message": MILESTONE_OVERLAP_MSG}, 400
+
+    return None
 
 
 def _calculate_budget_weight_sum(
@@ -434,7 +559,7 @@ class MilestoneListResource(Resource):
         query = filtered_query
 
         sort_by = args.get("sort_by", "target_date")
-        sort_order = args.get("sort_order", "asc")
+        sort_order = args.get("sort_order", "desc")
         sorted_query, error = _apply_milestone_sorting(query, sort_by, sort_order)
         if error:
             return error
@@ -516,6 +641,18 @@ class MilestoneListResource(Resource):
         if not isinstance(data, dict):
             return {"error": BAD_REQUEST_ERROR, "message": INVALID_JSON_BODY_MSG}, 400
         data = _normalize_datetime_fields(data)
+
+        date_error = _validate_milestone_date_range(
+            project, data.get("target_date"), None
+        )
+        if date_error:
+            return date_error
+
+        overlap_error = _validate_milestone_target_date_uniqueness(
+            project_uuid, data.get("target_date")
+        )
+        if overlap_error:
+            return overlap_error
 
         # Validate budget_weight sum
         new_weight = Decimal(str(data["budget_weight"]))
@@ -666,17 +803,38 @@ class MilestoneResource(Resource):
             if not is_valid:
                 return {"error": CONFLICT_ERROR, "message": error_msg}, 409
 
+        data = _prepare_milestone_update_data(data)
+
+        project = milestone.project
+        if project is None:
+            return {
+                "error": NOT_FOUND_ERROR,
+                "message": PROJECT_NOT_FOUND_MSG,
+            }, 404
+
+        date_error = _validate_milestone_date_range(
+            project, data.get("target_date"), data.get("actual_date")
+        )
+        if date_error:
+            return date_error
+
+        overlap_error = _validate_milestone_target_date_uniqueness(
+            project_uuid,
+            data.get("target_date") or milestone.target_date,
+            exclude_milestone_id=milestone_uuid,
+        )
+        if overlap_error:
+            return overlap_error
+
         # Update fields
         for field, value in data.items():
             if field == "budget_weight":
                 value = Decimal(str(value))
             setattr(milestone, field, value)
 
-        # Auto-update status based on achieved status
-        if "is_achieved" in data and data["is_achieved"]:
-            milestone.status = "achieved"
-            if "achieved_date" not in data:
-                milestone.achieved_date = datetime.now(UTC).replace(tzinfo=None)
+        milestone.status = _derive_milestone_status(
+            milestone.target_date, milestone.actual_date
+        )
 
         try:
             db.session.commit()

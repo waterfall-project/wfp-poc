@@ -9,11 +9,6 @@
     responses:
       '200':
         description: Prometheus metrics
-        headers:
-          Cache-Control:
-            schema:
-              type: string
-            example: no-cache, no-store, must-revalidate
         content:
           text/plain; version=0.0.4; charset=utf-8:
             schema:
@@ -27,11 +22,6 @@
                   python_info{implementation="CPython",major="3",minor="11",patchlevel="7",version="3.11.7"} 1.0
       '401':
         description: Missing or invalid API key
-        headers:
-          Cache-Control:
-            schema:
-              type: string
-            example: no-cache, no-store, must-revalidate
         content:
           application/json:
             schema:
@@ -53,27 +43,6 @@
                   message: Invalid API key
                   timestamp: "2026-01-07T10:30:00Z"
       '429':
-        description: Rate limit exceeded
-        headers:
-          Cache-Control:
-            schema:
-              type: string
-            example: no-cache, no-store, must-revalidate
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [message, retry_after]
-              properties:
-                message:
-                  type: string
-                retry_after:
-                  type: integer
-                  minimum: 0
-            examples:
-              rate_limited:
-                value:
-                  message: "Rate limit exceeded: 10 per minute"
-                  retry_after: 45
+        $ref: '../components/responses.yaml#/TooManyRequests'
       '500':
         $ref: '../components/responses.yaml#/InternalServerError'

@@ -13,7 +13,9 @@ Provides schemas for validation, serialization, and deserialization
 of milestone data according to OpenAPI specification.
 """
 
-from marshmallow import Schema, ValidationError, fields, validates_schema
+from decimal import Decimal
+
+from marshmallow import Schema, ValidationError, fields, post_dump, validates_schema
 from marshmallow.validate import Length, OneOf, Range
 from marshmallow_sqlalchemy import SQLAlchemyAutoSchema
 
@@ -34,6 +36,7 @@ class MilestoneSchema(SQLAlchemyAutoSchema):
         load_instance = True
         include_fk = True
         include_relationships = False
+        exclude = ("ms_project_uid", "current_rae", "current_rae_date")
 
     id = fields.UUID(dump_only=True)
     project_id = fields.UUID(required=True)
@@ -53,19 +56,33 @@ class MilestoneSchema(SQLAlchemyAutoSchema):
 
     budget_weight = fields.Decimal(
         required=True,
-        as_string=True,
-        places=6,
+        as_string=False,
+        places=4,
         validate=Range(min=0, max=1),
     )
 
     is_achieved = fields.Boolean(required=True, dump_default=False)
 
-    ms_project_uid = fields.Integer(allow_none=True)
-    current_rae = fields.Decimal(allow_none=True, as_string=True, places=2)
-    current_rae_date = fields.DateTime(allow_none=True)
-
     created_at = fields.DateTime(dump_only=True)
     updated_at = fields.DateTime(dump_only=True)
+
+    @post_dump
+    def convert_decimal_fields(
+        self, data: dict[str, object], **kwargs: object
+    ) -> dict[str, object]:
+        """Convert Decimal fields to float for JSON responses.
+
+        Args:
+            data: Serialized milestone data.
+            **kwargs: Additional keyword arguments.
+
+        Returns:
+            Serialized data with Decimal fields converted to float.
+        """
+        budget_weight = data.get("budget_weight")
+        if isinstance(budget_weight, Decimal):
+            data["budget_weight"] = float(budget_weight)
+        return data
 
 
 class MilestoneCreateSchema(Schema):
@@ -75,14 +92,14 @@ class MilestoneCreateSchema(Schema):
     """
 
     name = fields.String(required=True, validate=Length(min=1, max=255))
-    description = fields.String(allow_none=True, validate=Length(max=1000))
+    description = fields.String(validate=Length(max=1000))
 
     target_date = fields.DateTime(required=True)
 
     budget_weight = fields.Decimal(
         required=True,
         as_string=True,
-        places=6,
+        places=4,
         validate=Range(min=0, max=1),
     )
 
@@ -101,11 +118,9 @@ class MilestoneUpdateSchema(Schema):
     actual_date = fields.DateTime(allow_none=True)
     achieved_date = fields.DateTime(allow_none=True)
 
-    status = fields.String(validate=OneOf(["upcoming", "achieved", "missed"]))
-
     budget_weight = fields.Decimal(
         as_string=True,
-        places=6,
+        places=4,
         validate=Range(min=0, max=1),
     )
 

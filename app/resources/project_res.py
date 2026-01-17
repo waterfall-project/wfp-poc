@@ -37,6 +37,8 @@ from app.schemas.project_schema import (
 )
 from app.services.guardian_service import Operation
 from app.utils.api_version import validate_api_version
+from app.utils.correlation import ResponseTuple
+from app.utils.correlation import error_response as _error_response
 from app.utils.jwt_decorators import (
     access_required,
     get_current_company_id,
@@ -111,7 +113,7 @@ def _normalize_datetime_fields(data: dict[str, Any]) -> dict[str, Any]:
 
 def _parse_query_datetime(
     param_name: str, raw_value: str
-) -> tuple[datetime | None, dict | None]:
+) -> tuple[datetime | None, ResponseTuple | None]:
     """Parse ISO 8601 query datetime and normalize to naive UTC.
 
     Args:
@@ -126,10 +128,14 @@ def _parse_query_datetime(
     try:
         parsed = datetime.fromisoformat(normalized_raw)
     except ValueError:
-        return None, {
-            "error": BAD_REQUEST_ERROR,
-            "message": f"Invalid {param_name} format. Use ISO 8601.",
-        }
+        return (
+            None,
+            _error_response(
+                f"Invalid {param_name} format. Use ISO 8601.",
+                400,
+                error=BAD_REQUEST_ERROR,
+            ),
+        )
 
     return _normalize_datetime(parsed), None
 
@@ -151,7 +157,7 @@ class ProjectListResource(Resource):
     @require_jwt_auth
     @access_required(Operation.LIST, "projects")
     @limiter.limit("100 per minute", key_func=rate_limit_user_key)
-    def get(self, version: str | None = None) -> tuple[dict, int]:
+    def get(self, version: str | None = None) -> ResponseTuple:
         """Retrieve paginated list of projects for authenticated company.
 
         Query Parameters:
@@ -192,10 +198,7 @@ class ProjectListResource(Resource):
             page = max(1, int(request.args.get("page", 1)))
             per_page = min(100, max(1, int(request.args.get("per_page", 20))))
         except ValueError:
-            return {
-                "error": BAD_REQUEST_ERROR,
-                "message": INVALID_PAGINATION_MSG,
-            }, 400
+            return _error_response(INVALID_PAGINATION_MSG, 400, error=BAD_REQUEST_ERROR)
 
         # Build base query filtered by company
         query = Project.query.filter_by(company_id=company_id)
@@ -210,10 +213,11 @@ class ProjectListResource(Resource):
                 "cancelled",
                 "on_hold",
             ]:
-                return {
-                    "error": BAD_REQUEST_ERROR,
-                    "message": INVALID_STATUS_MSG.format(status=status),
-                }, 400
+                return _error_response(
+                    INVALID_STATUS_MSG.format(status=status),
+                    400,
+                    error=BAD_REQUEST_ERROR,
+                )
             query = query.filter_by(status=status)
 
         # Apply date range filters
@@ -223,7 +227,7 @@ class ProjectListResource(Resource):
                 "start_date_from", start_date_from
             )
             if error:
-                return error, 400
+                return error
             query = query.filter(Project.start_date >= start_date_from_dt)
 
         start_date_to = request.args.get("start_date_to")
@@ -232,7 +236,7 @@ class ProjectListResource(Resource):
                 "start_date_to", start_date_to
             )
             if error:
-                return error, 400
+                return error
             query = query.filter(Project.start_date <= start_date_to_dt)
 
         # Apply search filter (name, code, title)
@@ -253,16 +257,18 @@ class ProjectListResource(Resource):
         sort_order = request.args.get("sort_order", "desc")
 
         if sort_by not in ["name", "code", "start_date", "created_at"]:
-            return {
-                "error": BAD_REQUEST_ERROR,
-                "message": INVALID_SORT_BY_MSG.format(sort_by=sort_by),
-            }, 400
+            return _error_response(
+                INVALID_SORT_BY_MSG.format(sort_by=sort_by),
+                400,
+                error=BAD_REQUEST_ERROR,
+            )
 
         if sort_order not in ["asc", "desc"]:
-            return {
-                "error": BAD_REQUEST_ERROR,
-                "message": INVALID_SORT_ORDER_MSG.format(sort_order=sort_order),
-            }, 400
+            return _error_response(
+                INVALID_SORT_ORDER_MSG.format(sort_order=sort_order),
+                400,
+                error=BAD_REQUEST_ERROR,
+            )
 
         # Get sortable column
         sort_column = getattr(Project, sort_by)
@@ -295,7 +301,7 @@ class ProjectListResource(Resource):
     @require_jwt_auth
     @access_required(Operation.CREATE, "projects")
     @limiter.limit("100 per minute", key_func=rate_limit_user_key)
-    def post(self, version: str | None = None) -> tuple[dict, int]:
+    def post(self, version: str | None = None) -> ResponseTuple:
         """Create a new project for the authenticated company.
 
         Request Body:
@@ -352,21 +358,19 @@ class ProjectListResource(Resource):
         elif isinstance(json_payload_raw, dict):
             json_payload = cast("dict[str, Any]", json_payload_raw)
         else:
-            return {
-                "error": BAD_REQUEST_ERROR,
-                "message": INVALID_JSON_BODY_MSG,
-            }, 400
+            return _error_response(INVALID_JSON_BODY_MSG, 400, error=BAD_REQUEST_ERROR)
 
         try:
             data: dict[str, Any] = cast(
                 "dict[str, Any]", self.create_schema.load(json_payload)
             )
         except ValidationError as err:
-            return {
-                "error": BAD_REQUEST_ERROR,
-                "message": VALIDATION_FAILED_MSG,
-                "errors": err.messages,
-            }, 400
+            return _error_response(
+                VALIDATION_FAILED_MSG,
+                400,
+                error=BAD_REQUEST_ERROR,
+                errors=err.messages,
+            )
 
         normalized = _normalize_datetime_fields(data)
         normalized["company_id"] = get_current_company_id()
@@ -374,10 +378,9 @@ class ProjectListResource(Resource):
         start_date = normalized.get("start_date")
         finish_date = normalized.get("finish_date")
         if start_date and finish_date and finish_date <= start_date:
-            return {
-                "error": "Unprocessable Entity",
-                "message": INVALID_FINISH_DATE_MSG,
-            }, 422
+            return _error_response(
+                INVALID_FINISH_DATE_MSG, 422, error="Unprocessable Entity"
+            )
         project = Project(**normalized)
 
         try:
@@ -390,12 +393,11 @@ class ProjectListResource(Resource):
                 "uq_projects_company_code" in error_message
                 or "projects.company_id, projects.code" in error_message
             ):
-                return {
-                    "error": CONFLICT_ERROR,
-                    "message": DUPLICATE_PROJECT_CODE_MSG.format(
-                        code=normalized.get("code")
-                    ),
-                }, 409
+                return _error_response(
+                    DUPLICATE_PROJECT_CODE_MSG.format(code=normalized.get("code")),
+                    409,
+                    error=CONFLICT_ERROR,
+                )
             raise
 
         return cast(
@@ -423,7 +425,7 @@ class ProjectResource(Resource):
         project_id: str | None = None,
         id: str | None = None,
         version: str | None = None,
-    ) -> tuple[dict, int]:
+    ) -> ResponseTuple:
         """Retrieve a single project by ID.
 
         Path Parameters:
@@ -458,11 +460,11 @@ class ProjectResource(Resource):
 
         effective_id = project_id or id
         if not effective_id:
-            return {"error": BAD_REQUEST_ERROR, "message": MISSING_PROJECT_ID_MSG}, 400
+            return _error_response(MISSING_PROJECT_ID_MSG, 400, error=BAD_REQUEST_ERROR)
 
         project = self._get_project(effective_id)
         if project is None:
-            return {"error": NOT_FOUND_ERROR, "message": PROJECT_NOT_FOUND_MSG}, 404
+            return _error_response(PROJECT_NOT_FOUND_MSG, 404, error=NOT_FOUND_ERROR)
 
         return cast("dict[str, Any]", self.response_schema.dump({"data": project})), 200
 
@@ -474,7 +476,7 @@ class ProjectResource(Resource):
         project_id: str | None = None,
         id: str | None = None,
         version: str | None = None,
-    ) -> tuple[dict, int]:
+    ) -> ResponseTuple:
         """Partially update a project.
 
         Path Parameters:
@@ -526,18 +528,19 @@ class ProjectResource(Resource):
 
         effective_id = project_id or id
         if not effective_id:
-            return {"error": BAD_REQUEST_ERROR, "message": MISSING_PROJECT_ID_MSG}, 400
+            return _error_response(MISSING_PROJECT_ID_MSG, 400, error=BAD_REQUEST_ERROR)
 
         project = self._get_project(effective_id)
         if project is None:
-            return {"error": NOT_FOUND_ERROR, "message": PROJECT_NOT_FOUND_MSG}, 404
+            return _error_response(PROJECT_NOT_FOUND_MSG, 404, error=NOT_FOUND_ERROR)
 
         json_payload_raw = request.get_json(silent=True)
         if json_payload_raw is not None and not isinstance(json_payload_raw, dict):
-            return {
-                "error": BAD_REQUEST_ERROR,
-                "message": "Request body must be a JSON object",
-            }, 400
+            return _error_response(
+                "Request body must be a JSON object",
+                400,
+                error=BAD_REQUEST_ERROR,
+            )
 
         payload: dict[str, Any] = (
             cast("dict[str, Any]", json_payload_raw)
@@ -547,31 +550,32 @@ class ProjectResource(Resource):
 
         # Validate minProperties: 1 (OpenAPI requirement)
         if not payload:
-            return {
-                "error": BAD_REQUEST_ERROR,
-                "message": "At least one field must be provided for update",
-            }, 400
+            return _error_response(
+                "At least one field must be provided for update",
+                400,
+                error=BAD_REQUEST_ERROR,
+            )
 
         try:
             updates: dict[str, Any] = cast(
                 "dict[str, Any]", self.update_schema.load(payload, partial=True)
             )
         except ValidationError as err:
-            return {
-                "error": BAD_REQUEST_ERROR,
-                "message": VALIDATION_FAILED_MSG,
-                "errors": err.messages,
-            }, 400
+            return _error_response(
+                VALIDATION_FAILED_MSG,
+                400,
+                error=BAD_REQUEST_ERROR,
+                errors=err.messages,
+            )
 
         normalized = _normalize_datetime_fields(updates)
 
         new_start = normalized.get("start_date", project.start_date)
         new_finish = normalized.get("finish_date", project.finish_date)
         if new_start and new_finish and new_finish <= new_start:
-            return {
-                "error": "Unprocessable Entity",
-                "message": INVALID_FINISH_DATE_MSG,
-            }, 422
+            return _error_response(
+                INVALID_FINISH_DATE_MSG, 422, error="Unprocessable Entity"
+            )
 
         for field, value in normalized.items():
             setattr(project, field, value)
@@ -585,12 +589,11 @@ class ProjectResource(Resource):
                 "uq_projects_company_code" in error_message
                 or "projects.company_id, projects.code" in error_message
             ):
-                return {
-                    "error": CONFLICT_ERROR,
-                    "message": DUPLICATE_PROJECT_CODE_MSG.format(
-                        code=normalized.get("code")
-                    ),
-                }, 409
+                return _error_response(
+                    DUPLICATE_PROJECT_CODE_MSG.format(code=normalized.get("code")),
+                    409,
+                    error=CONFLICT_ERROR,
+                )
             raise
 
         return cast(
@@ -608,7 +611,7 @@ class ProjectResource(Resource):
         project_id: str | None = None,
         id: str | None = None,
         version: str | None = None,
-    ) -> tuple[dict, int]:
+    ) -> ResponseTuple:
         """Delete a project if no related entities exist.
 
         Path Parameters:
@@ -628,11 +631,11 @@ class ProjectResource(Resource):
 
         effective_id = project_id or id
         if not effective_id:
-            return {"error": BAD_REQUEST_ERROR, "message": MISSING_PROJECT_ID_MSG}, 400
+            return _error_response(MISSING_PROJECT_ID_MSG, 400, error=BAD_REQUEST_ERROR)
 
         project = self._get_project(effective_id)
         if project is None:
-            return {"error": NOT_FOUND_ERROR, "message": PROJECT_NOT_FOUND_MSG}, 404
+            return _error_response(PROJECT_NOT_FOUND_MSG, 404, error=NOT_FOUND_ERROR)
 
         has_related = any(
             [
@@ -646,10 +649,11 @@ class ProjectResource(Resource):
         )
 
         if has_related:
-            return {
-                "error": CONFLICT_ERROR,
-                "message": "Cannot delete project with existing tasks/milestones/expenses/assignments",
-            }, 409
+            return _error_response(
+                "Cannot delete project with existing tasks/milestones/expenses/assignments",
+                409,
+                error=CONFLICT_ERROR,
+            )
 
         db.session.delete(project)
         db.session.commit()

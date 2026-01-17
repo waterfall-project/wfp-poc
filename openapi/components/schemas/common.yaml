@@ -2,7 +2,11 @@ Error:
   type: object
   required:
     - message
+    - correlation_id
   properties:
+    error:
+      type: string
+      description: Error category (e.g., Bad Request, Unauthorized)
     message:
       type: string
       description: Human-readable error message

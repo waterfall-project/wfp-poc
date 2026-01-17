@@ -238,6 +238,15 @@ def create_app(config_class: str = "app.config.DevelopmentConfig") -> Flask:
 
         register_routes(app)
 
+    @app.after_request
+    def add_cache_control_headers(response):
+        """Add cache control headers for health and metrics endpoints."""
+        if request.path in {"/health", "/ready", "/metrics"}:
+            response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        elif request.path == "/version":
+            response.headers["Cache-Control"] = "public, max-age=3600"
+        return response
+
     # Add security headers
     if app.config.get("SECURITY_HEADERS_ENABLED"):
 

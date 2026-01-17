@@ -130,7 +130,7 @@ class TestTaskBulkCreate:
 
         Given: Array with valid and invalid task data
         When: POST /v0/projects/{id}/tasks/bulk is called
-        Then: Returns 422 validation error (schema validates all items upfront)
+        Then: Returns 400 validation error (schema validates all items upfront)
         """
         mock_response = MagicMock()
         mock_response.status_code = 200
@@ -162,7 +162,7 @@ class TestTaskBulkCreate:
         )
 
         # Schema validation fails upfront when any task is invalid
-        assert response.status_code == 422
+        assert response.status_code == 400
         data = response.get_json()
         assert data["message"] == "Validation failed"
 
@@ -177,7 +177,7 @@ class TestTaskBulkCreate:
 
         Given: Array with more than 500 tasks
         When: POST /v0/projects/{id}/tasks/bulk is called
-        Then: Returns 422 validation error
+        Then: Returns 400 validation error
         """
         mock_response = MagicMock()
         mock_response.status_code = 200
@@ -201,7 +201,7 @@ class TestTaskBulkCreate:
             f"/v0/projects/{test_project.id}/tasks/bulk", json=payload
         )
 
-        assert response.status_code == 422
+        assert response.status_code == 400
         data = response.get_json()
         assert data["message"] == "Validation failed"
 
@@ -216,7 +216,7 @@ class TestTaskBulkCreate:
 
         Given: Empty tasks array
         When: POST /v0/projects/{id}/tasks/bulk is called
-        Then: Returns 422 validation error
+        Then: Returns 400 validation error
         """
         mock_response = MagicMock()
         mock_response.status_code = 200
@@ -229,7 +229,7 @@ class TestTaskBulkCreate:
             f"/v0/projects/{test_project.id}/tasks/bulk", json=payload
         )
 
-        assert response.status_code == 422
+        assert response.status_code == 400
 
     @patch("app.services.guardian_service.requests.post")
     def test_bulk_create_tasks_with_invalid_predecessors(

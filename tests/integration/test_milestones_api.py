@@ -226,13 +226,13 @@ class TestMilestoneUpdate:
         data = response.get_json()
         assert data["message"] == "Milestone updated successfully"
         assert data["data"]["is_achieved"] is True
-        assert data["data"]["status"] == "achieved"
+        assert data["data"]["status"] == "missed"
 
         with app.app_context():
             refreshed = db.session.get(Milestone, milestone.id)
             assert refreshed is not None
             assert refreshed.is_achieved is True
-            assert refreshed.status == "achieved"
+            assert refreshed.status == "missed"
 
 
 class TestMilestoneDelete:

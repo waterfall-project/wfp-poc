@@ -8,22 +8,12 @@
     responses:
       '200':
         description: Service is alive (ok or degraded)
-        headers:
-          Cache-Control:
-            schema:
-              type: string
-            example: no-cache, no-store, must-revalidate
         content:
           application/json:
             schema:
               $ref: '../components/schemas/health.yaml#/HealthResponse'
       '500':
         description: Internal server error
-        headers:
-          Cache-Control:
-            schema:
-              type: string
-            example: no-cache, no-store, must-revalidate
         content:
           application/json:
             schema:
@@ -39,22 +29,12 @@
     responses:
       '200':
         description: Ready
-        headers:
-          Cache-Control:
-            schema:
-              type: string
-            example: no-cache, no-store, must-revalidate
         content:
           application/json:
             schema:
               $ref: '../components/schemas/health.yaml#/ReadyResponse'
       '503':
         description: Not ready
-        headers:
-          Cache-Control:
-            schema:
-              type: string
-            example: no-cache, no-store, must-revalidate
         content:
           application/json:
             schema:
@@ -70,22 +50,12 @@
     responses:
       '200':
         description: Version info
-        headers:
-          Cache-Control:
-            schema:
-              type: string
-            example: public, max-age=3600
         content:
           application/json:
             schema:
               $ref: '../components/schemas/health.yaml#/VersionResponse'
       '500':
         description: Internal server error
-        headers:
-          Cache-Control:
-            schema:
-              type: string
-            example: public, max-age=3600
         content:
           application/json:
             schema:
