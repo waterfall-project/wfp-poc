@@ -61,7 +61,7 @@ tags:
 security:
   - bearerAuth: []
 
-x-ratelimit-limit: 10
+x-ratelimit-limit: 100
 x-correlation-id: true
 
 paths:

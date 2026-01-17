@@ -1,8 +1,9 @@
 ---
 title: WFP-POC - Project Management & EVM API Specification
-version: 1.0
+status: approved
+version: 1.0.0
 date_created: 2026-01-10
-last_updated: 2026-01-10
+last_updated: 2026-01-17
 owner: Waterfall Project Team
 tags: [api, schema, evm, project-management, planning, poc]
 ---
@@ -3555,7 +3556,11 @@ POST /v0/milestones/milestone-uuid-2/rae
 ```
 
 **Error Responses:**
+- `401 Unauthorized`: Missing/invalid JWT
+- `403 Forbidden`: Insufficient permissions
 - `404 Not Found`: Project not found
+- `429 Too Many Requests`: Rate limit exceeded
+- `500 Internal Server Error`: Unexpected error
 
 ### 4.9. EVM Indicators Endpoints
 
@@ -3819,7 +3824,11 @@ POST /v0/milestones/milestone-uuid-2/rae
 ```
 
 **Error Responses:**
+- `401 Unauthorized`: Missing/invalid JWT
+- `403 Forbidden`: Insufficient permissions
 - `404 Not Found`: Project not found
+- `429 Too Many Requests`: Rate limit exceeded
+- `500 Internal Server Error`: Unexpected error
 - `422 Unprocessable Entity`: Cannot calculate forecasts (insufficient data)
 
 **Notes:**
@@ -3898,7 +3907,11 @@ POST /v0/milestones/milestone-uuid-2/rae
 ```
 
 **Error Responses:**
+- `401 Unauthorized`: Missing/invalid JWT
+- `403 Forbidden`: Insufficient permissions
 - `404 Not Found`: Project not found
+- `429 Too Many Requests`: Rate limit exceeded
+- `500 Internal Server Error`: Unexpected error
 
 ---
 
@@ -4880,7 +4893,7 @@ Defines testable acceptance criteria for each functional requirement using Given
 ### Statistics (AC-ST-xxx)
 
 - **AC-ST-001**: Given expense statistics request, When querying by category, Then the system SHALL return expenses grouped by category with echarts_format for pie chart
-- **AC-ST-002**: Given resource statistics request, When querying by allocation, Then the system SHALL return total_work_hours per resource with echarts_format for bar chart
+- **AC-ST-002**: Given resource statistics request, When querying labor by resource, Then the system SHALL return labor cost distribution per resource (and include hours when available) with echarts_format for bar chart
 - **AC-ST-003**: Given monthly statistics request, When querying project costs, Then the system SHALL return time series with dates and amounts for line chart
 - **AC-ST-004**: Given statistics with no data (empty project), When querying, Then the system SHALL return empty arrays `{data: [], echarts_format: {series: [{data: []}]}}`
 

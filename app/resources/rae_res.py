@@ -186,7 +186,7 @@ class MilestoneRAEResource(Resource):
         self.response_schema = RAEResponseSchema()
 
     @require_jwt_auth
-    @access_required(Operation.UPDATE, "rae")
+    @access_required(Operation.CREATE, "rae")
     @limiter.limit("100 per minute", key_func=rate_limit_user_key)
     def post(self, milestone_id: str, version: str | None = None) -> ResponseTuple:
         """Create a new milestone RAE entry.
