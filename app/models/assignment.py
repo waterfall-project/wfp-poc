@@ -14,6 +14,7 @@ to specific tasks with planned work and actual effort tracking.
 """
 
 import uuid
+from decimal import Decimal
 from typing import TYPE_CHECKING
 
 from sqlalchemy import CheckConstraint, ForeignKey, Integer, Numeric, UniqueConstraint
@@ -107,13 +108,13 @@ class Assignment(UUIDMixin, TimestampMixin, Model):
         doc="Actual work effort in minutes",
     )
 
-    planned_cost: Mapped[float | None] = mapped_column(
+    planned_cost: Mapped[Decimal | None] = mapped_column(
         Numeric(15, 2),
         nullable=True,
         doc="Planned cost for this assignment",
     )
 
-    actual_cost: Mapped[float | None] = mapped_column(
+    actual_cost: Mapped[Decimal | None] = mapped_column(
         Numeric(15, 2),
         nullable=True,
         default=0,
@@ -155,6 +156,52 @@ class Assignment(UUIDMixin, TimestampMixin, Model):
             name="ck_assignment_percent_allocation_max",
         ),
     )
+
+    def __init__(
+        self,
+        project_id: uuid.UUID,
+        task_id: uuid.UUID,
+        resource_id: uuid.UUID,
+        percent_allocation: int = 100,
+        planned_work_minutes: int | None = None,
+        actual_work_minutes: int | None = None,
+        planned_cost: float | int | Decimal | None = None,
+        actual_cost: float | int | Decimal | None = 0,
+        ms_project_uid: int | None = None,
+        **kwargs,
+    ) -> None:
+        """Initialize an Assignment instance.
+
+        Args:
+            project_id: Project UUID for denormalization.
+            task_id: Task UUID for the assignment.
+            resource_id: Resource UUID for the assignment.
+            percent_allocation: Allocation percentage (0-100).
+            planned_work_minutes: Planned work in minutes.
+            actual_work_minutes: Actual work in minutes.
+            planned_cost: Planned cost for the assignment.
+            actual_cost: Actual cost incurred for the assignment.
+            ms_project_uid: Optional MS Project assignment UID.
+            **kwargs: Additional keyword arguments passed to parent.
+        """
+        super().__init__(**kwargs)
+        self.project_id = project_id
+        self.task_id = task_id
+        self.resource_id = resource_id
+        self.percent_allocation = percent_allocation
+        self.planned_work_minutes = planned_work_minutes
+        self.actual_work_minutes = actual_work_minutes
+
+        def _normalize_decimal(value: float | int | Decimal | None) -> Decimal | None:
+            if value is None:
+                return None
+            if isinstance(value, Decimal):
+                return value
+            return Decimal(str(value))
+
+        self.planned_cost = _normalize_decimal(planned_cost)
+        self.actual_cost = _normalize_decimal(actual_cost)
+        self.ms_project_uid = ms_project_uid
 
     def __repr__(self) -> str:
         """String representation of Assignment.

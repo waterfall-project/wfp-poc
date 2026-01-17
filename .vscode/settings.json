@@ -13,5 +13,6 @@
         "${workspaceFolder}/app"
     ],
     "python.analysis.typeCheckingMode": "basic",
-    "python.analysis.diagnosticMode": "workspace"
+    "python.analysis.diagnosticMode": "workspace",
+    "yaml.schemaStore.enable": false
 }

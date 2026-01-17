@@ -39,9 +39,9 @@ from app.utils.api_version import validate_api_version
 from app.utils.jwt_decorators import (
     access_required,
     get_current_company_id,
-    get_current_user_id,
     require_jwt_auth,
 )
+from app.utils.rate_limit import rate_limit_user_key
 
 # HTTP Error Types
 BAD_REQUEST_ERROR = "Bad Request"
@@ -104,17 +104,6 @@ def _normalize_datetime_fields(data: dict[str, Any]) -> dict[str, Any]:
             data[field] = _normalize_datetime(data[field])
 
     return data
-
-
-def _rate_limit_user_key() -> str:
-    """Rate limiting key based on authenticated user.
-
-    Falls back to remote address when user_id is absent.
-    """
-    user_id = get_current_user_id()
-    if user_id:
-        return str(user_id)
-    return request.remote_addr or "anonymous"
 
 
 def _calculate_budget_weight_sum(
@@ -383,7 +372,7 @@ class MilestoneListResource(Resource):
 
     @require_jwt_auth
     @access_required(Operation.LIST, "milestones")
-    @limiter.limit("100 per minute", key_func=_rate_limit_user_key)
+    @limiter.limit("100 per minute", key_func=rate_limit_user_key)
     def get(
         self, project_id: str, version: str | None = None
     ) -> tuple[dict[str, Any], int]:
@@ -471,7 +460,7 @@ class MilestoneListResource(Resource):
 
     @require_jwt_auth
     @access_required(Operation.CREATE, "milestones")
-    @limiter.limit("100 per minute", key_func=_rate_limit_user_key)
+    @limiter.limit("100 per minute", key_func=rate_limit_user_key)
     def post(
         self, project_id: str, version: str | None = None
     ) -> tuple[dict[str, Any], int]:
@@ -575,7 +564,7 @@ class MilestoneResource(Resource):
 
     @require_jwt_auth
     @access_required(Operation.READ, "milestones")
-    @limiter.limit("100 per minute", key_func=_rate_limit_user_key)
+    @limiter.limit("100 per minute", key_func=rate_limit_user_key)
     def get(
         self, project_id: str, id: str, version: str | None = None
     ) -> tuple[dict[str, Any], int]:
@@ -618,7 +607,7 @@ class MilestoneResource(Resource):
 
     @require_jwt_auth
     @access_required(Operation.UPDATE, "milestones")
-    @limiter.limit("100 per minute", key_func=_rate_limit_user_key)
+    @limiter.limit("100 per minute", key_func=rate_limit_user_key)
     def patch(
         self, project_id: str, id: str, version: str | None = None
     ) -> tuple[dict[str, Any], int]:
@@ -708,7 +697,7 @@ class MilestoneResource(Resource):
 
     @require_jwt_auth
     @access_required(Operation.DELETE, "milestones")
-    @limiter.limit("100 per minute", key_func=_rate_limit_user_key)
+    @limiter.limit("100 per minute", key_func=rate_limit_user_key)
     def delete(
         self, project_id: str, id: str, version: str | None = None
     ) -> tuple[dict[str, Any], int]:

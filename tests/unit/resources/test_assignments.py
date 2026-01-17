@@ -81,7 +81,7 @@ def _create_assignment(project: Project, task: Task, resource: Resource) -> Assi
         planned_work_minutes=2400,
         planned_cost=Decimal("3400.00"),
         actual_cost=Decimal("0.00"),
-    )  # type: ignore[call-arg]
+    )
     db.session.add(assignment)
     db.session.commit()
     db.session.refresh(assignment)

@@ -45,9 +45,9 @@ from app.utils.correlation import get_correlation_id as _get_correlation_id
 from app.utils.jwt_decorators import (
     access_required,
     get_current_company_id,
-    get_current_user_id,
     require_jwt_auth,
 )
+from app.utils.rate_limit import rate_limit_user_key
 
 # HTTP Error Types
 BAD_REQUEST_ERROR = "Bad Request"
@@ -102,17 +102,6 @@ def _normalize_datetime(value: datetime | date | None) -> datetime | None:
             return value
         return value.astimezone(UTC).replace(tzinfo=None)
     return value
-
-
-def _rate_limit_user_key() -> str:
-    """Rate limiting key based on authenticated user.
-
-    Falls back to remote address when user_id is absent.
-    """
-    user_id = get_current_user_id()
-    if user_id:
-        return str(user_id)
-    return request.remote_addr or "anonymous"
 
 
 def _validate_predecessors_in_project(
@@ -260,7 +249,7 @@ class TaskListResource(Resource):
 
     @require_jwt_auth
     @access_required(Operation.LIST, "tasks")
-    @limiter.limit("100 per minute", key_func=_rate_limit_user_key)
+    @limiter.limit("100 per minute", key_func=rate_limit_user_key)
     def get(self, project_id: str, version: str | None = None) -> tuple[dict, int]:
         """Retrieve paginated list of tasks for a project.
 
@@ -430,7 +419,7 @@ class TaskListResource(Resource):
 
     @require_jwt_auth
     @access_required(Operation.CREATE, "tasks")
-    @limiter.limit("30 per minute", key_func=_rate_limit_user_key)
+    @limiter.limit("30 per minute", key_func=rate_limit_user_key)
     def post(self, project_id: str, version: str | None = None) -> tuple[dict, int]:
         """Create a new task within a project.
 
@@ -588,7 +577,7 @@ class TaskResource(Resource):
 
     @require_jwt_auth
     @access_required(Operation.READ, "tasks")
-    @limiter.limit("200 per minute", key_func=_rate_limit_user_key)
+    @limiter.limit("200 per minute", key_func=rate_limit_user_key)
     def get(
         self, project_id: str, id: str, version: str | None = None
     ) -> tuple[dict, int]:
@@ -654,7 +643,7 @@ class TaskResource(Resource):
 
     @require_jwt_auth
     @access_required(Operation.UPDATE, "tasks")
-    @limiter.limit("50 per minute", key_func=_rate_limit_user_key)
+    @limiter.limit("50 per minute", key_func=rate_limit_user_key)
     def patch(
         self, project_id: str, id: str, version: str | None = None
     ) -> tuple[dict, int] | tuple[dict, int, dict[str, str]]:
@@ -828,7 +817,7 @@ class TaskResource(Resource):
 
     @require_jwt_auth
     @access_required(Operation.DELETE, "tasks")
-    @limiter.limit("20 per minute", key_func=_rate_limit_user_key)
+    @limiter.limit("20 per minute", key_func=rate_limit_user_key)
     def delete(
         self, project_id: str, id: str, version: str | None = None
     ) -> tuple[dict | str, int] | tuple[dict, int, dict[str, str]]:
@@ -936,7 +925,7 @@ class TaskBulkResource(Resource):
 
     @require_jwt_auth
     @access_required(Operation.CREATE, "tasks")
-    @limiter.limit("10 per minute", key_func=_rate_limit_user_key)
+    @limiter.limit("10 per minute", key_func=rate_limit_user_key)
     def post(self, project_id: str, version: str | None = None) -> tuple[dict, int]:
         """Bulk create tasks for a project.
 
@@ -1130,7 +1119,7 @@ class TaskSyncResource(Resource):
 
     @require_jwt_auth
     @access_required(Operation.UPDATE, "tasks")
-    @limiter.limit("10 per minute", key_func=_rate_limit_user_key)
+    @limiter.limit("10 per minute", key_func=rate_limit_user_key)
     def put(self, project_id: str, version: str | None = None) -> tuple[dict, int]:
         """Sync tasks using ms_project_uid as reconciliation key.
 

@@ -37,9 +37,9 @@ from app.utils.api_version import validate_api_version
 from app.utils.jwt_decorators import (
     access_required,
     get_current_company_id,
-    get_current_user_id,
     require_jwt_auth,
 )
+from app.utils.rate_limit import rate_limit_user_key
 
 # HTTP Error Types
 BAD_REQUEST_ERROR = "Bad Request"
@@ -60,17 +60,6 @@ INVALID_COMPANY_ID_CLAIM_MSG = "Invalid token: company_id claim is not a valid U
 # Success Messages
 TASKS_LINKED_MSG = "Tasks linked successfully, milestone target_date recalculated"
 TASKS_SYNCED_MSG = "Milestone-task links synchronized successfully"
-
-
-def _rate_limit_user_key() -> str:
-    """Rate limiting key based on authenticated user.
-
-    Falls back to remote address when user_id is absent.
-    """
-    user_id = get_current_user_id()
-    if user_id:
-        return str(user_id)
-    return request.remote_addr or "anonymous"
 
 
 def _recalculate_milestone_target_date(milestone_id: uuid.UUID) -> datetime | None:
@@ -271,7 +260,7 @@ class MilestoneTasksResource(Resource):
 
     @require_jwt_auth
     @access_required(Operation.UPDATE, "milestones")
-    @limiter.limit("100 per minute", key_func=_rate_limit_user_key)
+    @limiter.limit("100 per minute", key_func=rate_limit_user_key)
     def post(
         self, milestone_id: str, version: str | None = None
     ) -> tuple[dict[str, Any], int]:
@@ -357,7 +346,7 @@ class MilestoneTasksResource(Resource):
 
     @require_jwt_auth
     @access_required(Operation.READ, "milestones")
-    @limiter.limit("100 per minute", key_func=_rate_limit_user_key)
+    @limiter.limit("100 per minute", key_func=rate_limit_user_key)
     def get(
         self, milestone_id: str, version: str | None = None
     ) -> tuple[dict[str, Any], int]:
@@ -429,7 +418,7 @@ class MilestoneTasksSyncResource(Resource):
 
     @require_jwt_auth
     @access_required(Operation.UPDATE, "milestones")
-    @limiter.limit("100 per minute", key_func=_rate_limit_user_key)
+    @limiter.limit("100 per minute", key_func=rate_limit_user_key)
     def put(
         self, milestone_id: str, version: str | None = None
     ) -> tuple[dict[str, Any], int]:

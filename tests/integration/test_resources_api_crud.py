@@ -331,7 +331,7 @@ class TestResourceDelete:
             db.session.add(resource)
             db.session.commit()
 
-            assignment = Assignment(  # type: ignore[call-arg]
+            assignment = Assignment(
                 task_id=task.id,
                 resource_id=resource.id,
                 project_id=project.id,

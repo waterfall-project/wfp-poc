@@ -15,7 +15,7 @@ authorization, validation, and pagination.
 
 import math
 import uuid
-from typing import Any, cast
+from typing import Any
 
 from flask import request
 from flask_restful import Resource
@@ -24,6 +24,16 @@ from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 
 from app import limiter
+from app.constants.http import (
+    AT_LEAST_ONE_FIELD_REQUIRED_MSG,
+    BAD_REQUEST_ERROR,
+    CONFLICT_ERROR,
+    INVALID_JSON_BODY_MSG,
+    INVALID_PAGINATION_MSG,
+    MISSING_RESOURCE_ID_MSG,
+    NOT_FOUND_ERROR,
+    VALIDATION_FAILED_MSG,
+)
 from app.models.assignment import Assignment
 from app.models.db import db
 from app.models.resource import Resource as ResourceModel
@@ -35,28 +45,22 @@ from app.schemas.resource_schema import (
     ResourceUpdateSchema,
 )
 from app.services.guardian_service import Operation
-from app.utils.api_version import validate_api_version
+from app.utils.api_version import validate_api_version_or_error_response
+from app.utils.correlation import ResponseTuple
 from app.utils.correlation import error_response as _error_response
 from app.utils.jwt_decorators import (
     access_required,
     get_current_company_id,
-    get_current_user_id,
+    get_current_company_uuid,
     require_jwt_auth,
 )
-
-# HTTP Error Types
-BAD_REQUEST_ERROR = "Bad Request"
-NOT_FOUND_ERROR = "Not Found"
-CONFLICT_ERROR = "Conflict"
+from app.utils.rate_limit import rate_limit_user_key
 
 # Error Messages
-INVALID_PAGINATION_MSG = "Invalid pagination parameters"
 INVALID_SORT_BY_MSG = "Invalid sort_by: {sort_by}"
 INVALID_SORT_ORDER_MSG = "Invalid sort_order: {sort_order}"
 INVALID_TYPE_MSG = "Invalid type: {resource_type}"
 INVALID_IS_ACTIVE_MSG = "Invalid is_active value: {value}"
-INVALID_JSON_BODY_MSG = "Request body must be a JSON object"
-VALIDATION_FAILED_MSG = "Validation failed"
 RESOURCE_NOT_FOUND_MSG = "Resource not found"
 DUPLICATE_RESOURCE_NAME_MSG = "Resource name already exists for this company"
 CANNOT_DELETE_WITH_ASSIGNMENTS_MSG = (
@@ -66,9 +70,6 @@ CANNOT_DELETE_WITH_ASSIGNMENTS_MSG = (
 # Success Messages
 RESOURCE_CREATED_MSG = "Resource created successfully"
 RESOURCE_UPDATED_MSG = "Resource updated successfully"
-
-# Typing helper for Flask-style responses (body, status[, headers])
-ResponseTuple = tuple[Any, int] | tuple[Any, int, dict[str, str]]
 
 # Allowed sort fields for resource listing
 ALLOWED_SORT_FIELDS = [
@@ -80,14 +81,6 @@ ALLOWED_SORT_FIELDS = [
     "created_at",
     "updated_at",
 ]
-
-
-def _rate_limit_user_key() -> str:
-    """Rate limiting key based on authenticated user."""
-    user_id = get_current_user_id()
-    if user_id:
-        return str(user_id)
-    return request.remote_addr or "anonymous"
 
 
 def _parse_bool_param(value: str | None) -> tuple[bool | None, str | None]:
@@ -111,10 +104,37 @@ def _get_resource(resource_id: str) -> ResourceModel | None:
     except ValueError:
         return None
 
-    company_id = get_current_company_id()
+    company_id = get_current_company_uuid()
+    if not company_id:
+        return None
     return ResourceModel.query.filter_by(
         id=resource_uuid, company_id=company_id
     ).first()
+
+
+def _get_json_object_or_error() -> tuple[dict[str, Any], ResponseTuple | None]:
+    json_payload_raw = request.get_json(silent=True)
+    if json_payload_raw is None:
+        return {}, None
+    if isinstance(json_payload_raw, dict):
+        return json_payload_raw, None
+    return {}, _error_response(INVALID_JSON_BODY_MSG, 400, error=BAD_REQUEST_ERROR)
+
+
+def _conflict_if_duplicate_resource_name(exc: IntegrityError) -> ResponseTuple | None:
+    constraint_name = getattr(exc.orig, "constraint_name", None)
+    if constraint_name == "uq_resources_company_name":
+        return _error_response(DUPLICATE_RESOURCE_NAME_MSG, 409, error=CONFLICT_ERROR)
+
+    error_message = str(exc.orig).lower()
+    if "uq_resources_company_name" in error_message or (
+        "unique" in error_message
+        and "company_id" in error_message
+        and "name" in error_message
+    ):
+        return _error_response(DUPLICATE_RESOURCE_NAME_MSG, 409, error=CONFLICT_ERROR)
+
+    return None
 
 
 class ResourceListResource(Resource):
@@ -130,16 +150,12 @@ class ResourceListResource(Resource):
 
     @require_jwt_auth
     @access_required(Operation.LIST, "resources")
-    @limiter.limit("100 per minute", key_func=_rate_limit_user_key)
+    @limiter.limit("100 per minute", key_func=rate_limit_user_key)
     def get(self, version: str | None = None) -> ResponseTuple:
         """List resources for the authenticated company with pagination."""
-        version_error = validate_api_version(version)
+        version_error = validate_api_version_or_error_response(version)
         if version_error:
-            return _error_response(
-                version_error[0].get("message", "Unsupported API version"),
-                version_error[1],
-                error=version_error[0].get("error"),
-            )
+            return version_error
 
         company_id = get_current_company_id()
 
@@ -200,50 +216,40 @@ class ResourceListResource(Resource):
         total_pages = math.ceil(total / per_page) if total > 0 else 0
         resources = query.paginate(page=page, per_page=per_page, error_out=False).items
 
-        return cast(
-            "tuple[dict, int]",
-            (
-                cast(
-                    "dict[str, Any]",
-                    self.list_schema.dump(
-                        {
-                            "data": resources,
-                            "page": page,
-                            "per_page": per_page,
-                            "total": total,
-                            "total_pages": total_pages,
-                        }
-                    ),
-                ),
-                200,
-            ),
+        data = self.list_schema.dump(
+            {
+                "data": resources,
+                "page": page,
+                "per_page": per_page,
+                "total": total,
+                "total_pages": total_pages,
+            }
         )
+        return data, 200
 
     @require_jwt_auth
     @access_required(Operation.CREATE, "resources")
-    @limiter.limit("100 per minute", key_func=_rate_limit_user_key)
+    @limiter.limit("100 per minute", key_func=rate_limit_user_key)
     def post(self, version: str | None = None) -> ResponseTuple:
         """Create a new resource scoped to the authenticated company."""
-        version_error = validate_api_version(version)
+        version_error = validate_api_version_or_error_response(version)
         if version_error:
+            return version_error
+
+        company_id = get_current_company_uuid()
+        if not company_id:
             return _error_response(
-                version_error[0].get("message", "Unsupported API version"),
-                version_error[1],
-                error=version_error[0].get("error"),
+                "User context missing. Use @require_jwt_auth first.",
+                401,
+                error="Unauthorized",
             )
 
-        json_payload_raw = request.get_json(silent=True)
-        if json_payload_raw is None:
-            json_payload: dict[str, Any] = {}
-        elif isinstance(json_payload_raw, dict):
-            json_payload = cast("dict[str, Any]", json_payload_raw)
-        else:
-            return _error_response(INVALID_JSON_BODY_MSG, 400, error=BAD_REQUEST_ERROR)
+        json_payload, json_error = _get_json_object_or_error()
+        if json_error:
+            return json_error
 
         try:
-            data: dict[str, Any] = cast(
-                "dict[str, Any]", self.create_schema.load(json_payload)
-            )
+            loaded = self.create_schema.load(json_payload)
         except ValidationError as err:
             return _error_response(
                 VALIDATION_FAILED_MSG,
@@ -252,44 +258,27 @@ class ResourceListResource(Resource):
                 error=BAD_REQUEST_ERROR,
             )
 
-        data["company_id"] = get_current_company_id()
-        resource = ResourceModel(**data)
+        if not isinstance(loaded, dict):
+            return _error_response(VALIDATION_FAILED_MSG, 400, error=BAD_REQUEST_ERROR)
+
+        data: dict[str, Any] = loaded
+        resource = ResourceModel(company_id=company_id, **data)
 
         try:
             db.session.add(resource)
             db.session.commit()
         except IntegrityError as exc:  # pragma: no cover - guarded by tests
             db.session.rollback()
-            # Check for unique constraint violation on (company_id, name)
-            # This is more robust than string matching on error messages
-            constraint_name = getattr(exc.orig, "constraint_name", None)
-            if constraint_name == "uq_resources_company_name":
-                return _error_response(
-                    DUPLICATE_RESOURCE_NAME_MSG, 409, error=CONFLICT_ERROR
-                )
-            # Fallback: check error message for database-specific constraint indicators
-            error_message = str(exc.orig).lower()
-            if "uq_resources_company_name" in error_message or (
-                "unique" in error_message
-                and "company_id" in error_message
-                and "name" in error_message
-            ):
-                return _error_response(
-                    DUPLICATE_RESOURCE_NAME_MSG, 409, error=CONFLICT_ERROR
-                )
+            conflict = _conflict_if_duplicate_resource_name(exc)
+            if conflict:
+                return conflict
             raise
 
-        return cast(
-            "tuple[dict, int]",
-            (
-                cast(
-                    "dict[str, Any]",
-                    self.response_schema.dump(
-                        {"data": resource, "message": RESOURCE_CREATED_MSG}
-                    ),
-                ),
-                201,
+        return (
+            self.response_schema.dump(
+                {"data": resource, "message": RESOURCE_CREATED_MSG}
             ),
+            201,
         )
 
 
@@ -304,81 +293,63 @@ class ResourceResource(Resource):
 
     @require_jwt_auth
     @access_required(Operation.READ, "resources")
-    @limiter.limit("100 per minute", key_func=_rate_limit_user_key)
+    @limiter.limit("100 per minute", key_func=rate_limit_user_key)
     def get(
         self,
         id: str | None = None,
         version: str | None = None,
     ) -> ResponseTuple:
         """Retrieve a resource by ID."""
-        version_error = validate_api_version(version)
+        version_error = validate_api_version_or_error_response(version)
         if version_error:
-            return _error_response(
-                version_error[0].get("message", "Unsupported API version"),
-                version_error[1],
-                error=version_error[0].get("error"),
-            )
+            return version_error
 
         if not id:
-            return _error_response("Missing resource id", 400, error=BAD_REQUEST_ERROR)
+            return _error_response(
+                MISSING_RESOURCE_ID_MSG, 400, error=BAD_REQUEST_ERROR
+            )
 
         resource = _get_resource(id)
         if resource is None:
             return _error_response(RESOURCE_NOT_FOUND_MSG, 404, error=NOT_FOUND_ERROR)
 
-        return cast(
-            "tuple[dict, int]",
-            (
-                cast("dict[str, Any]", self.response_schema.dump({"data": resource})),
-                200,
-            ),
-        )
+        return self.response_schema.dump({"data": resource}), 200
 
     @require_jwt_auth
     @access_required(Operation.UPDATE, "resources")
-    @limiter.limit("50 per minute", key_func=_rate_limit_user_key)
+    @limiter.limit("50 per minute", key_func=rate_limit_user_key)
     def patch(
         self,
         id: str | None = None,
         version: str | None = None,
     ) -> ResponseTuple:
         """Partially update an existing resource."""
-        version_error = validate_api_version(version)
+        version_error = validate_api_version_or_error_response(version)
         if version_error:
-            return _error_response(
-                version_error[0].get("message", "Unsupported API version"),
-                version_error[1],
-                error=version_error[0].get("error"),
-            )
+            return version_error
 
         if not id:
-            return _error_response("Missing resource id", 400, error=BAD_REQUEST_ERROR)
+            return _error_response(
+                MISSING_RESOURCE_ID_MSG, 400, error=BAD_REQUEST_ERROR
+            )
 
         resource = _get_resource(id)
         if resource is None:
             return _error_response(RESOURCE_NOT_FOUND_MSG, 404, error=NOT_FOUND_ERROR)
 
-        json_payload_raw = request.get_json(silent=True)
-        if json_payload_raw is not None and not isinstance(json_payload_raw, dict):
-            return _error_response(INVALID_JSON_BODY_MSG, 400, error=BAD_REQUEST_ERROR)
-
-        payload: dict[str, Any] = (
-            cast("dict[str, Any]", json_payload_raw)
-            if isinstance(json_payload_raw, dict)
-            else {}
-        )
+        payload, json_error = _get_json_object_or_error()
+        if json_error:
+            return json_error
 
         if not payload:
             return _error_response(
-                "At least one field must be provided for update",
+                AT_LEAST_ONE_FIELD_REQUIRED_MSG,
                 400,
                 error=BAD_REQUEST_ERROR,
             )
 
         try:
-            updates: dict[str, Any] = cast(
-                "dict[str, Any]", self.update_schema.load(payload, partial=True)
-            )
+            loaded = self.update_schema.load(payload, partial=True)
         except ValidationError as err:
             return _error_response(
                 VALIDATION_FAILED_MSG,
@@ -387,6 +358,11 @@ class ResourceResource(Resource):
                 error=BAD_REQUEST_ERROR,
             )
 
+        if not isinstance(loaded, dict):
+            return _error_response(VALIDATION_FAILED_MSG, 400, error=BAD_REQUEST_ERROR)
+
+        updates: dict[str, Any] = loaded
+
         for field, value in updates.items():
             setattr(resource, field, value)
 
@@ -394,57 +370,35 @@ class ResourceResource(Resource):
             db.session.commit()
         except IntegrityError as exc:  # pragma: no cover - guarded by tests
             db.session.rollback()
-            # Check for unique constraint violation on (company_id, name)
-            # This is more robust than string matching on error messages
-            constraint_name = getattr(exc.orig, "constraint_name", None)
-            if constraint_name == "uq_resources_company_name":
-                return _error_response(
-                    DUPLICATE_RESOURCE_NAME_MSG, 409, error=CONFLICT_ERROR
-                )
-            # Fallback: check error message for database-specific constraint indicators
-            error_message = str(exc.orig).lower()
-            if "uq_resources_company_name" in error_message or (
-                "unique" in error_message
-                and "company_id" in error_message
-                and "name" in error_message
-            ):
-                return _error_response(
-                    DUPLICATE_RESOURCE_NAME_MSG, 409, error=CONFLICT_ERROR
-                )
+            conflict = _conflict_if_duplicate_resource_name(exc)
+            if conflict:
+                return conflict
             raise
 
-        return cast(
-            "tuple[dict, int]",
-            (
-                cast(
-                    "dict[str, Any]",
-                    self.response_schema.dump(
-                        {"data": resource, "message": RESOURCE_UPDATED_MSG}
-                    ),
-                ),
-                200,
+        return (
+            self.response_schema.dump(
+                {"data": resource, "message": RESOURCE_UPDATED_MSG}
             ),
+            200,
         )
 
     @require_jwt_auth
     @access_required(Operation.DELETE, "resources")
-    @limiter.limit("50 per minute", key_func=_rate_limit_user_key)
+    @limiter.limit("50 per minute", key_func=rate_limit_user_key)
     def delete(
         self,
         id: str | None = None,
         version: str | None = None,
     ) -> ResponseTuple:
         """Delete a resource if it has no active assignments."""
-        version_error = validate_api_version(version)
+        version_error = validate_api_version_or_error_response(version)
         if version_error:
-            return _error_response(
-                version_error[0].get("message", "Unsupported API version"),
-                version_error[1],
-                error=version_error[0].get("error"),
-            )
+            return version_error
 
         if not id:
-            return _error_response("Missing resource id", 400, error=BAD_REQUEST_ERROR)
+            return _error_response(
+                MISSING_RESOURCE_ID_MSG, 400, error=BAD_REQUEST_ERROR
+            )
 
         resource = _get_resource(id)
         if resource is None:
