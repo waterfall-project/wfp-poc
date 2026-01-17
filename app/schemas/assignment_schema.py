@@ -179,9 +179,7 @@ class AssignmentCreateSchema(Schema):
     task_id = fields.UUID(required=True)
     resource_id = fields.UUID(required=True)
     ms_project_uid = fields.Raw(validate=_validate_ms_project_uid, allow_none=True)
-    work_hours = fields.String(
-        allow_none=True, validate=lambda v: _duration_to_minutes(v)
-    )
+    work_hours = fields.String(allow_none=True, validate=_duration_to_minutes)
     percent_allocation = fields.Integer(
         load_default=100, validate=Range(min=0, max=100)
     )
@@ -200,16 +198,12 @@ class AssignmentCreateSchema(Schema):
 class AssignmentUpdateSchema(Schema):
     """Schema for partially updating an assignment."""
 
-    work_hours = fields.String(
-        allow_none=True, validate=lambda v: _duration_to_minutes(v)
-    )
+    work_hours = fields.String(allow_none=True, validate=_duration_to_minutes)
     percent_allocation = fields.Integer(validate=Range(min=0, max=100))
     cost = fields.Decimal(
         allow_none=True, as_string=True, places=2, validate=Range(min=0)
     )
-    actual_work = fields.String(
-        allow_none=True, validate=lambda v: _duration_to_minutes(v)
-    )
+    actual_work = fields.String(allow_none=True, validate=_duration_to_minutes)
     actual_cost = fields.Decimal(
         allow_none=True, as_string=True, places=2, validate=Range(min=0)
     )
