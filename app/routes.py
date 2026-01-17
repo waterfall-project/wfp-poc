@@ -12,6 +12,11 @@
 from flask_restful import Api
 
 from app.resources.assignment_res import AssignmentListResource, AssignmentResource
+from app.resources.evm_res import (
+    ProjectEVMForecastsResource,
+    ProjectEVMResource,
+    ProjectEVMTimeSeriesResource,
+)
 from app.resources.expense_res import (
     ExpenseBulkResource,
     ExpenseListResource,
@@ -28,6 +33,11 @@ from app.resources.progress_res import (
     ProjectProgressResource,
 )
 from app.resources.project_res import ProjectListResource, ProjectResource
+from app.resources.rae_res import (
+    MilestoneRAEHistoryResource,
+    MilestoneRAEResource,
+    ProjectRAESummaryResource,
+)
 from app.resources.resource_res import ResourceListResource, ResourceResource
 from app.resources.task_res import (
     TaskBulkResource,
@@ -148,6 +158,40 @@ def register_routes(app):
         ProjectProgressHistoryResource,
         "/v0/projects/<string:project_id>/progress/history",
         "/<string:version>/projects/<string:project_id>/progress/history",
+    )
+
+    # RAE
+    api.add_resource(
+        MilestoneRAEResource,
+        "/v0/milestones/<string:milestone_id>/rae",
+        "/<string:version>/milestones/<string:milestone_id>/rae",
+    )
+    api.add_resource(
+        MilestoneRAEHistoryResource,
+        "/v0/milestones/<string:milestone_id>/rae/history",
+        "/<string:version>/milestones/<string:milestone_id>/rae/history",
+    )
+    api.add_resource(
+        ProjectRAESummaryResource,
+        "/v0/projects/<string:project_id>/rae/summary",
+        "/<string:version>/projects/<string:project_id>/rae/summary",
+    )
+
+    # EVM
+    api.add_resource(
+        ProjectEVMResource,
+        "/v0/projects/<string:project_id>/evm",
+        "/<string:version>/projects/<string:project_id>/evm",
+    )
+    api.add_resource(
+        ProjectEVMTimeSeriesResource,
+        "/v0/projects/<string:project_id>/evm/timeseries",
+        "/<string:version>/projects/<string:project_id>/evm/timeseries",
+    )
+    api.add_resource(
+        ProjectEVMForecastsResource,
+        "/v0/projects/<string:project_id>/evm/forecasts",
+        "/<string:version>/projects/<string:project_id>/evm/forecasts",
     )
 
     # Resources
