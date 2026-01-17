@@ -11,6 +11,7 @@
 
 This module defines the EVMSnapshot model for storing periodic EVM
 calculations at specific status dates for project tracking and forecasting.
+Stores both physical (RAE-based) and milestone-based EV calculations.
 """
 
 import uuid
@@ -37,23 +38,28 @@ class EVMSnapshot(UUIDMixin, TimestampMixin, Model):
 
     Stores periodic snapshots of EVM calculations at specific status dates,
     capturing all key EVM indicators for project performance analysis and forecasting.
+    Supports both physical (RAE-based) and milestone-based EV calculation methods.
 
     Attributes:
         id: Unique identifier (UUID, primary key).
         project_id: Parent project identifier (UUID, required, foreign key).
-        status_date: Date of this EVM snapshot (required).
-        planned_value: Planned Value (PV) / Budgeted Cost of Work Scheduled (BCWS).
-        earned_value: Earned Value (EV) / Budgeted Cost of Work Performed (BCWP).
-        actual_cost: Actual Cost (AC) / Actual Cost of Work Performed (ACWP).
-        budget_at_completion: Budget at Completion (BAC).
-        estimate_at_completion: Estimate at Completion (EAC).
-        estimate_to_complete: Estimate to Complete (ETC).
-        variance_at_completion: Variance at Completion (VAC).
-        schedule_variance: Schedule Variance (SV = EV - PV).
-        cost_variance: Cost Variance (CV = EV - AC).
-        schedule_performance_index: Schedule Performance Index (SPI = EV / PV).
-        cost_performance_index: Cost Performance Index (CPI = EV / AC).
-        to_complete_performance_index: To Complete Performance Index (TCPI).
+        snapshot_date: Date of this EVM snapshot (required).
+        bac: Budget at Completion.
+        pv: Planned Value (PV) / Budgeted Cost of Work Scheduled (BCWS).
+        ac: Actual Cost (AC) / Actual Cost of Work Performed (ACWP).
+        ev_physical: Earned Value using physical progress (RAE-based) method.
+        ev_milestone: Earned Value using milestone completion method.
+        cv_physical: Cost Variance (EV_physical - AC).
+        sv_physical: Schedule Variance (EV_physical - PV).
+        cpi_physical: Cost Performance Index (EV_physical / AC).
+        spi_physical: Schedule Performance Index (EV_physical / PV).
+        eac_cpi_physical: Estimate at Completion using CPI method (BAC / CPI).
+        eac_cpispi_physical: Estimate at Completion using CPI*SPI method.
+        eac_plan_physical: Estimate at Completion using plan-based method.
+        etc_physical: Estimate to Complete (EAC - AC).
+        vac_physical: Variance at Completion (BAC - EAC).
+        tcpi_bac: To Complete Performance Index based on BAC.
+        percent_complete: Overall project completion percentage.
         created_at: Timestamp of creation (auto-generated).
         updated_at: Timestamp of last update (auto-updated).
     """
@@ -70,7 +76,7 @@ class EVMSnapshot(UUIDMixin, TimestampMixin, Model):
     )
 
     # Required Fields
-    status_date: Mapped[date] = mapped_column(
+    snapshot_date: Mapped[date] = mapped_column(
         Date,
         nullable=False,
         index=True,
@@ -78,78 +84,103 @@ class EVMSnapshot(UUIDMixin, TimestampMixin, Model):
     )
 
     # EVM Core Metrics
-    planned_value: Mapped[float | None] = mapped_column(
-        Numeric(15, 2),
-        nullable=True,
-        doc="Planned Value (PV) / BCWS",
-    )
-
-    earned_value: Mapped[float | None] = mapped_column(
-        Numeric(15, 2),
-        nullable=True,
-        doc="Earned Value (EV) / BCWP",
-    )
-
-    actual_cost: Mapped[float | None] = mapped_column(
-        Numeric(15, 2),
-        nullable=True,
-        doc="Actual Cost (AC) / ACWP",
-    )
-
-    budget_at_completion: Mapped[float | None] = mapped_column(
+    bac: Mapped[float | None] = mapped_column(
         Numeric(15, 2),
         nullable=True,
         doc="Budget at Completion (BAC)",
     )
 
-    estimate_at_completion: Mapped[float | None] = mapped_column(
+    pv: Mapped[float | None] = mapped_column(
         Numeric(15, 2),
         nullable=True,
-        doc="Estimate at Completion (EAC)",
+        doc="Planned Value (PV) / BCWS",
     )
 
-    estimate_to_complete: Mapped[float | None] = mapped_column(
+    ac: Mapped[float | None] = mapped_column(
         Numeric(15, 2),
         nullable=True,
-        doc="Estimate to Complete (ETC)",
+        doc="Actual Cost (AC) / ACWP",
     )
 
-    variance_at_completion: Mapped[float | None] = mapped_column(
+    ev_physical: Mapped[float | None] = mapped_column(
         Numeric(15, 2),
         nullable=True,
-        doc="Variance at Completion (VAC)",
+        doc="Earned Value using physical progress (RAE-based) method",
     )
 
-    # EVM Variances
-    schedule_variance: Mapped[float | None] = mapped_column(
+    ev_milestone: Mapped[float | None] = mapped_column(
         Numeric(15, 2),
         nullable=True,
-        doc="Schedule Variance (SV = EV - PV)",
+        doc="Earned Value using milestone completion method",
     )
 
-    cost_variance: Mapped[float | None] = mapped_column(
+    # EVM Variances (Physical Method)
+    cv_physical: Mapped[float | None] = mapped_column(
         Numeric(15, 2),
         nullable=True,
-        doc="Cost Variance (CV = EV - AC)",
+        doc="Cost Variance (CV = EV_physical - AC)",
     )
 
-    # EVM Performance Indices
-    schedule_performance_index: Mapped[float | None] = mapped_column(
+    sv_physical: Mapped[float | None] = mapped_column(
+        Numeric(15, 2),
+        nullable=True,
+        doc="Schedule Variance (SV = EV_physical - PV)",
+    )
+
+    # EVM Performance Indices (Physical Method)
+    cpi_physical: Mapped[float | None] = mapped_column(
         Numeric(10, 4),
         nullable=True,
-        doc="Schedule Performance Index (SPI = EV / PV)",
+        doc="Cost Performance Index (CPI = EV_physical / AC)",
     )
 
-    cost_performance_index: Mapped[float | None] = mapped_column(
+    spi_physical: Mapped[float | None] = mapped_column(
         Numeric(10, 4),
         nullable=True,
-        doc="Cost Performance Index (CPI = EV / AC)",
+        doc="Schedule Performance Index (SPI = EV_physical / PV)",
     )
 
-    to_complete_performance_index: Mapped[float | None] = mapped_column(
+    # EVM Forecasts (Physical Method)
+    eac_cpi_physical: Mapped[float | None] = mapped_column(
+        Numeric(15, 2),
+        nullable=True,
+        doc="Estimate at Completion using CPI method (BAC / CPI)",
+    )
+
+    eac_cpispi_physical: Mapped[float | None] = mapped_column(
+        Numeric(15, 2),
+        nullable=True,
+        doc="Estimate at Completion using CPI*SPI method",
+    )
+
+    eac_plan_physical: Mapped[float | None] = mapped_column(
+        Numeric(15, 2),
+        nullable=True,
+        doc="Estimate at Completion using plan-based method",
+    )
+
+    etc_physical: Mapped[float | None] = mapped_column(
+        Numeric(15, 2),
+        nullable=True,
+        doc="Estimate to Complete (ETC = EAC - AC)",
+    )
+
+    vac_physical: Mapped[float | None] = mapped_column(
+        Numeric(15, 2),
+        nullable=True,
+        doc="Variance at Completion (VAC = BAC - EAC)",
+    )
+
+    tcpi_bac: Mapped[float | None] = mapped_column(
         Numeric(10, 4),
         nullable=True,
-        doc="To Complete Performance Index (TCPI)",
+        doc="To Complete Performance Index based on BAC",
+    )
+
+    percent_complete: Mapped[float | None] = mapped_column(
+        Numeric(5, 2),
+        nullable=True,
+        doc="Overall project completion percentage (0-100)",
     )
 
     # Relationships
@@ -162,58 +193,68 @@ class EVMSnapshot(UUIDMixin, TimestampMixin, Model):
     def __init__(
         self,
         project_id: uuid.UUID,
-        status_date: date,
+        snapshot_date: date,
         **kwargs: Any,
     ) -> None:
         """Initialize an EVMSnapshot instance.
 
         Args:
             project_id: Parent project UUID.
-            status_date: Snapshot status date.
-            planned_value: Planned Value (PV) / BCWS (kwarg).
-            earned_value: Earned Value (EV) / BCWP (kwarg).
-            actual_cost: Actual Cost (AC) / ACWP (kwarg).
-            budget_at_completion: Budget at Completion (BAC) (kwarg).
-            estimate_at_completion: Estimate at Completion (EAC) (kwarg).
-            estimate_to_complete: Estimate to Complete (ETC) (kwarg).
-            variance_at_completion: Variance at Completion (VAC) (kwarg).
-            schedule_variance: Schedule Variance (SV) (kwarg).
-            cost_variance: Cost Variance (CV) (kwarg).
-            schedule_performance_index: Schedule Performance Index (SPI) (kwarg).
-            cost_performance_index: Cost Performance Index (CPI) (kwarg).
-            to_complete_performance_index: To Complete Performance Index (TCPI) (kwarg).
+            snapshot_date: Snapshot status date.
+            bac: Budget at Completion (BAC) (kwarg).
+            pv: Planned Value (PV) / BCWS (kwarg).
+            ac: Actual Cost (AC) / ACWP (kwarg).
+            ev_physical: Earned Value using physical method (kwarg).
+            ev_milestone: Earned Value using milestone method (kwarg).
+            cv_physical: Cost Variance (physical method) (kwarg).
+            sv_physical: Schedule Variance (physical method) (kwarg).
+            cpi_physical: Cost Performance Index (physical method) (kwarg).
+            spi_physical: Schedule Performance Index (physical method) (kwarg).
+            eac_cpi_physical: EAC using CPI method (kwarg).
+            eac_cpispi_physical: EAC using CPI*SPI method (kwarg).
+            eac_plan_physical: EAC using plan-based method (kwarg).
+            etc_physical: Estimate to Complete (kwarg).
+            vac_physical: Variance at Completion (kwarg).
+            tcpi_bac: To Complete Performance Index (kwarg).
+            percent_complete: Overall completion percentage (kwarg).
             **kwargs: Additional keyword arguments passed to parent.
         """
-        planned_value = kwargs.pop("planned_value", None)
-        earned_value = kwargs.pop("earned_value", None)
-        actual_cost = kwargs.pop("actual_cost", None)
-        budget_at_completion = kwargs.pop("budget_at_completion", None)
-        estimate_at_completion = kwargs.pop("estimate_at_completion", None)
-        estimate_to_complete = kwargs.pop("estimate_to_complete", None)
-        variance_at_completion = kwargs.pop("variance_at_completion", None)
-        schedule_variance = kwargs.pop("schedule_variance", None)
-        cost_variance = kwargs.pop("cost_variance", None)
-        schedule_performance_index = kwargs.pop("schedule_performance_index", None)
-        cost_performance_index = kwargs.pop("cost_performance_index", None)
-        to_complete_performance_index = kwargs.pop(
-            "to_complete_performance_index", None
-        )
+        bac = kwargs.pop("bac", None)
+        pv = kwargs.pop("pv", None)
+        ac = kwargs.pop("ac", None)
+        ev_physical = kwargs.pop("ev_physical", None)
+        ev_milestone = kwargs.pop("ev_milestone", None)
+        cv_physical = kwargs.pop("cv_physical", None)
+        sv_physical = kwargs.pop("sv_physical", None)
+        cpi_physical = kwargs.pop("cpi_physical", None)
+        spi_physical = kwargs.pop("spi_physical", None)
+        eac_cpi_physical = kwargs.pop("eac_cpi_physical", None)
+        eac_cpispi_physical = kwargs.pop("eac_cpispi_physical", None)
+        eac_plan_physical = kwargs.pop("eac_plan_physical", None)
+        etc_physical = kwargs.pop("etc_physical", None)
+        vac_physical = kwargs.pop("vac_physical", None)
+        tcpi_bac = kwargs.pop("tcpi_bac", None)
+        percent_complete = kwargs.pop("percent_complete", None)
 
         super().__init__(**kwargs)
         self.project_id = project_id
-        self.status_date = status_date
-        self.planned_value = planned_value
-        self.earned_value = earned_value
-        self.actual_cost = actual_cost
-        self.budget_at_completion = budget_at_completion
-        self.estimate_at_completion = estimate_at_completion
-        self.estimate_to_complete = estimate_to_complete
-        self.variance_at_completion = variance_at_completion
-        self.schedule_variance = schedule_variance
-        self.cost_variance = cost_variance
-        self.schedule_performance_index = schedule_performance_index
-        self.cost_performance_index = cost_performance_index
-        self.to_complete_performance_index = to_complete_performance_index
+        self.snapshot_date = snapshot_date
+        self.bac = bac
+        self.pv = pv
+        self.ac = ac
+        self.ev_physical = ev_physical
+        self.ev_milestone = ev_milestone
+        self.cv_physical = cv_physical
+        self.sv_physical = sv_physical
+        self.cpi_physical = cpi_physical
+        self.spi_physical = spi_physical
+        self.eac_cpi_physical = eac_cpi_physical
+        self.eac_cpispi_physical = eac_cpispi_physical
+        self.eac_plan_physical = eac_plan_physical
+        self.etc_physical = etc_physical
+        self.vac_physical = vac_physical
+        self.tcpi_bac = tcpi_bac
+        self.percent_complete = percent_complete
 
     def __repr__(self) -> str:
         """String representation of EVMSnapshot.
@@ -221,4 +262,4 @@ class EVMSnapshot(UUIDMixin, TimestampMixin, Model):
         Returns:
             Human-readable string with key attributes.
         """
-        return f"<EVMSnapshot(id={self.id}, project_id={self.project_id}, status_date={self.status_date})>"
+        return f"<EVMSnapshot(id={self.id}, project_id={self.project_id}, snapshot_date={self.snapshot_date})>"
