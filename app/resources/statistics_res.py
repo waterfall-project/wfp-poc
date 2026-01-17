@@ -25,10 +25,97 @@ from app.schemas.statistics_schema import (
     MonthlyExpensesResponseSchema,
 )
 from app.services.guardian_service import Operation
+from app.utils.correlation import ResponseTuple, error_response
 from app.utils.jwt_decorators import access_required, require_jwt_auth
 from app.utils.rate_limit import rate_limit_user_key
 
 DictStrAny = dict[str, Any]
+
+
+def _parse_uuid(value: str, field_name: str) -> UUID | ResponseTuple:
+    try:
+        return UUID(value)
+    except ValueError:
+        return error_response(
+            f"Invalid {field_name}. Expected UUID.",
+            400,
+            error="Bad Request",
+            errors={field_name: ["Invalid UUID."]},
+        )
+
+
+def _parse_datetime(value: str, field_name: str) -> datetime | ResponseTuple:
+    try:
+        normalized = value.replace("Z", "+00:00")
+        return datetime.fromisoformat(normalized)
+    except ValueError:
+        return error_response(
+            f"Invalid {field_name}. Expected ISO 8601 date-time.",
+            400,
+            error="Bad Request",
+            errors={field_name: ["Invalid date-time."]},
+        )
+
+
+def _parse_limit(value: str) -> int | ResponseTuple:
+    try:
+        limit = int(value)
+    except ValueError:
+        return error_response(
+            "Invalid limit. Must be an integer between 1 and 100.",
+            400,
+            error="Bad Request",
+            errors={"limit": ["Invalid integer."]},
+        )
+    if limit < 1 or limit > 100:
+        return error_response(
+            "Invalid limit. Must be between 1 and 100.",
+            400,
+            error="Bad Request",
+            errors={"limit": ["Must be between 1 and 100."]},
+        )
+    return limit
+
+
+def _validate_sort_order(value: str) -> str | ResponseTuple:
+    if value not in {"asc", "desc"}:
+        return error_response(
+            "Invalid sort_order. Must be 'asc' or 'desc'.",
+            400,
+            error="Bad Request",
+            errors={"sort_order": ["Must be 'asc' or 'desc'."]},
+        )
+    return value
+
+
+def _month_expr() -> Any:
+    bind = db.session.get_bind()
+    dialect = bind.dialect.name if bind else "sqlite"
+    if dialect in {"sqlite", "pysqlite"}:
+        return func.strftime("%Y-%m", Expense.date)
+    if dialect in {"postgresql"}:
+        return func.to_char(Expense.date, "YYYY-MM")
+    if dialect in {"mysql", "mariadb"}:
+        return func.date_format(Expense.date, "%Y-%m")
+    return func.strftime("%Y-%m", Expense.date)
+
+
+def _apply_task_date_filters(
+    query: Any,
+    start_date: datetime | None,
+    end_date: datetime | None,
+) -> Any:
+    if start_date or end_date:
+        from app.models.task import Task
+
+        query = query.join(Task, Assignment.task_id == Task.id)
+        start_col = func.coalesce(Task.actual_start_date, Task.planned_start_date)
+        finish_col = func.coalesce(Task.actual_finish_date, Task.planned_finish_date)
+        if start_date:
+            query = query.filter(start_col >= start_date)
+        if end_date:
+            query = query.filter(finish_col <= end_date)
+    return query
 
 
 class ExpenseByCategoryResource(Resource):
@@ -48,7 +135,7 @@ class ExpenseByCategoryResource(Resource):
     @require_jwt_auth
     @access_required(Operation.READ, "statistics")
     @limiter.limit("100 per minute", key_func=rate_limit_user_key)
-    def get(self, project_id: str) -> tuple[DictStrAny, int]:
+    def get(self, project_id: str) -> ResponseTuple:
         """Retrieve expense breakdown by category for a project.
 
         Args:
@@ -71,25 +158,52 @@ class ExpenseByCategoryResource(Resource):
             ({'data': {'project_id': '...', 'total_expenses': 820000.0, ...}}, 200)
         """
         # Validate project exists and user has access
-        project = db.session.get(Project, UUID(project_id))
+        parsed_project_id = _parse_uuid(project_id, "project_id")
+        if isinstance(parsed_project_id, tuple):
+            return parsed_project_id
+        project_uuid = parsed_project_id
+
+        project = db.session.get(Project, project_uuid)
         if not project:
-            return {"error": "Project not found"}, 404
+            return error_response(
+                "Project not found.",
+                404,
+                error="Not Found",
+            )
 
         # Parse query parameters
         start_date_str = request.args.get("start_date")
         end_date_str = request.args.get("end_date")
         milestone_id_str = request.args.get("milestone_id")
 
-        start_date = datetime.fromisoformat(start_date_str) if start_date_str else None
-        end_date = datetime.fromisoformat(end_date_str) if end_date_str else None
-        milestone_id = UUID(milestone_id_str) if milestone_id_str else None
+        start_date = None
+        end_date = None
+        milestone_id = None
+
+        if start_date_str:
+            parsed_start = _parse_datetime(start_date_str, "start_date")
+            if isinstance(parsed_start, tuple):
+                return parsed_start
+            start_date = parsed_start
+
+        if end_date_str:
+            parsed_end = _parse_datetime(end_date_str, "end_date")
+            if isinstance(parsed_end, tuple):
+                return parsed_end
+            end_date = parsed_end
+
+        if milestone_id_str:
+            parsed_milestone = _parse_uuid(milestone_id_str, "milestone_id")
+            if isinstance(parsed_milestone, tuple):
+                return parsed_milestone
+            milestone_id = parsed_milestone
 
         # Build query
         query = db.session.query(
             Expense.category,
             func.sum(Expense.amount).label("amount"),
             func.count(Expense.id).label("count"),
-        ).filter(Expense.project_id == UUID(project_id))
+        ).filter(Expense.project_id == project_uuid)
 
         if start_date:
             query = query.filter(Expense.date >= start_date)
@@ -132,7 +246,7 @@ class ExpenseByCategoryResource(Resource):
 
         # Build response
         data: DictStrAny = {
-            "project_id": project_id,
+            "project_id": str(project_uuid),
             "total_expenses": round(total_expenses, 2),
             "breakdown": breakdown,
         }
@@ -175,7 +289,7 @@ class LaborByResourceResource(Resource):
     @require_jwt_auth
     @access_required(Operation.READ, "statistics")
     @limiter.limit("100 per minute", key_func=rate_limit_user_key)
-    def get(self, project_id: str) -> tuple[DictStrAny, int]:
+    def get(self, project_id: str) -> ResponseTuple:
         """Retrieve labor cost breakdown by resource for a project.
 
         Args:
@@ -199,24 +313,68 @@ class LaborByResourceResource(Resource):
             ({'data': {'project_id': '...', 'total_labor_cost': 450000.0, ...}}, 200)
         """
         # Validate project exists
-        project = db.session.get(Project, UUID(project_id))
+        parsed_project_id = _parse_uuid(project_id, "project_id")
+        if isinstance(parsed_project_id, tuple):
+            return parsed_project_id
+        project_uuid = parsed_project_id
+
+        project = db.session.get(Project, project_uuid)
         if not project:
-            return {"error": "Project not found"}, 404
+            return error_response(
+                "Project not found.",
+                404,
+                error="Not Found",
+            )
 
         # Parse query parameters
         start_date_str = request.args.get("start_date")
         end_date_str = request.args.get("end_date")
-        limit = int(request.args.get("limit", "20"))
+        limit_str = request.args.get("limit", "20")
         sort_order = request.args.get("sort_order", "desc")
 
-        # Validate limit
-        if limit < 1 or limit > 100:
-            return {"error": "Limit must be between 1 and 100"}, 400
+        parsed_limit = _parse_limit(limit_str)
+        if isinstance(parsed_limit, tuple):
+            return parsed_limit
+        limit = parsed_limit
 
-        start_date = datetime.fromisoformat(start_date_str) if start_date_str else None
-        end_date = datetime.fromisoformat(end_date_str) if end_date_str else None
+        parsed_sort = _validate_sort_order(sort_order)
+        if isinstance(parsed_sort, tuple):
+            return parsed_sort
+        sort_order = parsed_sort
+
+        start_date = None
+        end_date = None
+
+        if start_date_str:
+            parsed_start = _parse_datetime(start_date_str, "start_date")
+            if isinstance(parsed_start, tuple):
+                return parsed_start
+            start_date = parsed_start
+
+        if end_date_str:
+            parsed_end = _parse_datetime(end_date_str, "end_date")
+            if isinstance(parsed_end, tuple):
+                return parsed_end
+            end_date = parsed_end
 
         # Query assignments with labor costs
+        base_filters = [
+            Assignment.project_id == project_uuid,
+            Assignment.actual_cost.isnot(None),
+            Assignment.actual_cost > 0,
+        ]
+
+        totals_query = db.session.query(
+            func.coalesce(func.sum(Assignment.actual_cost), 0).label(
+                "total_labor_cost"
+            ),
+            func.count(func.distinct(Assignment.resource_id)).label("resource_count"),
+        ).filter(*base_filters)
+        totals_query = _apply_task_date_filters(totals_query, start_date, end_date)
+        totals_row = totals_query.one()
+        total_labor_cost = float(totals_row.total_labor_cost or 0)
+        resource_count = int(totals_row.resource_count or 0)
+
         query = (
             db.session.query(
                 Assignment.resource_id,
@@ -225,21 +383,9 @@ class LaborByResourceResource(Resource):
                 func.sum(Assignment.actual_work_minutes / 60.0).label("hours"),
             )
             .join(ResourceModel, Assignment.resource_id == ResourceModel.id)
-            .filter(Assignment.project_id == UUID(project_id))
-            .filter(Assignment.actual_cost.isnot(None))
-            .filter(Assignment.actual_cost > 0)
+            .filter(*base_filters)
         )
-
-        # Apply date filters (assuming we filter by task dates)
-        if start_date or end_date:
-            from app.models.task import Task
-
-            query = query.join(Task, Assignment.task_id == Task.id)
-            if start_date:
-                query = query.filter(Task.actual_start_date >= start_date)
-            if end_date:
-                query = query.filter(Task.actual_finish_date <= end_date)
-
+        query = _apply_task_date_filters(query, start_date, end_date)
         query = query.group_by(Assignment.resource_id, ResourceModel.name)
 
         # Sort by amount
@@ -250,10 +396,6 @@ class LaborByResourceResource(Resource):
 
         query = query.limit(limit)
         results = query.all()
-
-        # Calculate total labor cost for percentages
-        total_labor_cost = sum(float(r.amount) for r in results)
-        resource_count = len(results)
 
         breakdown = []
         echarts_names = []
@@ -283,7 +425,7 @@ class LaborByResourceResource(Resource):
 
         # Build response
         data: DictStrAny = {
-            "project_id": project_id,
+            "project_id": str(project_uuid),
             "total_labor_cost": round(total_labor_cost, 2),
             "resource_count": resource_count,
             "breakdown": breakdown,
@@ -319,7 +461,7 @@ class MonthlyExpensesResource(Resource):
     @require_jwt_auth
     @access_required(Operation.READ, "statistics")
     @limiter.limit("100 per minute", key_func=rate_limit_user_key)
-    def get(self, project_id: str) -> tuple[DictStrAny, int]:
+    def get(self, project_id: str) -> ResponseTuple:
         """Retrieve monthly expense distribution for a project.
 
         Args:
@@ -343,9 +485,18 @@ class MonthlyExpensesResource(Resource):
             ({'data': {'project_id': '...', 'monthly_data': [...]}}, 200)
         """
         # Validate project exists
-        project = db.session.get(Project, UUID(project_id))
+        parsed_project_id = _parse_uuid(project_id, "project_id")
+        if isinstance(parsed_project_id, tuple):
+            return parsed_project_id
+        project_uuid = parsed_project_id
+
+        project = db.session.get(Project, project_uuid)
         if not project:
-            return {"error": "Project not found"}, 404
+            return error_response(
+                "Project not found.",
+                404,
+                error="Not Found",
+            )
 
         # Parse query parameters
         start_date_str = request.args.get("start_date")
@@ -353,18 +504,33 @@ class MonthlyExpensesResource(Resource):
         category = request.args.get("category")
         cumulative = request.args.get("cumulative", "false").lower() == "true"
 
-        start_date = datetime.fromisoformat(start_date_str) if start_date_str else None
-        end_date = datetime.fromisoformat(end_date_str) if end_date_str else None
+        start_date = None
+        end_date = None
+
+        if start_date_str:
+            parsed_start = _parse_datetime(start_date_str, "start_date")
+            if isinstance(parsed_start, tuple):
+                return parsed_start
+            start_date = parsed_start
+
+        if end_date_str:
+            parsed_end = _parse_datetime(end_date_str, "end_date")
+            if isinstance(parsed_end, tuple):
+                return parsed_end
+            end_date = parsed_end
 
         # Validate category if provided
         valid_categories = ["labor", "procurement", "subcontracting", "overhead"]
         if category and category not in valid_categories:
-            return {
-                "error": f"Invalid category. Must be one of: {valid_categories}"
-            }, 400
+            return error_response(
+                "Invalid category. Must be one of: labor, procurement, subcontracting, overhead.",
+                400,
+                error="Bad Request",
+                errors={"category": ["Invalid category."]},
+            )
 
         # Query expenses by month and category
-        month_expr = func.strftime("%Y-%m", Expense.date)
+        month_expr = _month_expr()
 
         # Base query
         if category:
@@ -374,7 +540,7 @@ class MonthlyExpensesResource(Resource):
                     month_expr.label("month"),
                     func.sum(Expense.amount).label("total"),
                 )
-                .filter(Expense.project_id == UUID(project_id))
+                .filter(Expense.project_id == project_uuid)
                 .filter(Expense.category == category)
             )
         else:
@@ -397,7 +563,7 @@ class MonthlyExpensesResource(Resource):
                 func.sum(
                     case((Expense.category == "overhead", Expense.amount), else_=0)
                 ).label("overhead"),
-            ).filter(Expense.project_id == UUID(project_id))
+            ).filter(Expense.project_id == project_uuid)
 
         # Apply date filters
         if start_date:
@@ -503,7 +669,7 @@ class MonthlyExpensesResource(Resource):
 
         # Build response
         data: DictStrAny = {
-            "project_id": project_id,
+            "project_id": str(project_uuid),
             "cumulative": cumulative,
             "monthly_data": monthly_data,
         }

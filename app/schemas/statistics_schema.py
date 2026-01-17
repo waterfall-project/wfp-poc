@@ -6,7 +6,7 @@ including expense breakdowns, labor distribution, and monthly trends.
 Copyright (c) 2025 Waterfall Project. All rights reserved.
 """
 
-from marshmallow import Schema, fields
+from marshmallow import Schema, fields, validate
 
 
 class ExpenseBreakdownItemSchema(Schema):
@@ -19,7 +19,10 @@ class ExpenseBreakdownItemSchema(Schema):
         count: Number of expense records in this category.
     """
 
-    category = fields.Str(required=True)
+    category = fields.Str(
+        required=True,
+        validate=validate.OneOf(["labor", "procurement", "subcontracting", "overhead"]),
+    )
     amount = fields.Float(required=True)
     percentage = fields.Float(required=True)
     count = fields.Int()
@@ -122,25 +125,46 @@ class EChartsAxisSchema(Schema):
         data: Axis data (for category axes).
     """
 
-    type = fields.Str(required=True, data_key="type")
+    type = fields.Str(
+        required=True,
+        data_key="type",
+        validate=validate.OneOf(["category", "value"]),
+    )
     name = fields.Str()
     data = fields.List(fields.Str())
 
 
-class EChartsBarSeriesSchema(Schema):
-    """Schema for ECharts bar chart series.
+class EChartsLaborSeriesSchema(Schema):
+    """Schema for ECharts bar chart series for labor data.
 
     Attributes:
         name: Series name.
         type: Chart type (bar).
         data: Array of numeric values.
-        stack: Stack group identifier for stacked bars.
     """
 
     name = fields.Str(required=True)
-    type = fields.Str(required=True)
+    type = fields.Str(required=True, validate=validate.OneOf(["bar"]))
     data = fields.List(fields.Float(), required=True)
+
+
+class EChartsMonthlySeriesSchema(Schema):
+    """Schema for ECharts series in monthly expense charts.
+
+    Attributes:
+        name: Series name.
+        type: Chart type (bar or line).
+        stack: Stack group identifier for stacked bars.
+        data: Array of numeric values.
+    """
+
+    name = fields.Str(
+        required=True,
+        validate=validate.OneOf(["Labor", "Subcontracting", "Procurement", "Overhead"]),
+    )
+    type = fields.Str(required=True, validate=validate.OneOf(["bar", "line"]))
     stack = fields.Str()
+    data = fields.List(fields.Float(), required=True)
 
 
 class LaborByResourceEChartsFormatSchema(Schema):
@@ -154,7 +178,7 @@ class LaborByResourceEChartsFormatSchema(Schema):
 
     xAxis = fields.Nested(EChartsAxisSchema)  # noqa: N815
     yAxis = fields.Nested(EChartsAxisSchema)  # noqa: N815
-    series = fields.List(fields.Nested(EChartsBarSeriesSchema))
+    series = fields.List(fields.Nested(EChartsLaborSeriesSchema))
 
 
 class LaborByResourceDataSchema(Schema):
@@ -197,7 +221,10 @@ class MonthlyExpensesItemSchema(Schema):
         overhead: Overhead expenses.
     """
 
-    month = fields.Str(required=True)
+    month = fields.Str(
+        required=True,
+        validate=validate.Regexp(r"^\d{4}-\d{2}$"),
+    )
     total = fields.Float(required=True)
     labor = fields.Float()
     subcontracting = fields.Float()
@@ -216,7 +243,7 @@ class MonthlyExpensesEChartsFormatSchema(Schema):
 
     xAxis = fields.Nested(EChartsAxisSchema)  # noqa: N815
     yAxis = fields.Nested(EChartsAxisSchema)  # noqa: N815
-    series = fields.List(fields.Nested(EChartsBarSeriesSchema))
+    series = fields.List(fields.Nested(EChartsMonthlySeriesSchema))
 
 
 class MonthlyExpensesDataSchema(Schema):

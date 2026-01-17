@@ -256,7 +256,7 @@ class TestLaborByResourceEndpoint:
         assert response.status_code == 200
         data = response.json["data"]  # type: ignore[index]
 
-        assert data["resource_count"] == 2
+        assert data["resource_count"] == 3
         assert len(data["breakdown"]) == 2
 
     def test_get_labor_by_resource_invalid_limit(
