@@ -14,8 +14,8 @@ calculations at specific status dates for project tracking and forecasting.
 """
 
 import uuid
-from datetime import datetime
-from typing import TYPE_CHECKING
+from datetime import date
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import Date, ForeignKey, Numeric
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -70,7 +70,7 @@ class EVMSnapshot(UUIDMixin, TimestampMixin, Model):
     )
 
     # Required Fields
-    status_date: Mapped[datetime] = mapped_column(
+    status_date: Mapped[date] = mapped_column(
         Date,
         nullable=False,
         index=True,
@@ -158,6 +158,62 @@ class EVMSnapshot(UUIDMixin, TimestampMixin, Model):
         back_populates="evm_snapshots",
         doc="Parent project",
     )
+
+    def __init__(
+        self,
+        project_id: uuid.UUID,
+        status_date: date,
+        **kwargs: Any,
+    ) -> None:
+        """Initialize an EVMSnapshot instance.
+
+        Args:
+            project_id: Parent project UUID.
+            status_date: Snapshot status date.
+            planned_value: Planned Value (PV) / BCWS (kwarg).
+            earned_value: Earned Value (EV) / BCWP (kwarg).
+            actual_cost: Actual Cost (AC) / ACWP (kwarg).
+            budget_at_completion: Budget at Completion (BAC) (kwarg).
+            estimate_at_completion: Estimate at Completion (EAC) (kwarg).
+            estimate_to_complete: Estimate to Complete (ETC) (kwarg).
+            variance_at_completion: Variance at Completion (VAC) (kwarg).
+            schedule_variance: Schedule Variance (SV) (kwarg).
+            cost_variance: Cost Variance (CV) (kwarg).
+            schedule_performance_index: Schedule Performance Index (SPI) (kwarg).
+            cost_performance_index: Cost Performance Index (CPI) (kwarg).
+            to_complete_performance_index: To Complete Performance Index (TCPI) (kwarg).
+            **kwargs: Additional keyword arguments passed to parent.
+        """
+        planned_value = kwargs.pop("planned_value", None)
+        earned_value = kwargs.pop("earned_value", None)
+        actual_cost = kwargs.pop("actual_cost", None)
+        budget_at_completion = kwargs.pop("budget_at_completion", None)
+        estimate_at_completion = kwargs.pop("estimate_at_completion", None)
+        estimate_to_complete = kwargs.pop("estimate_to_complete", None)
+        variance_at_completion = kwargs.pop("variance_at_completion", None)
+        schedule_variance = kwargs.pop("schedule_variance", None)
+        cost_variance = kwargs.pop("cost_variance", None)
+        schedule_performance_index = kwargs.pop("schedule_performance_index", None)
+        cost_performance_index = kwargs.pop("cost_performance_index", None)
+        to_complete_performance_index = kwargs.pop(
+            "to_complete_performance_index", None
+        )
+
+        super().__init__(**kwargs)
+        self.project_id = project_id
+        self.status_date = status_date
+        self.planned_value = planned_value
+        self.earned_value = earned_value
+        self.actual_cost = actual_cost
+        self.budget_at_completion = budget_at_completion
+        self.estimate_at_completion = estimate_at_completion
+        self.estimate_to_complete = estimate_to_complete
+        self.variance_at_completion = variance_at_completion
+        self.schedule_variance = schedule_variance
+        self.cost_variance = cost_variance
+        self.schedule_performance_index = schedule_performance_index
+        self.cost_performance_index = cost_performance_index
+        self.to_complete_performance_index = to_complete_performance_index
 
     def __repr__(self) -> str:
         """String representation of EVMSnapshot.

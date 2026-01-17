@@ -213,9 +213,7 @@ def _create_missing_links(milestone_uuid: uuid.UUID, task_ids: list[uuid.UUID]) 
             .first()
         )
         if not existing:
-            link = MilestoneTask()
-            link.milestone_id = milestone_uuid
-            link.task_id = task_id
+            link = MilestoneTask(milestone_id=milestone_uuid, task_id=task_id)
             db.session.add(link)
             linked_count += 1
     return linked_count
@@ -235,9 +233,7 @@ def _sync_links(milestone_uuid: uuid.UUID, task_ids: list[uuid.UUID]) -> None:
 
     for task_id in task_ids:
         if task_id not in current_task_ids:
-            link = MilestoneTask()
-            link.milestone_id = milestone_uuid
-            link.task_id = task_id
+            link = MilestoneTask(milestone_id=milestone_uuid, task_id=task_id)
             db.session.add(link)
 
 

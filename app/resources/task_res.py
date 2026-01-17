@@ -24,6 +24,14 @@ from marshmallow import ValidationError
 from sqlalchemy.exc import IntegrityError
 
 from app import limiter
+from app.constants.http import (
+    INVALID_JSON_BODY_MSG,
+    INVALID_PAGINATION_MSG,
+    INVALID_PROJECT_ID_MSG,
+    INVALID_REQUEST_MSG,
+    INVALID_UUID_MSG,
+    VALIDATION_FAILED_MSG,
+)
 from app.models.db import db
 from app.models.project import Project
 from app.models.task import Task
@@ -56,11 +64,6 @@ CONFLICT_ERROR = "Conflict"
 UNPROCESSABLE_ENTITY_ERROR = "Unprocessable Entity"
 
 # Common Error Messages
-INVALID_PROJECT_ID_MSG = "Invalid project_id format"
-INVALID_UUID_MSG = "Invalid UUID format"
-INVALID_PAGINATION_MSG = "Invalid pagination parameters"
-INVALID_JSON_BODY_MSG = "Request body must be a JSON object"
-VALIDATION_FAILED_MSG = "Validation failed"
 DATABASE_INTEGRITY_ERROR_MSG = "Database integrity error"
 
 # Task-specific Error Messages
@@ -72,6 +75,8 @@ INVALID_SORT_ORDER_MSG = "Invalid sort_order: {sort_order}"
 CIRCULAR_DEPENDENCY_MSG = "Circular dependency detected in task predecessors"
 REFERENCED_TASK_MSG = "Cannot delete task: it is referenced as a predecessor"
 BULK_LIMIT_EXCEEDED_MSG = "Bulk operation limited to 500 tasks per request"
+INVALID_BOOLEAN_PARAM_MSG = "Invalid boolean parameter"
+INVALID_PREDECESSOR_REFERENCE_MSG = "Invalid predecessor reference"
 
 # Success Messages
 TASK_CREATED_MSG = "Task created successfully"
@@ -299,8 +304,8 @@ class TaskListResource(Resource):
             project_uuid = uuid.UUID(project_id)
         except ValueError:
             return {
-                "message": "Invalid project_id format",
-                "errors": {"validation": "Invalid request"},
+                "message": INVALID_PROJECT_ID_MSG,
+                "errors": {"validation": INVALID_REQUEST_MSG},
             }, 400
 
         project = Project.query.filter_by(
@@ -334,8 +339,8 @@ class TaskListResource(Resource):
                     query = query.filter_by(parent_id=parent_uuid)
                 except ValueError:
                     return {
-                        "message": "Invalid UUID format",
-                        "errors": {"validation": "Invalid request"},
+                        "message": INVALID_UUID_MSG,
+                        "errors": {"validation": INVALID_REQUEST_MSG},
                     }, 400
 
         # Apply boolean filters with strict validation
@@ -353,7 +358,7 @@ class TaskListResource(Resource):
                 query = query.filter_by(is_critical=is_critical)
         except ValueError as e:
             return {
-                "message": "Invalid boolean parameter",
+                "message": INVALID_BOOLEAN_PARAM_MSG,
                 "errors": {"query_params": str(e)},
             }, 400
 
@@ -456,8 +461,8 @@ class TaskListResource(Resource):
             project_uuid = uuid.UUID(project_id)
         except ValueError:
             return {
-                "message": "Invalid project_id format",
-                "errors": {"validation": "Invalid request"},
+                "message": INVALID_PROJECT_ID_MSG,
+                "errors": {"validation": INVALID_REQUEST_MSG},
             }, 400
 
         project = Project.query.filter_by(
@@ -503,7 +508,7 @@ class TaskListResource(Resource):
         )
         if not is_valid:
             return {
-                "message": "Invalid predecessor reference",
+                "message": INVALID_PREDECESSOR_REFERENCE_MSG,
                 "errors": {"predecessors": error_msg},
             }, 400
 
@@ -516,9 +521,7 @@ class TaskListResource(Resource):
             validated_data.get("is_milestone"), validated_data.get("is_summary")
         )
 
-        task = Task()
-        task.project_id = project_uuid
-        task.name = validated_data["name"]
+        task = Task(project_id=project_uuid, name=validated_data["name"])
         task.wbs_code = validated_data.get("wbs")
         task.planned_start_date = _normalize_datetime(validated_data["start"])
         task.planned_finish_date = _normalize_datetime(validated_data["finish"])
@@ -534,20 +537,19 @@ class TaskListResource(Resource):
 
             # Add predecessors
             for pred in predecessors:
-                predecessor_rel = TaskPredecessor()
-                predecessor_rel.successor_id = task.id
-                predecessor_rel.predecessor_id = uuid.UUID(
-                    str(pred["predecessor_task_id"])
+                predecessor_rel = TaskPredecessor(
+                    predecessor_id=uuid.UUID(str(pred["predecessor_task_id"])),
+                    successor_id=task.id,
+                    type=pred["type"],
+                    lag_minutes=pred.get("lag", 0),
                 )
-                predecessor_rel.type = pred["type"]
-                predecessor_rel.lag_minutes = pred.get("lag", 0)
                 db.session.add(predecessor_rel)
 
             db.session.commit()
         except IntegrityError as e:
             db.session.rollback()
             return {
-                "message": "Database integrity error",
+                "message": DATABASE_INTEGRITY_ERROR_MSG,
                 "errors": {
                     "database": str(e.orig) if hasattr(e, "orig") else str(e),
                 },
@@ -614,8 +616,8 @@ class TaskResource(Resource):
             task_uuid = uuid.UUID(id)
         except ValueError:
             return {
-                "message": "Invalid UUID format",
-                "errors": {"validation": "Invalid request"},
+                "message": INVALID_UUID_MSG,
+                "errors": {"validation": INVALID_REQUEST_MSG},
             }, 400
 
         # Validate project exists and belongs to company
@@ -683,8 +685,8 @@ class TaskResource(Resource):
             task_uuid = uuid.UUID(id)
         except ValueError:
             return {
-                "message": "Invalid UUID format",
-                "errors": {"validation": "Invalid request"},
+                "message": INVALID_UUID_MSG,
+                "errors": {"validation": INVALID_REQUEST_MSG},
             }, 400
 
         # Validate project exists and belongs to company
@@ -738,7 +740,7 @@ class TaskResource(Resource):
             )
             if not is_valid:
                 return {
-                    "message": "Invalid predecessor reference",
+                    "message": INVALID_PREDECESSOR_REFERENCE_MSG,
                     "errors": {"predecessors": error_msg},
                 }, 400
 
@@ -784,13 +786,12 @@ class TaskResource(Resource):
 
             # Add new predecessors
             for pred in predecessors:
-                predecessor_rel = TaskPredecessor()
-                predecessor_rel.successor_id = task_uuid
-                predecessor_rel.predecessor_id = uuid.UUID(
-                    str(pred["predecessor_task_id"])
+                predecessor_rel = TaskPredecessor(
+                    predecessor_id=uuid.UUID(str(pred["predecessor_task_id"])),
+                    successor_id=task_uuid,
+                    type=pred["type"],
+                    lag_minutes=pred.get("lag", 0),
                 )
-                predecessor_rel.type = pred["type"]
-                predecessor_rel.lag_minutes = pred.get("lag", 0)
                 db.session.add(predecessor_rel)
 
         try:
@@ -798,7 +799,7 @@ class TaskResource(Resource):
         except IntegrityError as e:
             db.session.rollback()
             return {
-                "message": "Database integrity error",
+                "message": DATABASE_INTEGRITY_ERROR_MSG,
                 "errors": {
                     "database": str(e.orig) if hasattr(e, "orig") else str(e),
                 },
@@ -855,8 +856,8 @@ class TaskResource(Resource):
             task_uuid = uuid.UUID(id)
         except ValueError:
             return {
-                "message": "Invalid UUID format",
-                "errors": {"validation": "Invalid request"},
+                "message": INVALID_UUID_MSG,
+                "errors": {"validation": INVALID_REQUEST_MSG},
             }, 400
 
         # Validate project exists and belongs to company
@@ -903,7 +904,7 @@ class TaskResource(Resource):
         except IntegrityError as e:
             db.session.rollback()
             return {
-                "message": "Database integrity error",
+                "message": DATABASE_INTEGRITY_ERROR_MSG,
                 "errors": {"database": str(e.orig) if hasattr(e, "orig") else str(e)},
             }, 409
 
@@ -964,8 +965,8 @@ class TaskBulkResource(Resource):
             project_uuid = uuid.UUID(project_id)
         except ValueError:
             return {
-                "message": "Invalid project_id format",
-                "errors": {"validation": "Invalid request"},
+                "message": INVALID_PROJECT_ID_MSG,
+                "errors": {"validation": INVALID_REQUEST_MSG},
             }, 400
 
         project = Project.query.filter_by(
@@ -1019,9 +1020,7 @@ class TaskBulkResource(Resource):
                     task_data.get("is_milestone"), task_data.get("is_summary")
                 )
 
-                task = Task()
-                task.project_id = project_uuid
-                task.name = task_data["name"]
+                task = Task(project_id=project_uuid, name=task_data["name"])
                 task.wbs_code = task_data.get("wbs")
                 task.planned_start_date = _normalize_datetime(task_data["start"])
                 task.planned_finish_date = _normalize_datetime(task_data["finish"])
@@ -1046,11 +1045,12 @@ class TaskBulkResource(Resource):
                         invalid_predecessors.append(str(pred_id))
                         continue  # Skip invalid predecessor in bulk operation
 
-                    predecessor_rel = TaskPredecessor()
-                    predecessor_rel.successor_id = task.id
-                    predecessor_rel.predecessor_id = pred_id
-                    predecessor_rel.type = pred["type"]
-                    predecessor_rel.lag_minutes = pred.get("lag", 0)
+                    predecessor_rel = TaskPredecessor(
+                        predecessor_id=pred_id,
+                        successor_id=task.id,
+                        type=pred["type"],
+                        lag_minutes=pred.get("lag", 0),
+                    )
                     db.session.add(predecessor_rel)
 
                 if invalid_predecessors:
@@ -1081,7 +1081,7 @@ class TaskBulkResource(Resource):
         except IntegrityError as e:
             db.session.rollback()
             return {
-                "message": "Database integrity error",
+                "message": DATABASE_INTEGRITY_ERROR_MSG,
                 "errors": {
                     "database": str(e.orig) if hasattr(e, "orig") else str(e),
                 },
@@ -1164,8 +1164,8 @@ class TaskSyncResource(Resource):
             project_uuid = uuid.UUID(project_id)
         except ValueError:
             return {
-                "message": "Invalid project_id format",
-                "errors": {"validation": "Invalid request"},
+                "message": INVALID_PROJECT_ID_MSG,
+                "errors": {"validation": INVALID_REQUEST_MSG},
             }, 400
 
         project = Project.query.filter_by(
@@ -1253,11 +1253,12 @@ class TaskSyncResource(Resource):
                         ).first()
 
                         if pred_task:
-                            predecessor_rel = TaskPredecessor()
-                            predecessor_rel.successor_id = existing_task.id
-                            predecessor_rel.predecessor_id = pred_task.id
-                            predecessor_rel.type = pred.get("type", "FS")
-                            predecessor_rel.lag_minutes = pred.get("lag", 0)
+                            predecessor_rel = TaskPredecessor(
+                                predecessor_id=pred_task.id,
+                                successor_id=existing_task.id,
+                                type=pred.get("type", "FS"),
+                                lag_minutes=pred.get("lag", 0),
+                            )
                             db.session.add(predecessor_rel)
 
                 updated_count += 1
@@ -1274,7 +1275,7 @@ class TaskSyncResource(Resource):
         except IntegrityError as e:
             db.session.rollback()
             return {
-                "message": "Database integrity error",
+                "message": DATABASE_INTEGRITY_ERROR_MSG,
                 "errors": {
                     "database": str(e.orig) if hasattr(e, "orig") else str(e),
                 },

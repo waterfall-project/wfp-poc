@@ -246,8 +246,10 @@ class TestEVMSnapshotModel:
         db.session.commit()
 
         # SPI < 1.0 indicates behind schedule
+        assert snapshot.schedule_performance_index is not None
         assert snapshot.schedule_performance_index < Decimal("1.0")
         # CPI < 1.0 indicates over budget
+        assert snapshot.cost_performance_index is not None
         assert snapshot.cost_performance_index < Decimal("1.0")
 
     def test_evm_snapshot_repr(self, app, project):

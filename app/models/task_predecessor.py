@@ -14,7 +14,7 @@ and scheduling relationships in the project network diagram.
 """
 
 import uuid
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import CheckConstraint, ForeignKey, Integer, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -113,6 +113,29 @@ class TaskPredecessor(UUIDMixin, TimestampMixin, Model):
             name="ck_task_predecessors_no_self_reference",
         ),
     )
+
+    def __init__(
+        self,
+        predecessor_id: uuid.UUID,
+        successor_id: uuid.UUID,
+        type: str = "FS",
+        lag_minutes: int = 0,
+        **kwargs: Any,
+    ) -> None:
+        """Initialize a TaskPredecessor instance.
+
+        Args:
+            predecessor_id: Task UUID that must complete first.
+            successor_id: Task UUID that depends on predecessor.
+            type: Relationship type (FS, SS, FF, SF).
+            lag_minutes: Lag time in minutes (positive = delay, negative = lead).
+            **kwargs: Additional keyword arguments passed to parent.
+        """
+        super().__init__(**kwargs)
+        self.predecessor_id = predecessor_id
+        self.successor_id = successor_id
+        self.type = type
+        self.lag_minutes = lag_minutes
 
     def __repr__(self) -> str:
         """String representation of TaskPredecessor.

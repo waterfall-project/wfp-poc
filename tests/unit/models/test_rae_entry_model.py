@@ -122,6 +122,7 @@ class TestRAEEntryModel:
         assert rae_entry.status == "mitigated"
         assert rae_entry.identified_date == date(2026, 1, 15)
         assert rae_entry.resolution_date == date(2026, 2, 20)
+        assert rae_entry.details is not None
         assert rae_entry.details["probability"] == "high"
         assert rae_entry.details["impact"] == "critical"
 
@@ -243,7 +244,8 @@ class TestRAEEntryModel:
         db.session.commit()
 
         # Retrieve and verify nested structure
-        assert rae_entry.details["assessment"]["probability"] == 0.7
+        assert rae_entry.details is not None
+        assert rae_entry.details["assessment"]["probability"] == pytest.approx(0.7)
         assert rae_entry.details["assessment"]["impact_cost"] == 50000
         assert len(rae_entry.details["mitigation"]["actions"]) == 3
         assert rae_entry.details["contingency_budget"] == 10000

@@ -12,6 +12,8 @@
 import uuid
 from datetime import UTC, datetime
 
+import pytest
+
 from app.models.assignment import Assignment
 from app.models.db import db
 from app.models.project import Project
@@ -46,8 +48,8 @@ class TestResourceCreate:
         assert data["message"] == "Resource created successfully"
         assert data["data"]["name"] == payload["name"]
         assert data["data"]["type"] == "labor"
-        assert data["data"]["standard_rate"] == 120.0
-        assert data["data"]["overtime_rate"] == 180.0
+        assert data["data"]["standard_rate"] == pytest.approx(120.0)
+        assert data["data"]["overtime_rate"] == pytest.approx(180.0)
         assert data["data"]["is_active"] is True
 
         with app.app_context():
@@ -147,7 +149,7 @@ class TestResourceRetrieve:
         assert data["data"]["id"] == resource_id
         assert data["data"]["name"] == "Fetch Resource"
         assert data["data"]["type"] == "material"
-        assert data["data"]["standard_rate"] == 75.0
+        assert data["data"]["standard_rate"] == pytest.approx(75.0)
 
     def test_get_resource_not_found(self, integration_client) -> None:
         """Non-existent resource returns 404."""
@@ -221,14 +223,14 @@ class TestResourceUpdate:
         data = response.get_json()
 
         assert data["message"] == "Resource updated successfully"
-        assert data["data"]["standard_rate"] == 140.0
+        assert data["data"]["standard_rate"] == pytest.approx(140.0)
         assert data["data"]["is_active"] is False
 
         with app.app_context():
             updated = db.session.get(Resource, uuid.UUID(resource_id))
             assert updated is not None
             assert updated.standard_rate is not None
-            assert float(updated.standard_rate) == 140.0
+            assert float(updated.standard_rate) == pytest.approx(140.0)
             assert updated.is_active is False
 
     def test_patch_resource_validation_error(
@@ -306,7 +308,7 @@ class TestResourceDelete:
         """Prevent deletion when assignments exist."""
 
         with app.app_context():
-            project = Project(  # type: ignore[call-arg]
+            project = Project(
                 company_id=uuid.UUID(company_id),
                 name="Project Delete",
                 code="RES-DEL",
@@ -316,7 +318,7 @@ class TestResourceDelete:
             db.session.add(project)
             db.session.commit()
 
-            task = Task(  # type: ignore[call-arg]
+            task = Task(
                 project_id=project.id,
                 name="Task for assignment",
             )

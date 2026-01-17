@@ -5,6 +5,8 @@ Revises: 7754e8504794
 Create Date: 2026-01-15 21:33:41.280270
 
 """
+from typing import Sequence
+
 import sqlalchemy as sa
 from alembic import op
 
@@ -13,8 +15,8 @@ from app.models.types import GUID
 # revision identifiers, used by Alembic.
 revision = 'aca11ddc49be'
 down_revision = '7754e8504794'
-branch_labels = None
-depends_on = None
+branch_labels: Sequence[str] | None = None
+depends_on: Sequence[str] | None = None
 
 
 def upgrade():

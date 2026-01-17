@@ -28,13 +28,16 @@ DEFAULT_UNSUPPORTED_API_VERSION_MSG = "Unsupported API version"
 INVALID_PAGINATION_MSG = "Invalid pagination parameters"
 INVALID_JSON_BODY_MSG = "Request body must be a JSON object"
 VALIDATION_FAILED_MSG = "Validation failed"
+INVALID_REQUEST_MSG = "Invalid request"
 
 # Common invalid identifier messages
 INVALID_PROJECT_ID_MSG = "Invalid project_id"
+INVALID_UUID_MSG = "Invalid UUID format"
 INVALID_TASK_ID_MSG = "Invalid task_id"
 INVALID_RESOURCE_ID_MSG = "Invalid resource_id"
 INVALID_ASSIGNMENT_ID_MSG = "Invalid assignment id"
 
 # Common validation messages
+MISSING_PROJECT_ID_MSG = "Missing project id"
 MISSING_RESOURCE_ID_MSG = "Missing resource id"
 AT_LEAST_ONE_FIELD_REQUIRED_MSG = "At least one field must be provided for update"

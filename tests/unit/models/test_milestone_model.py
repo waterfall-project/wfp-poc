@@ -16,6 +16,7 @@ and business logic for the Milestone entity.
 import uuid
 from datetime import UTC, datetime
 from decimal import Decimal
+from typing import Any
 
 import pytest
 from sqlalchemy.exc import IntegrityError
@@ -24,6 +25,23 @@ from app.models import Milestone, Project, db
 
 DEFAULT_START_DATE = datetime(2026, 1, 1, 9, 0, tzinfo=UTC)
 DEFAULT_FINISH_DATE = datetime(2026, 1, 31, 18, 0, tzinfo=UTC)
+
+
+def _make_milestone(**kwargs: Any) -> Milestone:
+    """Create a Milestone and assign attributes without relying on __init__ kwargs."""
+    project_id = kwargs.pop("project_id")
+    name = kwargs.pop("name")
+    target_date = kwargs.pop("target_date")
+    budget_weight = kwargs.pop("budget_weight")
+    milestone = Milestone(
+        project_id=project_id,
+        name=name,
+        target_date=target_date,
+        budget_weight=budget_weight,
+    )
+    for key, value in kwargs.items():
+        setattr(milestone, key, value)
+    return milestone
 
 
 class TestMilestoneModel:
@@ -50,7 +68,7 @@ class TestMilestoneModel:
         When: Creating a Milestone instance
         Then: Milestone is created with correct defaults
         """
-        milestone = Milestone(
+        milestone = _make_milestone(
             project_id=project.id,
             name="Test Milestone",
             target_date=DEFAULT_FINISH_DATE,
@@ -79,7 +97,7 @@ class TestMilestoneModel:
         When: Creating a Milestone instance
         Then: Milestone is created with all values correctly set
         """
-        milestone = Milestone(
+        milestone = _make_milestone(
             project_id=project.id,
             ms_project_uid=100,
             name="Full Test Milestone",
@@ -120,7 +138,7 @@ class TestMilestoneModel:
         statuses = ["upcoming", "achieved", "missed"]
 
         for status in statuses:
-            milestone = Milestone(
+            milestone = _make_milestone(
                 project_id=project.id,
                 name=f"Milestone {status}",
                 status=status,
@@ -141,7 +159,7 @@ class TestMilestoneModel:
         When: Creating another milestone with the same ms_project_uid for the same project
         Then: IntegrityError is raised
         """
-        milestone1 = Milestone(
+        milestone1 = _make_milestone(
             project_id=project.id,
             name="Milestone 1",
             ms_project_uid=100,
@@ -151,7 +169,7 @@ class TestMilestoneModel:
         db.session.add(milestone1)
         db.session.commit()
 
-        milestone2 = Milestone(
+        milestone2 = _make_milestone(
             project_id=project.id,
             name="Milestone 2",
             ms_project_uid=100,
@@ -190,14 +208,14 @@ class TestMilestoneModel:
         db.session.add_all([project1, project2])
         db.session.commit()
 
-        milestone1 = Milestone(
+        milestone1 = _make_milestone(
             project_id=project1.id,
             name="Milestone 1",
             ms_project_uid=100,
             target_date=DEFAULT_FINISH_DATE,
             budget_weight=Decimal("0.1"),
         )
-        milestone2 = Milestone(
+        milestone2 = _make_milestone(
             project_id=project2.id,
             name="Milestone 2",
             ms_project_uid=100,
@@ -217,7 +235,7 @@ class TestMilestoneModel:
         When: Setting actual_date
         Then: Both dates are tracked independently
         """
-        milestone = Milestone(
+        milestone = _make_milestone(
             project_id=project.id,
             name="Date Milestone",
             target_date=datetime(2026, 6, 1, 12, 0, tzinfo=UTC),
@@ -243,7 +261,7 @@ class TestMilestoneModel:
         When: Converting to string
         Then: Repr shows id, name, and status
         """
-        milestone = Milestone(
+        milestone = _make_milestone(
             project_id=project.id,
             name="Test Milestone",
             status="achieved",
@@ -266,7 +284,7 @@ class TestMilestoneModel:
         When: Accessing relationship attributes
         Then: Attributes exist and return correct values
         """
-        milestone = Milestone(
+        milestone = _make_milestone(
             project_id=project.id,
             name="Test Milestone",
             target_date=DEFAULT_FINISH_DATE,
@@ -289,7 +307,7 @@ class TestMilestoneModel:
         When: Deleting the project
         Then: Milestone is also deleted
         """
-        milestone = Milestone(
+        milestone = _make_milestone(
             project_id=project.id,
             name="Test Milestone",
             target_date=DEFAULT_FINISH_DATE,
@@ -315,13 +333,13 @@ class TestMilestoneModel:
         When: Creating multiple milestones without ms_project_uid
         Then: All milestones are created successfully
         """
-        milestone1 = Milestone(
+        milestone1 = _make_milestone(
             project_id=project.id,
             name="Milestone Without UID 1",
             target_date=DEFAULT_FINISH_DATE,
             budget_weight=Decimal("0.1"),
         )
-        milestone2 = Milestone(
+        milestone2 = _make_milestone(
             project_id=project.id,
             name="Milestone Without UID 2",
             target_date=DEFAULT_FINISH_DATE,

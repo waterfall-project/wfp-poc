@@ -15,7 +15,7 @@ beyond resource assignments, including materials and fixed costs.
 
 import uuid
 from datetime import datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import CheckConstraint, Date, ForeignKey, Numeric, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -142,6 +142,42 @@ class Expense(UUIDMixin, TimestampMixin, Model):
             name="ck_expenses_category",
         ),
     )
+
+    def __init__(
+        self,
+        project_id: uuid.UUID,
+        description: str,
+        category: str = "other",
+        **kwargs: Any,
+    ) -> None:
+        """Initialize an Expense instance.
+
+        Args:
+            project_id: Parent project UUID.
+            description: Expense description.
+            category: Expense category.
+            milestone_id: Optional milestone UUID (kwarg).
+            resource_id: Optional resource UUID (kwarg).
+            planned_cost: Optional planned cost (kwarg).
+            actual_cost: Optional actual cost (kwarg).
+            expense_date: Optional expense date (kwarg).
+            **kwargs: Additional keyword arguments passed to parent.
+        """
+        milestone_id = kwargs.pop("milestone_id", None)
+        resource_id = kwargs.pop("resource_id", None)
+        planned_cost = kwargs.pop("planned_cost", None)
+        actual_cost = kwargs.pop("actual_cost", None)
+        expense_date = kwargs.pop("expense_date", None)
+
+        super().__init__(**kwargs)
+        self.project_id = project_id
+        self.category = category
+        self.description = description
+        self.milestone_id = milestone_id
+        self.resource_id = resource_id
+        self.planned_cost = float(planned_cost) if planned_cost is not None else None
+        self.actual_cost = float(actual_cost) if actual_cost is not None else None
+        self.expense_date = expense_date
 
     def __repr__(self) -> str:
         """String representation of Expense.

@@ -524,14 +524,15 @@ class MilestoneListResource(Resource):
             return {"error": CONFLICT_ERROR, "message": error_msg}, 409
 
         # Create milestone
-        milestone = Milestone()
-        milestone.project_id = project_uuid
-        milestone.name = data["name"]
-        milestone.description = data.get("description")
-        milestone.target_date = data["target_date"]
-        milestone.budget_weight = new_weight
-        milestone.status = "upcoming"
-        milestone.is_achieved = False
+        milestone = Milestone(
+            project_id=project_uuid,
+            name=data["name"],
+            description=data.get("description"),
+            target_date=data["target_date"],
+            budget_weight=new_weight,
+            status="upcoming",
+            is_achieved=False,
+        )
 
         try:
             db.session.add(milestone)

@@ -40,7 +40,7 @@ def _create_project(company_id: str) -> Project:
         start_date=start_date,
         finish_date=finish_date,
         status="active",
-    )  # type: ignore[call-arg]
+    )
     db.session.add(project)
     db.session.commit()
     db.session.refresh(project)
@@ -49,7 +49,7 @@ def _create_project(company_id: str) -> Project:
 
 def _create_task(project: Project) -> Task:
     """Create a task bound to a project."""
-    task = Task(project_id=project.id, name="Integration Task", status="not_started")  # type: ignore[call-arg]
+    task = Task(project_id=project.id, name="Integration Task", status="not_started")
     db.session.add(task)
     db.session.commit()
     db.session.refresh(task)
@@ -220,7 +220,7 @@ class TestAssignmentsAPI:
         body = response.get_json()
         assert body["data"]["percent_allocation"] == 80
         assert body["data"]["actual_work"] == "PT5H0M0S"
-        assert body["data"]["actual_cost"] == 500.0
+        assert body["data"]["actual_cost"] == pytest.approx(500.0)
 
     def test_delete_assignment_success(
         self,

@@ -40,7 +40,7 @@ def _create_project(company_id: str) -> Project:
         start_date=start_date,
         finish_date=finish_date,
         status="active",
-    )  # type: ignore[call-arg]
+    )
     db.session.add(project)
     db.session.commit()
     db.session.refresh(project)
@@ -52,7 +52,7 @@ def _create_task(project: Project) -> Task:
         project_id=project.id,
         name="Task A",
         status="not_started",
-    )  # type: ignore[call-arg]
+    )
     db.session.add(task)
     db.session.commit()
     db.session.refresh(task)

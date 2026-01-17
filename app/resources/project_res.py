@@ -25,6 +25,7 @@ from sqlalchemy import func, or_
 from sqlalchemy.exc import IntegrityError
 
 from app import limiter
+from app.constants.http import MISSING_PROJECT_ID_MSG
 from app.models.db import db
 from app.models.project import Project
 from app.schemas.project_schema import (
@@ -457,7 +458,7 @@ class ProjectResource(Resource):
 
         effective_id = project_id or id
         if not effective_id:
-            return {"error": BAD_REQUEST_ERROR, "message": "Missing project id"}, 400
+            return {"error": BAD_REQUEST_ERROR, "message": MISSING_PROJECT_ID_MSG}, 400
 
         project = self._get_project(effective_id)
         if project is None:
@@ -525,7 +526,7 @@ class ProjectResource(Resource):
 
         effective_id = project_id or id
         if not effective_id:
-            return {"error": BAD_REQUEST_ERROR, "message": "Missing project id"}, 400
+            return {"error": BAD_REQUEST_ERROR, "message": MISSING_PROJECT_ID_MSG}, 400
 
         project = self._get_project(effective_id)
         if project is None:
@@ -627,7 +628,7 @@ class ProjectResource(Resource):
 
         effective_id = project_id or id
         if not effective_id:
-            return {"error": BAD_REQUEST_ERROR, "message": "Missing project id"}, 400
+            return {"error": BAD_REQUEST_ERROR, "message": MISSING_PROJECT_ID_MSG}, 400
 
         project = self._get_project(effective_id)
         if project is None:

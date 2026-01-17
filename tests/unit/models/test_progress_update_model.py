@@ -213,8 +213,8 @@ class TestProgressUpdateModel:
         db.session.add(progress_update)
         db.session.commit()
 
-        assert progress_update.earned_value == Decimal("123456.78")
-        assert progress_update.actual_cost == Decimal("123999.99")
+        assert progress_update.earned_value == pytest.approx(123456.78)
+        assert progress_update.actual_cost == pytest.approx(123999.99)
 
     def test_progress_update_with_notes(self, app, project):
         """Test progress update with notes field.

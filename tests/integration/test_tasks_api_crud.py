@@ -28,8 +28,9 @@ from app.models.task import Task
 
 def _make_task(**kwargs: Any) -> Task:
     """Instantiate a Task and populate fields explicitly for mypy."""
-
-    task = Task()
+    project_id = kwargs.pop("project_id")
+    name = kwargs.pop("name")
+    task = Task(project_id=project_id, name=name)
     for key, value in kwargs.items():
         setattr(task, key, value)
     return task

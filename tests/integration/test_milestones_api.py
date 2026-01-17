@@ -30,8 +30,16 @@ from app.models.task import Task
 
 def _make_milestone(**kwargs: Any) -> Milestone:
     """Create a Milestone and assign attributes without relying on __init__ kwargs."""
-
-    milestone = Milestone()
+    project_id = kwargs.pop("project_id")
+    name = kwargs.pop("name")
+    target_date = kwargs.pop("target_date")
+    budget_weight = kwargs.pop("budget_weight")
+    milestone = Milestone(
+        project_id=project_id,
+        name=name,
+        target_date=target_date,
+        budget_weight=budget_weight,
+    )
     for key, value in kwargs.items():
         setattr(milestone, key, value)
     return milestone
@@ -39,8 +47,9 @@ def _make_milestone(**kwargs: Any) -> Milestone:
 
 def _make_task(**kwargs: Any) -> Task:
     """Create a Task and assign attributes without relying on __init__ kwargs."""
-
-    task = Task()
+    project_id = kwargs.pop("project_id")
+    name = kwargs.pop("name")
+    task = Task(project_id=project_id, name=name)
     for key, value in kwargs.items():
         setattr(task, key, value)
     return task
@@ -112,7 +121,7 @@ class TestMilestoneCreate:
         data = response.get_json()
         assert data["message"] == "Milestone created successfully"
         assert data["data"]["name"] == "Requirements Qualification"
-        assert float(data["data"]["budget_weight"]) == 0.25
+        assert float(data["data"]["budget_weight"]) == pytest.approx(0.25)
 
         with app.app_context():
             created = Milestone.query.filter_by(project_id=project.id).first()
@@ -172,7 +181,7 @@ class TestMilestoneRetrieve:
         data = response.get_json()
         assert data["data"]["id"] == str(milestone.id)
         assert data["data"]["name"] == "Design Review"
-        assert float(data["data"]["budget_weight"]) == 0.35
+        assert float(data["data"]["budget_weight"]) == pytest.approx(0.35)
 
     def test_get_milestone_not_found(self, integration_client, project):
         """Test missing milestone returns 404.

@@ -15,7 +15,7 @@ projects with EVM tracking, predecessor relationships, and multi-level WBS.
 
 import uuid
 from datetime import UTC, date, datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import (
     Boolean,
@@ -31,6 +31,8 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column, relationship, validates
 
 from app.models.types import GUID, TimestampMixin, UUIDMixin
+
+CASCADE_ALL_DELETE_ORPHAN = "all, delete-orphan"
 
 if TYPE_CHECKING:
     from flask_sqlalchemy.model import Model
@@ -229,7 +231,7 @@ class Task(UUIDMixin, TimestampMixin, Model):
     children: Mapped[list["Task"]] = relationship(
         "Task",
         back_populates="parent",
-        cascade="all, delete-orphan",
+        cascade=CASCADE_ALL_DELETE_ORPHAN,
         doc="Child tasks in WBS hierarchy",
     )
 
@@ -237,7 +239,7 @@ class Task(UUIDMixin, TimestampMixin, Model):
         "TaskPredecessor",
         foreign_keys="TaskPredecessor.successor_id",
         back_populates="successor",
-        cascade="all, delete-orphan",
+        cascade=CASCADE_ALL_DELETE_ORPHAN,
         doc="Predecessor relationships (tasks that must finish before this one)",
     )
 
@@ -251,28 +253,28 @@ class Task(UUIDMixin, TimestampMixin, Model):
     assignments: Mapped[list["Assignment"]] = relationship(
         "Assignment",
         back_populates="task",
-        cascade="all, delete-orphan",
+        cascade=CASCADE_ALL_DELETE_ORPHAN,
         doc="Resource assignments for this task",
     )
 
     milestone_links: Mapped[list["MilestoneTask"]] = relationship(
         "MilestoneTask",
         back_populates="task",
-        cascade="all, delete-orphan",
+        cascade=CASCADE_ALL_DELETE_ORPHAN,
         doc="Milestone linkages for this task",
     )
 
     progress_updates: Mapped[list["ProgressUpdate"]] = relationship(
         "ProgressUpdate",
         back_populates="task",
-        cascade="all, delete-orphan",
+        cascade=CASCADE_ALL_DELETE_ORPHAN,
         doc="Progress update history for this task",
     )
 
     rae_entries: Mapped[list["RAEEntry"]] = relationship(
         "RAEEntry",
         back_populates="task",
-        cascade="all, delete-orphan",
+        cascade=CASCADE_ALL_DELETE_ORPHAN,
         doc="Risk, Assumption, Exception entries for this task",
     )
 
@@ -296,6 +298,55 @@ class Task(UUIDMixin, TimestampMixin, Model):
             name="ck_tasks_percent_complete",
         ),
     )
+
+    def __init__(self, project_id: uuid.UUID, name: str, **kwargs: Any) -> None:
+        """Initialize a Task instance.
+
+        Args:
+            project_id: Parent project UUID.
+            name: Task name.
+            **kwargs: Additional keyword arguments passed to parent.
+        """
+        status = kwargs.pop("status", "not_started")
+        task_type = kwargs.pop("type", "task")
+        parent_id = kwargs.pop("parent_id", None)
+        ms_project_uid = kwargs.pop("ms_project_uid", None)
+        wbs_code = kwargs.pop("wbs_code", None)
+        description = kwargs.pop("description", None)
+        planned_start_date = kwargs.pop("planned_start_date", None)
+        planned_finish_date = kwargs.pop("planned_finish_date", None)
+        planned_duration_minutes = kwargs.pop("planned_duration_minutes", None)
+        actual_start_date = kwargs.pop("actual_start_date", None)
+        actual_finish_date = kwargs.pop("actual_finish_date", None)
+        percent_complete = kwargs.pop("percent_complete", 0.0)
+        planned_cost = kwargs.pop("planned_cost", None)
+        earned_value = kwargs.pop("earned_value", None)
+        actual_cost = kwargs.pop("actual_cost", None)
+        remaining_cost = kwargs.pop("remaining_cost", None)
+        is_critical = kwargs.pop("is_critical", False)
+
+        super().__init__(**kwargs)
+        self.project_id = project_id
+        self.name = name
+        self.status = status
+        self.type = task_type
+        self.parent_id = parent_id
+        self.ms_project_uid = ms_project_uid
+        self.wbs_code = wbs_code
+        self.description = description
+        self.planned_start_date = planned_start_date
+        self.planned_finish_date = planned_finish_date
+        self.planned_duration_minutes = planned_duration_minutes
+        self.actual_start_date = actual_start_date
+        self.actual_finish_date = actual_finish_date
+        self.percent_complete = float(percent_complete)
+        self.planned_cost = float(planned_cost) if planned_cost is not None else None
+        self.earned_value = float(earned_value) if earned_value is not None else None
+        self.actual_cost = float(actual_cost) if actual_cost is not None else None
+        self.remaining_cost = (
+            float(remaining_cost) if remaining_cost is not None else None
+        )
+        self.is_critical = is_critical
 
     @property
     def is_milestone(self) -> bool:
