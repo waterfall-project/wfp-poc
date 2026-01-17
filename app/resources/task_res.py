@@ -21,6 +21,7 @@ from typing import Any, cast
 from flask import request
 from flask_restful import Resource
 from marshmallow import ValidationError
+from sqlalchemy import nullslast
 from sqlalchemy.exc import IntegrityError
 
 from app import limiter
@@ -33,6 +34,8 @@ from app.constants.http import (
     VALIDATION_FAILED_MSG,
 )
 from app.models.db import db
+from app.models.milestone import Milestone
+from app.models.milestone_task import MilestoneTask
 from app.models.project import Project
 from app.models.task import Task
 from app.models.task_predecessor import TaskPredecessor
@@ -237,6 +240,87 @@ def _detect_circular_dependency(
 
     # Start DFS from the task being modified
     return has_cycle(task_id)
+
+
+def _get_milestone_target_date_and_critical_task(
+    milestone_id: uuid.UUID,
+) -> tuple[datetime | None, Task | None]:
+    """Get recalculated milestone target_date and critical task.
+
+    The target_date is derived as the MAX of linked tasks'
+    planned_finish_date. The critical task is the task that
+    determines this max finish date.
+
+    Args:
+        milestone_id: Milestone UUID.
+
+    Returns:
+        Tuple of (new_target_date, critical_task). If no linked tasks
+        or all finish dates are missing, returns (None, None).
+    """
+    critical_task = (
+        Task.query.join(MilestoneTask, MilestoneTask.task_id == Task.id)
+        .filter(MilestoneTask.milestone_id == milestone_id)
+        .order_by(nullslast(Task.planned_finish_date.desc()))
+        .first()
+    )
+
+    if not critical_task or critical_task.planned_finish_date is None:
+        return None, None
+
+    return critical_task.planned_finish_date, critical_task
+
+
+def _recalculate_milestones_for_tasks(
+    task_ids: set[uuid.UUID],
+) -> list[dict[str, Any]]:
+    """Recalculate milestone target_dates impacted by task updates.
+
+    Args:
+        task_ids: Set of task UUIDs whose planned_finish_date changed.
+
+    Returns:
+        List of milestone recalculation payloads for API response.
+    """
+    if not task_ids:
+        return []
+
+    milestone_rows = (
+        db.session.query(MilestoneTask.milestone_id)
+        .filter(MilestoneTask.task_id.in_(task_ids))
+        .distinct()
+        .all()
+    )
+
+    recalculated: list[dict[str, Any]] = []
+    for (milestone_id,) in milestone_rows:
+        milestone = db.session.get(Milestone, milestone_id)
+        if milestone is None:
+            continue
+
+        old_target_date = milestone.target_date
+        new_target_date, critical_task = _get_milestone_target_date_and_critical_task(
+            milestone_id
+        )
+        if new_target_date is None or critical_task is None:
+            continue
+
+        if old_target_date != new_target_date:
+            milestone.target_date = new_target_date
+            recalculated.append(
+                {
+                    "milestone_id": str(milestone_id),
+                    "name": milestone.name,
+                    "old_target_date": old_target_date.isoformat()
+                    if old_target_date
+                    else None,
+                    "new_target_date": new_target_date.isoformat(),
+                    "critical_task_id": str(critical_task.id),
+                    "critical_task_name": critical_task.name,
+                }
+            )
+
+    return recalculated
 
 
 class TaskListResource(Resource):
@@ -1204,9 +1288,9 @@ class TaskSyncResource(Resource):
         tasks_data = validated_data["tasks"]
         updated_count = 0
         not_found_count = 0
-        milestone_recalculated_count = 0
         updated_tasks = []
         not_found_uids = []
+        changed_task_ids: set[uuid.UUID] = set()
 
         # Process each task
         for task_data in tasks_data:
@@ -1231,6 +1315,7 @@ class TaskSyncResource(Resource):
                     new_finish = _normalize_datetime(task_data["planned_finish_date"])
                     if new_finish != existing_task.planned_finish_date:
                         existing_task.planned_finish_date = new_finish
+                        changed_task_ids.add(existing_task.id)
 
                 # Update predecessors if provided
                 if "predecessors" in task_data:
@@ -1269,6 +1354,13 @@ class TaskSyncResource(Resource):
                 not_found_count += 1
                 not_found_uids.append(ms_project_uid)
 
+        recalculated_milestones: list[dict[str, Any]] = []
+        if changed_task_ids:
+            db.session.flush()
+            recalculated_milestones = _recalculate_milestones_for_tasks(
+                changed_task_ids
+            )
+
         # Commit all changes
         try:
             db.session.commit()
@@ -1282,6 +1374,8 @@ class TaskSyncResource(Resource):
             }, 409
 
         # Prepare response matching OpenAPI spec
+        milestone_recalculated_count = len(recalculated_milestones)
+
         response_data = {
             "data": {
                 "updated_count": updated_count,
@@ -1292,8 +1386,7 @@ class TaskSyncResource(Resource):
                 ],
                 "not_found_uids": not_found_uids,
                 "not_found_guids": [],  # Not used in current implementation
-                # TODO: Implement milestone recalculation
-                "recalculated_milestones": [],
+                "recalculated_milestones": recalculated_milestones,
             },
             "message": (
                 f"{updated_count} tasks updated, {not_found_count} not found, "

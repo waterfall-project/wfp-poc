@@ -17,11 +17,14 @@ from __future__ import annotations
 
 import uuid
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 from typing import Any
 
 import pytest
 
 from app.models.db import db
+from app.models.milestone import Milestone
+from app.models.milestone_task import MilestoneTask
 from app.models.project import Project
 from app.models.task import Task
 
@@ -34,6 +37,23 @@ def _make_task(**kwargs: Any) -> Task:
     for key, value in kwargs.items():
         setattr(task, key, value)
     return task
+
+
+def _make_milestone(**kwargs: Any) -> Milestone:
+    """Instantiate a Milestone and populate fields explicitly for mypy."""
+    project_id = kwargs.pop("project_id")
+    name = kwargs.pop("name")
+    target_date = kwargs.pop("target_date")
+    budget_weight = kwargs.pop("budget_weight")
+    milestone = Milestone(
+        project_id=project_id,
+        name=name,
+        target_date=target_date,
+        budget_weight=budget_weight,
+    )
+    for key, value in kwargs.items():
+        setattr(milestone, key, value)
+    return milestone
 
 
 @pytest.fixture
@@ -322,3 +342,173 @@ class TestTaskList:
         assert data["total_pages"] == 1
         assert len(data["data"]) == 1
         assert data["data"][0]["status"] == "completed"
+
+
+class TestTaskSyncMilestoneRecalculation:
+    """Integration tests for milestone recalculation during task sync."""
+
+    def test_sync_non_critical_task_does_not_move_milestone(
+        self, integration_client, app, project
+    ) -> None:
+        """Test non-critical update leaves milestone target_date unchanged.
+
+        Given: Milestone linked to tasks and a non-critical task updated
+        When: PUT /v0/projects/{id}/tasks/sync is called
+        Then: Milestone target_date remains unchanged and no recalculation reported
+        """
+        critical_finish = datetime(2026, 5, 20, 18, 0, tzinfo=UTC)
+        non_critical_finish = datetime(2026, 5, 10, 18, 0, tzinfo=UTC)
+
+        with app.app_context():
+            milestone = _make_milestone(
+                project_id=project.id,
+                name="Phase 1",
+                target_date=critical_finish,
+                budget_weight=Decimal("0.5"),
+                status="upcoming",
+                is_achieved=False,
+            )
+            non_critical_task = _make_task(
+                project_id=project.id,
+                name="Documentation",
+                ms_project_uid=1101,
+                type="task",
+                status="not_started",
+                planned_start_date=datetime(2026, 5, 1, 9, 0, tzinfo=UTC),
+                planned_finish_date=non_critical_finish,
+            )
+            critical_task = _make_task(
+                project_id=project.id,
+                name="Implementation",
+                ms_project_uid=1102,
+                type="task",
+                status="not_started",
+                planned_start_date=datetime(2026, 5, 3, 9, 0, tzinfo=UTC),
+                planned_finish_date=critical_finish,
+            )
+            db.session.add_all([milestone, non_critical_task, critical_task])
+            db.session.commit()
+            db.session.add_all(
+                [
+                    MilestoneTask(
+                        milestone_id=milestone.id, task_id=non_critical_task.id
+                    ),
+                    MilestoneTask(milestone_id=milestone.id, task_id=critical_task.id),
+                ]
+            )
+            db.session.commit()
+
+            milestone_id = milestone.id
+            expected_target_date = milestone.target_date
+
+        payload = {
+            "tasks": [
+                {
+                    "ms_project_uid": 1101,
+                    "planned_finish_date": "2026-05-12T18:00:00Z",
+                }
+            ]
+        }
+
+        response = integration_client.put(
+            f"/v0/projects/{project.id}/tasks/sync", json=payload
+        )
+
+        assert response.status_code == 200
+        data = response.get_json()
+
+        assert data["data"]["milestone_recalculated_count"] == 0
+        assert data["data"]["recalculated_milestones"] == []
+
+        with app.app_context():
+            refreshed = db.session.get(Milestone, milestone_id)
+            assert refreshed is not None
+            assert refreshed.target_date == expected_target_date
+
+    def test_sync_critical_task_updates_milestone_target_date(
+        self, integration_client, app, project
+    ) -> None:
+        """Test critical update recalculates milestone target_date.
+
+        Given: Milestone linked to tasks and a critical task updated later
+        When: PUT /v0/projects/{id}/tasks/sync is called
+        Then: Milestone target_date is updated and recalculation is reported
+        """
+        original_finish = datetime(2026, 6, 20, 18, 0, tzinfo=UTC)
+        new_finish = datetime(2026, 6, 25, 18, 0, tzinfo=UTC)
+
+        with app.app_context():
+            milestone = _make_milestone(
+                project_id=project.id,
+                name="Phase 2",
+                target_date=original_finish,
+                budget_weight=Decimal("0.5"),
+                status="upcoming",
+                is_achieved=False,
+            )
+            critical_task = _make_task(
+                project_id=project.id,
+                name="Backend",
+                ms_project_uid=1202,
+                type="task",
+                status="not_started",
+                planned_start_date=datetime(2026, 6, 1, 9, 0, tzinfo=UTC),
+                planned_finish_date=original_finish,
+            )
+            supporting_task = _make_task(
+                project_id=project.id,
+                name="QA",
+                ms_project_uid=1201,
+                type="task",
+                status="not_started",
+                planned_start_date=datetime(2026, 6, 5, 9, 0, tzinfo=UTC),
+                planned_finish_date=datetime(2026, 6, 10, 18, 0, tzinfo=UTC),
+            )
+            db.session.add_all([milestone, critical_task, supporting_task])
+            db.session.commit()
+            db.session.add_all(
+                [
+                    MilestoneTask(milestone_id=milestone.id, task_id=critical_task.id),
+                    MilestoneTask(
+                        milestone_id=milestone.id, task_id=supporting_task.id
+                    ),
+                ]
+            )
+            db.session.commit()
+
+            milestone_id = milestone.id
+            critical_task_id = critical_task.id
+            expected_old = milestone.target_date
+
+        payload = {
+            "tasks": [
+                {
+                    "ms_project_uid": 1202,
+                    "planned_finish_date": "2026-06-25T18:00:00Z",
+                }
+            ]
+        }
+
+        response = integration_client.put(
+            f"/v0/projects/{project.id}/tasks/sync", json=payload
+        )
+
+        assert response.status_code == 200
+        data = response.get_json()
+
+        assert data["data"]["milestone_recalculated_count"] == 1
+        recalculated = data["data"]["recalculated_milestones"]
+        assert len(recalculated) == 1
+        assert recalculated[0]["milestone_id"] == str(milestone_id)
+        assert recalculated[0]["critical_task_id"] == str(critical_task_id)
+        assert recalculated[0]["critical_task_name"] == "Backend"
+
+        expected_old_value = expected_old.isoformat() if expected_old else None
+        expected_new_value = new_finish.replace(tzinfo=None).isoformat()
+        assert recalculated[0]["old_target_date"] == expected_old_value
+        assert recalculated[0]["new_target_date"] == expected_new_value
+
+        with app.app_context():
+            refreshed = db.session.get(Milestone, milestone_id)
+            assert refreshed is not None
+            assert refreshed.target_date == new_finish.replace(tzinfo=None)
