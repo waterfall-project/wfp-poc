@@ -91,12 +91,13 @@ def _parse_uuid(value: str | None) -> uuid.UUID | None:
         return None
 
 
-def _get_project_scoped(project_id: str, company_id: str | None) -> Project | None:
+def _get_project_scoped(
+    project_id: uuid.UUID, company_id: str | None
+) -> Project | None:
     """Retrieve project scoped to current company."""
-    project_uuid = _parse_uuid(project_id)
-    if not project_uuid or not company_id:
+    if not company_id:
         return None
-    return Project.query.filter_by(id=project_uuid, company_id=company_id).first()
+    return Project.query.filter_by(id=project_id, company_id=company_id).first()
 
 
 def _get_task_scoped(task_id: str, project_id: uuid.UUID) -> Task | None:
@@ -125,13 +126,10 @@ def _get_resource_any_company(resource_id: uuid.UUID) -> ResourceModel | None:
 
 
 def _get_assignment_scoped(
-    assignment_id: str, project_id: uuid.UUID
+    assignment_id: uuid.UUID, project_id: uuid.UUID
 ) -> Assignment | None:
     """Retrieve assignment scoped to project."""
-    assignment_uuid = _parse_uuid(assignment_id)
-    if not assignment_uuid:
-        return None
-    return Assignment.query.filter_by(id=assignment_uuid, project_id=project_id).first()
+    return Assignment.query.filter_by(id=assignment_id, project_id=project_id).first()
 
 
 class AssignmentListResource(Resource):
@@ -159,7 +157,11 @@ class AssignmentListResource(Resource):
             )
 
         company_id = get_current_company_id()
-        project = _get_project_scoped(project_id, company_id)
+        project_uuid = _parse_uuid(project_id)
+        if not project_uuid:
+            return _error_response("Invalid project_id", 400, error=BAD_REQUEST_ERROR)
+
+        project = _get_project_scoped(project_uuid, company_id)
         if not project:
             return _error_response(PROJECT_NOT_FOUND_MSG, 404, error=NOT_FOUND_ERROR)
 
@@ -223,7 +225,11 @@ class AssignmentListResource(Resource):
             )
 
         company_id = get_current_company_id()
-        project = _get_project_scoped(project_id, company_id)
+        project_uuid = _parse_uuid(project_id)
+        if not project_uuid:
+            return _error_response("Invalid project_id", 400, error=BAD_REQUEST_ERROR)
+
+        project = _get_project_scoped(project_uuid, company_id)
         if not project:
             return _error_response(PROJECT_NOT_FOUND_MSG, 404, error=NOT_FOUND_ERROR)
 
@@ -335,11 +341,21 @@ class AssignmentResource(Resource):
             )
 
         company_id = get_current_company_id()
-        project = _get_project_scoped(project_id, company_id)
+        project_uuid = _parse_uuid(project_id)
+        if not project_uuid:
+            return _error_response("Invalid project_id", 400, error=BAD_REQUEST_ERROR)
+
+        project = _get_project_scoped(project_uuid, company_id)
         if not project:
             return _error_response(PROJECT_NOT_FOUND_MSG, 404, error=NOT_FOUND_ERROR)
 
-        assignment = _get_assignment_scoped(id, project.id)
+        assignment_uuid = _parse_uuid(id)
+        if not assignment_uuid:
+            return _error_response(
+                "Invalid assignment id", 400, error=BAD_REQUEST_ERROR
+            )
+
+        assignment = _get_assignment_scoped(assignment_uuid, project.id)
         if not assignment:
             return _error_response(ASSIGNMENT_NOT_FOUND_MSG, 404, error=NOT_FOUND_ERROR)
 
@@ -362,11 +378,21 @@ class AssignmentResource(Resource):
             )
 
         company_id = get_current_company_id()
-        project = _get_project_scoped(project_id, company_id)
+        project_uuid = _parse_uuid(project_id)
+        if not project_uuid:
+            return _error_response("Invalid project_id", 400, error=BAD_REQUEST_ERROR)
+
+        project = _get_project_scoped(project_uuid, company_id)
         if not project:
             return _error_response(PROJECT_NOT_FOUND_MSG, 404, error=NOT_FOUND_ERROR)
 
-        assignment = _get_assignment_scoped(id, project.id)
+        assignment_uuid = _parse_uuid(id)
+        if not assignment_uuid:
+            return _error_response(
+                "Invalid assignment id", 400, error=BAD_REQUEST_ERROR
+            )
+
+        assignment = _get_assignment_scoped(assignment_uuid, project.id)
         if not assignment:
             return _error_response(ASSIGNMENT_NOT_FOUND_MSG, 404, error=NOT_FOUND_ERROR)
 
@@ -425,14 +451,24 @@ class AssignmentResource(Resource):
             )
 
         company_id = get_current_company_id()
-        project = _get_project_scoped(project_id, company_id)
+        project_uuid = _parse_uuid(project_id)
+        if not project_uuid:
+            return _error_response("Invalid project_id", 400, error=BAD_REQUEST_ERROR)
+
+        project = _get_project_scoped(project_uuid, company_id)
         if not project:
             return _error_response(PROJECT_NOT_FOUND_MSG, 404, error=NOT_FOUND_ERROR)
 
-        assignment = _get_assignment_scoped(id, project.id)
+        assignment_uuid = _parse_uuid(id)
+        if not assignment_uuid:
+            return _error_response(
+                "Invalid assignment id", 400, error=BAD_REQUEST_ERROR
+            )
+
+        assignment = _get_assignment_scoped(assignment_uuid, project.id)
         if not assignment:
             return _error_response(ASSIGNMENT_NOT_FOUND_MSG, 404, error=NOT_FOUND_ERROR)
 
         db.session.delete(assignment)
         db.session.commit()
-        return {}, 204
+        return "", 204

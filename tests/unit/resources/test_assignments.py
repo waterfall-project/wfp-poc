@@ -154,6 +154,36 @@ class TestAssignmentCreate:
         body = response.get_json()
         assert "correlation_id" in body
         assert "Assignment already exists" in body["message"]
+        assert "X-Correlation-ID" in response.headers
+
+    @patch("app.utils.jwt_decorators.GuardianService.check_access")
+    def test_create_assignment_rejects_seconds_in_duration(
+        self,
+        mock_guardian: MagicMock,
+        app: Flask,
+        authenticated_client: FlaskClient,
+        company_id: str,
+    ) -> None:
+        """Given work_hours with seconds, when creating then returns 400."""
+        mock_guardian.return_value = (True, "granted")
+        with app.app_context():
+            project = _create_project(company_id)
+            task = _create_task(project)
+            resource = _create_resource(company_id)
+
+        payload = {
+            "task_id": str(task.id),
+            "resource_id": str(resource.id),
+            "work_hours": "PT1H0M30S",
+        }
+
+        response = authenticated_client.post(
+            f"/v0/projects/{project.id}/assignments", json=payload
+        )
+
+        assert response.status_code == 400
+        body = response.get_json()
+        assert "Seconds must be 0" in body["message"] or "errors" in body
 
     @patch("app.utils.jwt_decorators.GuardianService.check_access")
     def test_create_assignment_cross_company_returns_unprocessable(
@@ -228,6 +258,22 @@ class TestAssignmentGet:
         )
 
         assert response.status_code == 404
+
+    @patch("app.utils.jwt_decorators.GuardianService.check_access")
+    def test_get_assignment_invalid_uuid_returns_bad_request(
+        self,
+        mock_guardian: MagicMock,
+        authenticated_client: FlaskClient,
+    ) -> None:
+        """Given invalid UUID in path, when get then returns 400."""
+        mock_guardian.return_value = (True, "granted")
+
+        response = authenticated_client.get(
+            "/v0/projects/not-a-uuid/assignments/also-bad"
+        )
+
+        assert response.status_code == 400
+        assert response.get_json()["error"] == "Bad Request"
 
 
 class TestAssignmentPatch:

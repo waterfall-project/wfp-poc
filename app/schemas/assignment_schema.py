@@ -80,7 +80,11 @@ def _duration_to_minutes(value: str | None) -> int | None:
         raise ValidationError("Duration must match pattern PT#H#M#S")
 
     hours, minutes, seconds = (int(part) for part in match.groups())
-    total_minutes = (hours * 60) + minutes + (seconds // 60)
+
+    if seconds != 0:
+        raise ValidationError("Seconds must be 0; only minute granularity is supported")
+
+    total_minutes = (hours * 60) + minutes
     return total_minutes
 
 

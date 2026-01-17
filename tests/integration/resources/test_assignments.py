@@ -245,5 +245,6 @@ class TestAssignmentsAPI:
         )
 
         assert response.status_code == 204
+        assert response.data == b""
         with app.app_context():
             assert db.session.get(Assignment, assignment.id) is None
