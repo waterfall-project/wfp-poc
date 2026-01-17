@@ -69,8 +69,11 @@ pytest
 ## 7) Generate a JWT for local calls
 
 ```bash
-JWT=$(python -c "import time,uuid; from pathlib import Path; import jwt; env={}; [env.update({k:v}) for k,v in (line.split('=',1) for line in Path('.env.development').read_text().splitlines() if line and not line.lstrip().startswith('#') and '=' in line)]; secret=env.get('JWT_SECRET_KEY'); alg=env.get('JWT_ALGORITHM','HS256'); payload={'user_id':str(uuid.uuid4()),'company_id':str(uuid.uuid4()),'email':'user@example.com','exp':int(time.time())+3600}; print(jwt.encode(payload, secret, algorithm=alg))")
+JWT=$(python tools/generate_jwt.py)
 ```
+
+Optional arguments: `--env-file`, `--user-id`, `--company-id`, `--email`,
+`--expires-in`.
 
 ## 8) Main curl commands
 

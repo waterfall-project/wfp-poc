@@ -290,7 +290,11 @@ def _get_milestones_for_project(project_id: uuid.UUID) -> list[Milestone]:
 def _select_milestone_for_date(
     milestones: list[Milestone], expense_date: datetime
 ) -> Milestone | None:
-    """Select milestone matching expense date based on target_date boundaries."""
+    """Select first milestone whose target_date is >= expense date.
+
+    Returns None when the date is outside the range of the first/last
+    milestone target_date values.
+    """
     if not milestones:
         return None
 
