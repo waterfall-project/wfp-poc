@@ -4,6 +4,9 @@
     description: Calculate and retrieve Earned Value Management indicators
     operationId: getProjectEVMIndicators
     tags: [EVM]
+    security:
+      - bearerAuth: []
+      - cookieAuth: []
     parameters:
       - $ref: '../components/parameters.yaml#/VersionParam'
       - $ref: '../components/parameters.yaml#/ProjectIdPathParam'
@@ -26,9 +29,17 @@
         content:
           application/json:
             schema:
-              $ref: '../components/schemas/evm.yaml#/EVMIndicators'
+              $ref: '../components/schemas/evm.yaml#/EVMIndicatorsResponse'
+      '400':
+        $ref: '../components/responses.yaml#/BadRequest'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses.yaml#/Forbidden'
       '404':
         $ref: '../components/responses.yaml#/NotFound'
+      '422':
+        $ref: '../components/responses.yaml#/UnprocessableEntity'
       '429':
         $ref: '../components/responses.yaml#/TooManyRequests'
       '500':
@@ -40,6 +51,9 @@
     description: Retrieve historical EVM data for visualization
     operationId: getEVMTimeSeries
     tags: [EVM]
+    security:
+      - bearerAuth: []
+      - cookieAuth: []
     parameters:
       - $ref: '../components/parameters.yaml#/VersionParam'
       - $ref: '../components/parameters.yaml#/ProjectIdPathParam'
@@ -81,7 +95,13 @@
         content:
           application/json:
             schema:
-              $ref: '../components/schemas/evm.yaml#/EVMTimeSeries'
+              $ref: '../components/schemas/evm.yaml#/EVMTimeSeriesResponse'
+      '400':
+        $ref: '../components/responses.yaml#/BadRequest'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses.yaml#/Forbidden'
       '404':
         $ref: '../components/responses.yaml#/NotFound'
       '429':
@@ -95,18 +115,42 @@
     description: Calculate project completion forecasts using multiple methods
     operationId: getEVMForecasts
     tags: [EVM]
+    security:
+      - bearerAuth: []
+      - cookieAuth: []
     parameters:
       - $ref: '../components/parameters.yaml#/VersionParam'
       - $ref: '../components/parameters.yaml#/ProjectIdPathParam'
+      - name: as_of_date
+        in: query
+        schema:
+          type: string
+          format: date-time
+        description: Forecast baseline date (default current date)
+      - name: ev_method
+        in: query
+        schema:
+          type: string
+          enum: [physical, milestone, both]
+          default: physical
+        description: EV calculation method
     responses:
       '200':
         description: Forecasts calculated
         content:
           application/json:
             schema:
-              $ref: '../components/schemas/evm.yaml#/EVMForecasts'
+              $ref: '../components/schemas/evm.yaml#/EVMForecastsResponse'
+      '400':
+        $ref: '../components/responses.yaml#/BadRequest'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses.yaml#/Forbidden'
       '404':
         $ref: '../components/responses.yaml#/NotFound'
+      '422':
+        $ref: '../components/responses.yaml#/UnprocessableEntity'
       '429':
         $ref: '../components/responses.yaml#/TooManyRequests'
       '500':

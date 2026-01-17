@@ -38,6 +38,7 @@ if TYPE_CHECKING:
     from flask_sqlalchemy.model import Model
 
     from app.models.expense import Expense
+    from app.models.milestone_rae import MilestoneRAE
     from app.models.milestone_task import MilestoneTask
     from app.models.project import Project
 else:
@@ -177,6 +178,13 @@ class Milestone(UUIDMixin, TimestampMixin, Model):
         "Expense",
         back_populates="milestone",
         doc="Expenses allocated to this milestone",
+    )
+
+    rae_history: Mapped[list["MilestoneRAE"]] = relationship(
+        "MilestoneRAE",
+        back_populates="milestone",
+        cascade="all, delete-orphan",
+        doc="Historical RAE entries for this milestone",
     )
 
     # Constraints

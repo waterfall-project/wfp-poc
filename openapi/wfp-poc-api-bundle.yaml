@@ -30,6 +30,7 @@ servers:
     description: Local development
 security:
   - bearerAuth: []
+  - cookieAuth: []
 tags:
   - name: Health
     description: Health check endpoints
@@ -490,7 +491,7 @@ paths:
             enum:
               - asc
               - desc
-            default: asc
+            default: desc
       responses:
         '200':
           description: Successful response with task list
@@ -690,6 +691,7 @@ paths:
         - Milestones
       security:
         - bearerAuth: []
+        - cookieAuth: []
       parameters:
         - $ref: '#/components/parameters/VersionParam'
         - $ref: '#/components/parameters/ProjectIdPathParam'
@@ -753,6 +755,7 @@ paths:
         - Milestones
       security:
         - bearerAuth: []
+        - cookieAuth: []
       parameters:
         - $ref: '#/components/parameters/VersionParam'
         - $ref: '#/components/parameters/ProjectIdPathParam'
@@ -822,6 +825,7 @@ paths:
         - Milestones
       security:
         - bearerAuth: []
+        - cookieAuth: []
       parameters:
         - $ref: '#/components/parameters/VersionParam'
         - $ref: '#/components/parameters/ProjectIdPathParam'
@@ -867,6 +871,7 @@ paths:
         - Milestones
       security:
         - bearerAuth: []
+        - cookieAuth: []
       parameters:
         - $ref: '#/components/parameters/VersionParam'
         - $ref: '#/components/parameters/ProjectIdPathParam'
@@ -915,6 +920,7 @@ paths:
         - Milestones
       security:
         - bearerAuth: []
+        - cookieAuth: []
       parameters:
         - $ref: '#/components/parameters/VersionParam'
         - $ref: '#/components/parameters/ProjectIdPathParam'
@@ -945,6 +951,7 @@ paths:
         - Milestones
       security:
         - bearerAuth: []
+        - cookieAuth: []
       parameters:
         - $ref: '#/components/parameters/VersionParam'
         - $ref: '#/components/parameters/MilestoneIdPathParam'
@@ -1003,6 +1010,7 @@ paths:
         - Milestones
       security:
         - bearerAuth: []
+        - cookieAuth: []
       parameters:
         - $ref: '#/components/parameters/VersionParam'
         - $ref: '#/components/parameters/MilestoneIdPathParam'
@@ -1046,6 +1054,7 @@ paths:
         - Milestones
       security:
         - bearerAuth: []
+        - cookieAuth: []
       parameters:
         - $ref: '#/components/parameters/VersionParam'
         - $ref: '#/components/parameters/MilestoneIdPathParam'
@@ -1089,6 +1098,7 @@ paths:
         - Resources
       security:
         - bearerAuth: []
+        - cookieAuth: []
       parameters:
         - $ref: '#/components/parameters/VersionParam'
       requestBody:
@@ -1153,6 +1163,7 @@ paths:
         - Resources
       security:
         - bearerAuth: []
+        - cookieAuth: []
       parameters:
         - $ref: '#/components/parameters/VersionParam'
         - $ref: '#/components/parameters/PageParam'
@@ -1218,6 +1229,7 @@ paths:
         - Resources
       security:
         - bearerAuth: []
+        - cookieAuth: []
       parameters:
         - $ref: '#/components/parameters/VersionParam'
         - $ref: '#/components/parameters/ResourceIdParam'
@@ -1261,6 +1273,7 @@ paths:
         - Resources
       security:
         - bearerAuth: []
+        - cookieAuth: []
       parameters:
         - $ref: '#/components/parameters/VersionParam'
         - $ref: '#/components/parameters/ResourceIdParam'
@@ -1309,6 +1322,7 @@ paths:
         - Resources
       security:
         - bearerAuth: []
+        - cookieAuth: []
       parameters:
         - $ref: '#/components/parameters/VersionParam'
         - $ref: '#/components/parameters/ResourceIdParam'
@@ -1338,6 +1352,7 @@ paths:
         - Assignments
       security:
         - bearerAuth: []
+        - cookieAuth: []
       parameters:
         - $ref: '#/components/parameters/VersionParam'
         - $ref: '#/components/parameters/ProjectIdPathParam'
@@ -1407,6 +1422,7 @@ paths:
         - Assignments
       security:
         - bearerAuth: []
+        - cookieAuth: []
       parameters:
         - $ref: '#/components/parameters/VersionParam'
         - $ref: '#/components/parameters/ProjectIdPathParam'
@@ -1464,6 +1480,7 @@ paths:
         - Assignments
       security:
         - bearerAuth: []
+        - cookieAuth: []
       parameters:
         - $ref: '#/components/parameters/VersionParam'
         - $ref: '#/components/parameters/ProjectIdPathParam'
@@ -1508,6 +1525,7 @@ paths:
         - Assignments
       security:
         - bearerAuth: []
+        - cookieAuth: []
       parameters:
         - $ref: '#/components/parameters/VersionParam'
         - $ref: '#/components/parameters/ProjectIdPathParam'
@@ -1555,6 +1573,7 @@ paths:
         - Assignments
       security:
         - bearerAuth: []
+        - cookieAuth: []
       parameters:
         - $ref: '#/components/parameters/VersionParam'
         - $ref: '#/components/parameters/ProjectIdPathParam'
@@ -1583,6 +1602,7 @@ paths:
         - Expenses
       security:
         - bearerAuth: []
+        - cookieAuth: []
       parameters:
         - $ref: '#/components/parameters/VersionParam'
         - $ref: '#/components/parameters/ProjectIdPathParam'
@@ -1663,6 +1683,7 @@ paths:
         - Expenses
       security:
         - bearerAuth: []
+        - cookieAuth: []
       parameters:
         - $ref: '#/components/parameters/VersionParam'
         - $ref: '#/components/parameters/ProjectIdPathParam'
@@ -1745,6 +1766,7 @@ paths:
         - Expenses
       security:
         - bearerAuth: []
+        - cookieAuth: []
       parameters:
         - $ref: '#/components/parameters/VersionParam'
         - $ref: '#/components/parameters/ProjectIdPathParam'
@@ -1818,6 +1840,7 @@ paths:
         - Expenses
       security:
         - bearerAuth: []
+        - cookieAuth: []
       parameters:
         - $ref: '#/components/parameters/VersionParam'
         - $ref: '#/components/parameters/ProjectIdPathParam'
@@ -1869,6 +1892,7 @@ paths:
         - Expenses
       security:
         - bearerAuth: []
+        - cookieAuth: []
       parameters:
         - $ref: '#/components/parameters/VersionParam'
         - $ref: '#/components/parameters/ProjectIdPathParam'
@@ -1917,6 +1941,7 @@ paths:
         - Expenses
       security:
         - bearerAuth: []
+        - cookieAuth: []
       parameters:
         - $ref: '#/components/parameters/VersionParam'
         - $ref: '#/components/parameters/ProjectIdPathParam'
@@ -1948,6 +1973,7 @@ paths:
         - Progress
       security:
         - bearerAuth: []
+        - cookieAuth: []
       parameters:
         - $ref: '#/components/parameters/VersionParam'
         - $ref: '#/components/parameters/ProjectIdPathParam'
@@ -2019,6 +2045,7 @@ paths:
         - Progress
       security:
         - bearerAuth: []
+        - cookieAuth: []
       parameters:
         - $ref: '#/components/parameters/VersionParam'
         - $ref: '#/components/parameters/ProjectIdPathParam'
@@ -2102,6 +2129,7 @@ paths:
         - RAE
       security:
         - bearerAuth: []
+        - cookieAuth: []
       parameters:
         - $ref: '#/components/parameters/VersionParam'
         - name: milestone_id
@@ -2145,6 +2173,7 @@ paths:
         - RAE
       security:
         - bearerAuth: []
+        - cookieAuth: []
       parameters:
         - $ref: '#/components/parameters/VersionParam'
         - name: milestone_id
@@ -2195,6 +2224,7 @@ paths:
         - RAE
       security:
         - bearerAuth: []
+        - cookieAuth: []
       parameters:
         - $ref: '#/components/parameters/VersionParam'
         - $ref: '#/components/parameters/ProjectIdPathParam'
@@ -2228,6 +2258,9 @@ paths:
       operationId: getProjectEVMIndicators
       tags:
         - EVM
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
       parameters:
         - $ref: '#/components/parameters/VersionParam'
         - $ref: '#/components/parameters/ProjectIdPathParam'
@@ -2253,9 +2286,17 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/EVMIndicators'
+                $ref: '#/components/schemas/EVMIndicatorsResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
         '429':
           $ref: '#/components/responses/TooManyRequests'
         '500':
@@ -2267,6 +2308,9 @@ paths:
       operationId: getEVMTimeSeries
       tags:
         - EVM
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
       parameters:
         - $ref: '#/components/parameters/VersionParam'
         - $ref: '#/components/parameters/ProjectIdPathParam'
@@ -2313,7 +2357,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/EVMTimeSeries'
+                $ref: '#/components/schemas/EVMTimeSeriesResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
         '429':
@@ -2327,18 +2377,45 @@ paths:
       operationId: getEVMForecasts
       tags:
         - EVM
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
       parameters:
         - $ref: '#/components/parameters/VersionParam'
         - $ref: '#/components/parameters/ProjectIdPathParam'
+        - name: as_of_date
+          in: query
+          schema:
+            type: string
+            format: date-time
+          description: Forecast baseline date (default current date)
+        - name: ev_method
+          in: query
+          schema:
+            type: string
+            enum:
+              - physical
+              - milestone
+              - both
+            default: physical
+          description: EV calculation method
       responses:
         '200':
           description: Forecasts calculated
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/EVMForecasts'
+                $ref: '#/components/schemas/EVMForecastsResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
         '429':
           $ref: '#/components/responses/TooManyRequests'
         '500':
@@ -2352,6 +2429,7 @@ paths:
         - Statistics
       security:
         - bearerAuth: []
+        - cookieAuth: []
       parameters:
         - $ref: '#/components/parameters/VersionParam'
         - $ref: '#/components/parameters/ProjectIdPathParam'
@@ -2383,6 +2461,45 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ExpenseBreakdown'
+              example:
+                data:
+                  project_id: a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d
+                  total_expenses: 820000
+                  breakdown:
+                    - category: labor
+                      amount: 450000
+                      percentage: 54.88
+                      count: 156
+                    - category: subcontracting
+                      amount: 220000
+                      percentage: 26.83
+                      count: 42
+                    - category: procurement
+                      amount: 120000
+                      percentage: 14.63
+                      count: 68
+                    - category: overhead
+                      amount: 30000
+                      percentage: 3.66
+                      count: 24
+                  echarts_format:
+                    series:
+                      - name: Expenses by Category
+                        type: pie
+                        radius:
+                          - 40%
+                          - 70%
+                        data:
+                          - value: 450000
+                            name: Labor (54.88%)
+                          - value: 220000
+                            name: Subcontracting (26.83%)
+                          - value: 120000
+                            name: Procurement (14.63%)
+                          - value: 30000
+                            name: Overhead (3.66%)
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -2402,6 +2519,7 @@ paths:
         - Statistics
       security:
         - bearerAuth: []
+        - cookieAuth: []
       parameters:
         - $ref: '#/components/parameters/VersionParam'
         - $ref: '#/components/parameters/ProjectIdPathParam'
@@ -2468,6 +2586,8 @@ paths:
                           - 85000
                           - 72000
                           - 65000
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -2487,6 +2607,7 @@ paths:
         - Statistics
       security:
         - bearerAuth: []
+        - cookieAuth: []
       parameters:
         - $ref: '#/components/parameters/VersionParam'
         - $ref: '#/components/parameters/ProjectIdPathParam'
@@ -2583,6 +2704,8 @@ paths:
                           - 2000
                           - 3000
                           - 4000
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -2601,9 +2724,21 @@ components:
       bearerFormat: JWT
       description: |
         JWT token obtained from Identity service authentication endpoint.
-        Provide either:
-        - Authorization header: Bearer <token>
-        - access_token cookie
+        Provide via Authorization header: Bearer <token>
+
+        Required claims: user_id, company_id, email
+
+        Guardian permissions required:
+        - Service: wfp-poc
+        - Operations: READ, CREATE, UPDATE, DELETE
+        - Context: {company_id: <uuid>, project_id: <uuid>}
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: access_token
+      description: |
+        JWT token obtained from Identity service authentication endpoint.
+        Provide via cookie: access_token=<token>
 
         Required claims: user_id, company_id, email
 
@@ -4785,36 +4920,7 @@ components:
           description: Optional explanation for this RAE estimate
         details:
           anyOf:
-            - type: object
-              properties:
-                task_estimates:
-                  type: array
-                  items:
-                    type: object
-                    required:
-                      - task_id
-                      - task_name
-                      - status
-                      - budget
-                      - estimate_to_complete
-                    properties:
-                      task_id:
-                        type: string
-                        format: uuid
-                      task_name:
-                        type: string
-                      status:
-                        type: string
-                        enum:
-                          - not_started
-                          - in_progress
-                          - completed
-                      budget:
-                        type: number
-                        format: double
-                      estimate_to_complete:
-                        type: number
-                        format: double
+            - $ref: '#/components/schemas/RAEDetails'
             - type: 'null'
           description: Optional task-level breakdown used for bottom-up calculation
         updated_by:
@@ -4847,27 +4953,7 @@ components:
           maxLength: 500
           description: Optional explanation
         details:
-          type: object
-          properties:
-            task_estimates:
-              type: array
-              items:
-                type: object
-                required:
-                  - task_id
-                  - task_name
-                  - remaining_cost
-                properties:
-                  task_id:
-                    type: string
-                    format: uuid
-                  task_name:
-                    type: string
-                  remaining_cost:
-                    type: number
-                    format: double
-                  comment:
-                    type: string
+          $ref: '#/components/schemas/RAEDetails'
     RAEResponse:
       type: object
       required:
@@ -4976,6 +5062,10 @@ components:
                     example: Backend delay
     EVMIndicators:
       type: object
+      required:
+        - project_id
+        - as_of_date
+        - calculation_timestamp
       properties:
         project_id:
           type: string
@@ -4984,6 +5074,10 @@ components:
           type: string
           format: date-time
           description: Date for which EVM indicators are calculated
+        calculation_timestamp:
+          type: string
+          format: date-time
+          description: Timestamp when indicators were computed
         bac:
           type: number
           format: double
@@ -5008,32 +5102,168 @@ components:
           type: number
           format: double
           description: Cost Variance (EV - AC) using physical method
+        cv_milestone:
+          type: number
+          format: double
+          description: Cost Variance (EV - AC) using milestone method
         sv_physical:
           type: number
           format: double
           description: Schedule Variance (EV - PV) using physical method
+        sv_milestone:
+          type: number
+          format: double
+          description: Schedule Variance (EV - PV) using milestone method
         cpi_physical:
-          type: number
-          format: double
+          anyOf:
+            - type: number
+              format: double
+            - type: 'null'
           description: Cost Performance Index (EV / AC) using physical method
+        cpi_milestone:
+          anyOf:
+            - type: number
+              format: double
+            - type: 'null'
+          description: Cost Performance Index (EV / AC) using milestone method
         spi_physical:
-          type: number
-          format: double
+          anyOf:
+            - type: number
+              format: double
+            - type: 'null'
           description: Schedule Performance Index (EV / PV) using physical method
+        spi_milestone:
+          anyOf:
+            - type: number
+              format: double
+            - type: 'null'
+          description: Schedule Performance Index (EV / PV) using milestone method
         eac_cpi_physical:
-          type: number
-          format: double
+          anyOf:
+            - type: number
+              format: double
+            - type: 'null'
           description: Estimate At Completion using CPI method (BAC / CPI)
+        eac_cpi_milestone:
+          anyOf:
+            - type: number
+              format: double
+            - type: 'null'
+          description: Estimate At Completion using CPI method (milestone)
+        eac_cpi_spi_physical:
+          anyOf:
+            - type: number
+              format: double
+            - type: 'null'
+          description: Estimate At Completion using CPI×SPI method (physical)
+        eac_cpi_spi_milestone:
+          anyOf:
+            - type: number
+              format: double
+            - type: 'null'
+          description: Estimate At Completion using CPI×SPI method (milestone)
+        eac_plan_based:
+          anyOf:
+            - type: number
+              format: double
+            - type: 'null'
+          description: Estimate At Completion using plan-based method
+        etc_cpi_physical:
+          anyOf:
+            - type: number
+              format: double
+            - type: 'null'
+          description: ETC using CPI method (physical)
+        etc_cpi_milestone:
+          anyOf:
+            - type: number
+              format: double
+            - type: 'null'
+          description: ETC using CPI method (milestone)
+        etc_cpi_spi_physical:
+          anyOf:
+            - type: number
+              format: double
+            - type: 'null'
+          description: ETC using CPI×SPI method (physical)
+        etc_cpi_spi_milestone:
+          anyOf:
+            - type: number
+              format: double
+            - type: 'null'
+          description: ETC using CPI×SPI method (milestone)
+        etc_plan_based:
+          anyOf:
+            - type: number
+              format: double
+            - type: 'null'
+          description: ETC using plan-based method
+        vac_cpi_physical:
+          anyOf:
+            - type: number
+              format: double
+            - type: 'null'
+          description: VAC using CPI method (physical)
+        vac_cpi_milestone:
+          anyOf:
+            - type: number
+              format: double
+            - type: 'null'
+          description: VAC using CPI method (milestone)
+        vac_cpi_spi_physical:
+          anyOf:
+            - type: number
+              format: double
+            - type: 'null'
+          description: VAC using CPI×SPI method (physical)
+        vac_cpi_spi_milestone:
+          anyOf:
+            - type: number
+              format: double
+            - type: 'null'
+          description: VAC using CPI×SPI method (milestone)
+        vac_plan_based:
+          anyOf:
+            - type: number
+              format: double
+            - type: 'null'
+          description: VAC using plan-based method
         etc_physical:
-          type: number
-          format: double
+          deprecated: true
+          anyOf:
+            - type: number
+              format: double
+            - type: 'null'
           description: Estimate To Complete (EAC - AC)
         vac_physical:
-          type: number
-          format: double
+          deprecated: true
+          anyOf:
+            - type: number
+              format: double
+            - type: 'null'
           description: Variance At Completion (BAC - EAC)
+        percent_complete_physical:
+          anyOf:
+            - type: number
+              format: double
+            - type: 'null'
+          description: Completion percentage using physical method
+        percent_complete_milestone:
+          anyOf:
+            - type: number
+              format: double
+            - type: 'null'
+          description: Completion percentage using milestone method
     EVMTimeSeries:
       type: object
+      required:
+        - project_id
+        - start_date
+        - end_date
+        - granularity
+        - ev_method
+        - cumulative
+        - series
       properties:
         project_id:
           type: string
@@ -5047,36 +5277,37 @@ components:
         granularity:
           type: string
           enum:
-            - monthly
-            - quarterly
-            - yearly
-        data:
-          type: object
-          description: ECharts-compatible time series data
-          properties:
-            dates:
-              type: array
-              items:
-                type: string
-                format: date
-              description: Date labels (YYYY-MM-DD)
-            pv:
-              type: array
-              items:
-                type: number
-              description: Planned Value over time
-            ac:
-              type: array
-              items:
-                type: number
-              description: Actual Cost over time
-            ev:
-              type: array
-              items:
-                type: number
-              description: Earned Value over time
+            - month
+            - week
+            - day
+          description: Data point frequency
+        ev_method:
+          type: string
+          enum:
+            - physical
+            - milestone
+          description: EV calculation method used to compute EV
+        cumulative:
+          type: boolean
+          description: Whether values are cumulative (true) or period-based (false)
+        series:
+          type: array
+          description: Time series points for visualization
+          items:
+            $ref: '#/components/schemas/EVMTimeSeriesPoint'
+        echarts_format:
+          $ref: '#/components/schemas/EVMTimeSeriesEChartsFormat'
     EVMForecasts:
       type: object
+      required:
+        - project_id
+        - as_of_date
+        - bac
+        - current_ac
+        - current_ev
+        - current_pv
+        - remaining_pv
+        - forecasts
       properties:
         project_id:
           type: string
@@ -5087,54 +5318,38 @@ components:
         bac:
           type: number
           format: double
-        ac:
+        current_ac:
           type: number
           format: double
+        current_ev:
+          type: number
+          format: double
+        current_pv:
+          type: number
+          format: double
+        remaining_pv:
+          type: number
+          format: double
+        cpi:
+          anyOf:
+            - type: number
+              format: double
+            - type: 'null'
+        spi:
+          anyOf:
+            - type: number
+              format: double
+            - type: 'null'
         forecasts:
-          type: object
-          description: Multiple EAC calculation methods
-          properties:
-            cpi_method:
-              type: object
-              properties:
-                eac:
-                  type: number
-                  format: double
-                  description: EAC = BAC / CPI
-                etc:
-                  type: number
-                  format: double
-                  description: ETC = EAC - AC
-                vac:
-                  type: number
-                  format: double
-                  description: VAC = BAC - EAC
-            cpi_spi_method:
-              type: object
-              properties:
-                eac:
-                  type: number
-                  format: double
-                  description: EAC = AC + (BAC - EV) / (CPI × SPI)
-                etc:
-                  type: number
-                  format: double
-                vac:
-                  type: number
-                  format: double
-            plan_based:
-              type: object
-              properties:
-                eac:
-                  type: number
-                  format: double
-                  description: EAC = AC + Remaining_PV
-                etc:
-                  type: number
-                  format: double
-                vac:
-                  type: number
-                  format: double
+          type: array
+          items:
+            $ref: '#/components/schemas/EVMForecastItem'
+        recommended_method:
+          type: string
+          description: Recommended forecast method
+        recommendation_reason:
+          type: string
+          description: Rationale for recommended_method
     ExpenseBreakdown:
       type: object
       required:
@@ -5185,6 +5400,43 @@ components:
                   count:
                     type: integer
                     description: Number of expense records
+            echarts_format:
+              type: object
+              description: ECharts-compatible pie/donut chart configuration
+              properties:
+                series:
+                  type: array
+                  items:
+                    type: object
+                    required:
+                      - name
+                      - type
+                      - data
+                    properties:
+                      name:
+                        type: string
+                      type:
+                        type: string
+                        enum:
+                          - pie
+                      radius:
+                        type: array
+                        items:
+                          type: string
+                        description: Pie/donut radius (e.g. ["40%", "70%"])
+                      data:
+                        type: array
+                        items:
+                          type: object
+                          required:
+                            - value
+                            - name
+                          properties:
+                            value:
+                              type: number
+                              format: double
+                            name:
+                              type: string
     LaborByResource:
       type: object
       required:
@@ -5845,5 +6097,161 @@ components:
         message:
           type: string
           example: Tasks linked successfully, milestone target_date recalculated
-x-ratelimit-limit: 10
+    RAEDetailsTaskEstimate:
+      type: object
+      required:
+        - task_id
+        - task_name
+        - remaining_cost
+      properties:
+        task_id:
+          type: string
+          format: uuid
+        task_name:
+          type: string
+        remaining_cost:
+          type: number
+          format: double
+        comment:
+          type: string
+    RAEDetails:
+      type: object
+      properties:
+        task_estimates:
+          type: array
+          items:
+            $ref: '#/components/schemas/RAEDetailsTaskEstimate'
+    EVMIndicatorsResponse:
+      type: object
+      required:
+        - data
+      properties:
+        data:
+          $ref: '#/components/schemas/EVMIndicators'
+    EVMTimeSeriesPoint:
+      type: object
+      required:
+        - date
+        - pv
+        - ac
+        - ev
+      properties:
+        date:
+          type: string
+          format: date-time
+          description: Date of the data point (typically period end)
+        pv:
+          type: number
+          format: double
+        ac:
+          type: number
+          format: double
+        ev:
+          type: number
+          format: double
+        cv:
+          anyOf:
+            - type: number
+              format: double
+            - type: 'null'
+        sv:
+          anyOf:
+            - type: number
+              format: double
+            - type: 'null'
+        cpi:
+          anyOf:
+            - type: number
+              format: double
+            - type: 'null'
+        spi:
+          anyOf:
+            - type: number
+              format: double
+            - type: 'null'
+    EVMTimeSeriesEChartsFormat:
+      type: object
+      description: ECharts-compatible line chart configuration (minimal contract)
+      properties:
+        xAxis:
+          type: object
+          properties:
+            type:
+              type: string
+              enum:
+                - category
+            data:
+              type: array
+              items:
+                type: string
+              description: Labels, e.g. YYYY-MM
+        series:
+          type: array
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+                enum:
+                  - PV
+                  - AC
+                  - EV
+              type:
+                type: string
+                enum:
+                  - line
+              data:
+                type: array
+                items:
+                  type: number
+    EVMTimeSeriesResponse:
+      type: object
+      required:
+        - data
+      properties:
+        data:
+          $ref: '#/components/schemas/EVMTimeSeries'
+    EVMForecastItem:
+      type: object
+      required:
+        - method
+        - eac
+        - etc
+        - vac
+      properties:
+        method:
+          type: string
+          enum:
+            - cpi
+            - cpi_spi
+            - plan_based
+        description:
+          type: string
+        formula:
+          type: string
+        eac:
+          type: number
+          format: double
+        etc:
+          type: number
+          format: double
+        vac:
+          type: number
+          format: double
+        confidence:
+          type: string
+          enum:
+            - low
+            - medium
+            - high
+        use_case:
+          type: string
+    EVMForecastsResponse:
+      type: object
+      required:
+        - data
+      properties:
+        data:
+          $ref: '#/components/schemas/EVMForecasts'
+x-ratelimit-limit: 100
 x-correlation-id: true

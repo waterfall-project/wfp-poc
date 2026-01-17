@@ -1,8 +1,9 @@
 ---
 title: WFP-POC - Project Management & EVM API Specification
-version: 1.0
+status: approved
+version: 1.0.0
 date_created: 2026-01-10
-last_updated: 2026-01-10
+last_updated: 2026-01-17
 owner: Waterfall Project Team
 tags: [api, schema, evm, project-management, planning, poc]
 ---
@@ -855,11 +856,11 @@ erDiagram
 - **Task-Assignment-Resource**: Many-to-many relationship through Assignment join table
 - **Project-EVMSnapshot**: Historical EVM metrics for trend analysis and reporting
 
-**Cascade Delete Rules:**
-- Delete Project → cascades to Tasks, Milestones, Deliverables, Expenses, RAE records, EVM Snapshots
-- Delete Milestone → cascades to Deliverables, RAE records, nullifies Expense.milestone_id
-- Delete Task → cascades to Assignments, child Tasks
-- Delete Resource → prevents deletion if Assignments exist (constraint violation)
+**Delete Rules:**
+- Delete Project → allowed only when no related entities exist; otherwise blocked with `409 Conflict` (no cascade-delete)
+- Delete Milestone → blocked with `409 Conflict` if associated expenses or deliverables exist
+- Delete Task → cascades to assignments and child tasks
+- Delete Resource → prevents deletion if assignments exist (constraint violation)
 
 #### Project Model
 
@@ -2722,7 +2723,7 @@ Stores historical EVM metrics at specific points in time for performance trackin
 - `status` (string, optional): Filter by status
 - `search` (string, optional): Search in name field
 - `sort_by` (string, optional, default: wbs): Sort field (wbs, name, start, finish)
-- `sort_order` (string, optional, default: asc): Sort direction
+- `sort_order` (string, optional, default: desc): Sort direction
 
 **Response:** `200 OK`
 ```json
@@ -3307,7 +3308,7 @@ Stores historical EVM metrics at specific points in time for performance trackin
 - `resource_id` (optional): Filter by resource
 - `date_from`, `date_to` (optional): Date range filter
 - `sort_by` (optional, default: date): Sort field
-- `sort_order` (optional, default: asc)
+- `sort_order` (optional, default: desc)
 
 **Response:** `200 OK` (paginated list)
 
@@ -3356,7 +3357,8 @@ Stores historical EVM metrics at specific points in time for performance trackin
 **Description:** Record a new RAE (Remaining to be Committed) value for a milestone. Creates historical record. RAE represents the PM's re-evaluation of remaining work for the milestone based on current progress of predecessor tasks.
 
 **Request Headers:**
-- `Authorization: Bearer <JWT>` (required)
+- `Authorization: Bearer <JWT>` (required if `access_token` cookie is not present)
+- `Cookie: access_token=<JWT>` (required if `Authorization` header is not present)
 - `Content-Type: application/json` (required)
 
 **Path Parameters:**
@@ -3418,19 +3420,23 @@ RAE_milestone = sum(
 
 **Error Responses:**
 - `400 Bad Request`: Validation errors (amount < 0)
+- `401 Unauthorized`: Missing/invalid JWT
+- `403 Forbidden`: Insufficient permissions
 - `404 Not Found`: Milestone not found
+- `429 Too Many Requests`: Rate limit exceeded
+- `500 Internal Server Error`: Unexpected error
 
 **Example:**
 ```http
-POST /v0/milestones/milestone-uuid-2/rae
+POST /v0/milestones/c3d4e5f6-a7b8-4c9d-8e1f-2a3b4c5d6e7f/rae
 {
   "date": "2026-06-30T23:59:59Z",
   "amount": 15000.00,
   "comment": "Backend delay adds 5k, but frontend optimized saves 2k",
   "details": {
     "task_estimates": [
-      {"task_id": "task-uuid-7", "task_name": "Backend Development", "remaining_cost": 8000, "comment": "DB migration complex"},
-      {"task_id": "task-uuid-8", "task_name": "Frontend", "remaining_cost": 7000, "comment": "Optimized"}
+      {"task_id": "7a6b5c4d-3e2f-4a1b-8c9d-0e1f2a3b4c5d", "task_name": "Backend Development", "remaining_cost": 8000, "comment": "DB migration complex"},
+      {"task_id": "8b7c6d5e-4f30-4b2c-9d0e-1f2a3b4c5d6e", "task_name": "Frontend", "remaining_cost": 7000, "comment": "Optimized"}
     ]
   }
 }
@@ -3445,7 +3451,8 @@ POST /v0/milestones/milestone-uuid-2/rae
 **Description:** Retrieve historical RAE values for a milestone (time series)
 
 **Request Headers:**
-- `Authorization: Bearer <JWT>` (required)
+- `Authorization: Bearer <JWT>` (required if `access_token` cookie is not present)
+- `Cookie: access_token=<JWT>` (required if `Authorization` header is not present)
 
 **Path Parameters:**
 - `milestone_id` (uuid, required): Milestone identifier
@@ -3455,7 +3462,7 @@ POST /v0/milestones/milestone-uuid-2/rae
 - `per_page` (integer, optional, default: 20, max: 100): Items per page
 - `date_from` (datetime, optional): Filter from date
 - `date_to` (datetime, optional): Filter to date
-- `sort_order` (string, optional, default: asc): Sort by date (asc, desc)
+- `sort_order` (string, optional, default: desc): Sort by date (asc, desc)
 
 **Response:** `200 OK`
 ```json
@@ -3479,8 +3486,8 @@ POST /v0/milestones/milestone-uuid-2/rae
       "comment": "Updated based on Q2 progress - backend delay",
       "details": {
         "task_estimates": [
-          {"task_id": "task-uuid-7", "task_name": "Backend Development", "remaining_cost": 8000},
-          {"task_id": "task-uuid-8", "task_name": "Frontend", "remaining_cost": 7000}
+          {"task_id": "7a6b5c4d-3e2f-4a1b-8c9d-0e1f2a3b4c5d", "task_name": "Backend Development", "remaining_cost": 8000},
+          {"task_id": "8b7c6d5e-4f30-4b2c-9d0e-1f2a3b4c5d6e", "task_name": "Frontend", "remaining_cost": 7000}
         ]
       },
       "updated_by": "uuid",
@@ -3495,7 +3502,11 @@ POST /v0/milestones/milestone-uuid-2/rae
 ```
 
 **Error Responses:**
+- `401 Unauthorized`: Missing/invalid JWT
+- `403 Forbidden`: Insufficient permissions
 - `404 Not Found`: Milestone not found
+- `429 Too Many Requests`: Rate limit exceeded
+- `500 Internal Server Error`: Unexpected error
 
 ---
 
@@ -3506,7 +3517,8 @@ POST /v0/milestones/milestone-uuid-2/rae
 **Description:** Get current RAE values for all milestones in a project
 
 **Request Headers:**
-- `Authorization: Bearer <JWT>` (required)
+- `Authorization: Bearer <JWT>` (required if `access_token` cookie is not present)
+- `Cookie: access_token=<JWT>` (required if `Authorization` header is not present)
 
 **Path Parameters:**
 - `project_id` (uuid, required): Project identifier
@@ -3555,7 +3567,11 @@ POST /v0/milestones/milestone-uuid-2/rae
 ```
 
 **Error Responses:**
+- `401 Unauthorized`: Missing/invalid JWT
+- `403 Forbidden`: Insufficient permissions
 - `404 Not Found`: Project not found
+- `429 Too Many Requests`: Rate limit exceeded
+- `500 Internal Server Error`: Unexpected error
 
 ### 4.9. EVM Indicators Endpoints
 
@@ -3819,7 +3835,11 @@ POST /v0/milestones/milestone-uuid-2/rae
 ```
 
 **Error Responses:**
+- `401 Unauthorized`: Missing/invalid JWT
+- `403 Forbidden`: Insufficient permissions
 - `404 Not Found`: Project not found
+- `429 Too Many Requests`: Rate limit exceeded
+- `500 Internal Server Error`: Unexpected error
 - `422 Unprocessable Entity`: Cannot calculate forecasts (insufficient data)
 
 **Notes:**
@@ -3898,7 +3918,11 @@ POST /v0/milestones/milestone-uuid-2/rae
 ```
 
 **Error Responses:**
+- `401 Unauthorized`: Missing/invalid JWT
+- `403 Forbidden`: Insufficient permissions
 - `404 Not Found`: Project not found
+- `429 Too Many Requests`: Rate limit exceeded
+- `500 Internal Server Error`: Unexpected error
 
 ---
 
@@ -4880,7 +4904,7 @@ Defines testable acceptance criteria for each functional requirement using Given
 ### Statistics (AC-ST-xxx)
 
 - **AC-ST-001**: Given expense statistics request, When querying by category, Then the system SHALL return expenses grouped by category with echarts_format for pie chart
-- **AC-ST-002**: Given resource statistics request, When querying by allocation, Then the system SHALL return total_work_hours per resource with echarts_format for bar chart
+- **AC-ST-002**: Given resource statistics request, When querying labor by resource, Then the system SHALL return labor cost distribution per resource (and include hours when available) with echarts_format for bar chart
 - **AC-ST-003**: Given monthly statistics request, When querying project costs, Then the system SHALL return time series with dates and amounts for line chart
 - **AC-ST-004**: Given statistics with no data (empty project), When querying, Then the system SHALL return empty arrays `{data: [], echarts_format: {series: [{data: []}]}}`
 
@@ -4917,7 +4941,51 @@ Defines testable acceptance criteria for each functional requirement using Given
 - **AC-PERF-005**: Given database query with N+1 problem potential, When loading projects with tasks, Then the system SHALL use eager loading (`joinedload` or `selectinload`)
 - **AC-PERF-006**: Given monthly snapshot generation, When processing 100 projects, Then batch job SHALL complete within 5 minutes
 
-## 6. Test Automation Strategy
+## 6. Business Rules
+
+This section defines domain-level invariants and cross-field constraints that MUST hold across requests. These rules are intended to be testable and to drive both implementation validation and contract documentation.
+
+### Tenant & Identity Scoping (BR-TEN-xxx)
+
+- **BR-TEN-001**: All data returned by protected endpoints SHALL be scoped to the authenticated user's `company_id` claim.
+- **BR-TEN-002**: For create/update operations, the API SHALL NOT accept `company_id` from the client payload; it SHALL be derived from the validated JWT.
+- **BR-TEN-003**: Any cross-entity reference (e.g., `project_id`, `task_id`, `milestone_id`, `resource_id`) SHALL refer to an entity that belongs to the same `company_id` as the requester; otherwise the API SHALL return `404 Not Found` (do not leak existence across tenants).
+
+### Projects (BR-PRJ-xxx)
+
+- **BR-PRJ-001**: A project MUST exist and belong to the requester's `company_id` for any `/{version}/projects/{project_id}/...` endpoint; otherwise return `404 Not Found`.
+- **BR-PRJ-002**: Deleting a project SHALL be blocked with `409 Conflict` if related entities exist (e.g., tasks, milestones, expenses). Deletion MAY proceed only when the project has no related data.
+
+### Tasks & Predecessors (BR-TSK-xxx)
+
+- **BR-TSK-001**: Task predecessor relationships SHALL NOT form cycles within a project.
+- **BR-TSK-002**: A predecessor link MUST reference tasks within the same project; otherwise return `400 Bad Request`.
+- **BR-TSK-003**: Task sync/upsert (re-import) SHALL update planning fields only (dates, duration, predecessors) and SHALL preserve tracking fields (actuals, progress, RAE-related tracking) as per REQ-TM-015.
+
+### Milestones (BR-MLS-xxx)
+
+- **BR-MLS-001**: The sum of `budget_weight` across all milestones for a given project MUST equal 1.0 after create/update operations; otherwise the API SHALL reject the request with `409 Conflict`.
+- **BR-MLS-002**: A milestone cannot be deleted if it has dependent records that would violate business integrity (e.g., associated expenses or deliverables); otherwise the API SHALL reject the request with `409 Conflict`.
+
+### Expenses (BR-EXP-xxx)
+
+- **BR-EXP-001**: Expense creation/update SHALL ensure `amount` is non-negative and `date` is a valid ISO 8601 `date-time`; otherwise return `400 Bad Request`.
+- **BR-EXP-002**: Expense `milestone_id` SHALL be auto-assigned based on the expense `date` falling between milestone target dates; if no milestone matches, `milestone_id` SHALL be null.
+- **BR-EXP-003**: Bulk expense creation SHALL enforce a maximum batch size of 1000 items; otherwise return `400 Bad Request`.
+
+### RAE (Reste À Engager) (BR-RAE-xxx)
+
+- **BR-RAE-001**: RAE `amount` MUST be greater than or equal to 0; otherwise return `400 Bad Request`.
+- **BR-RAE-002**: Creating a new RAE entry SHALL create a historical record and SHALL update `milestone.current_rae` to the latest value.
+- **BR-RAE-003**: Creating a new RAE entry SHALL trigger recalculation of milestone-level EV physical progress and project-level aggregations.
+
+### Progress Updates (BR-PRG-xxx)
+
+- **BR-PRG-001**: `percent_complete` MUST be within [0, 100]; otherwise return `400 Bad Request`.
+- **BR-PRG-002**: Bulk progress updates MAY be partially successful; the API SHALL return per-item validation errors for invalid items.
+- **BR-PRG-003**: Recording progress SHALL set `updated_by` from the JWT `user_id` claim.
+
+## 7. Test Automation Strategy
 
 Defines comprehensive testing approach to ensure API reliability, correctness, and performance.
 
@@ -5298,7 +5366,7 @@ def mock_jwt_validation(mocker):
     )
 ```
 
-## 7. Rationale & Context
+## 8. Rationale & Context
 
 Explains the reasoning behind key architectural and functional design decisions in the wfp-poc API.
 
@@ -5489,7 +5557,7 @@ Explains the reasoning behind key architectural and functional design decisions 
 9. **No Notifications**: No email/webhook alerts for budget overruns
 10. **No File Attachments**: Cannot attach documents to tasks/deliverables
 
-## 8. Dependencies & External Integrations
+## 9. Dependencies & External Integrations
 
 ### External Systems
 - **EXT-001**: MS Project XML format - Microsoft Project 2010+ XML schema
@@ -5516,7 +5584,7 @@ Explains the reasoning behind key architectural and functional design decisions 
 ### Compliance Dependencies
 - **COM-001**: Multi-tenant data isolation - Company-based data segregation
 
-## 9. Examples & Edge Cases
+## 10. Examples & Edge Cases
 
 Provides concrete examples and documents edge case handling for complex scenarios.
 
@@ -5965,7 +6033,7 @@ def calculate_cpi(ev, ac):
 
 **UI Display**: Show "N/A" or "—" instead of numeric value.
 
-## 10. Validation Criteria
+## 11. Validation Criteria
 
 Defines criteria and tests for verifying compliance with this specification.
 
@@ -6182,7 +6250,7 @@ Defines criteria and tests for verifying compliance with this specification.
 
 **Note**: This table should be filled during implementation and testing phases.
 
-## 11. Related Specifications / Further Reading
+## 12. Related Specifications / Further Reading
 
 - [Health Endpoints Specification](./schema-api-health-endpoints.md)
 - [Metrics Endpoint Specification](./schema-api-metrics-endpoint.md)

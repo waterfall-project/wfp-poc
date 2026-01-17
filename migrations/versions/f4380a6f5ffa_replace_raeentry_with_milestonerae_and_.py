@@ -1,8 +1,8 @@
-"""initial schema
+"""Replace RAEEntry with MilestoneRAE and update EVMSnapshot schema
 
-Revision ID: daae3789a8f5
-Revises:
-Create Date: 2026-01-17 10:00:29.173268
+Revision ID: f4380a6f5ffa
+Revises: 62af69c6fc72
+Create Date: 2026-01-17 13:06:55.735538
 
 """
 from typing import Sequence
@@ -10,11 +10,11 @@ from typing import Sequence
 import sqlalchemy as sa
 from alembic import op
 
-from app.models.types import GUID, JSONB
+from app.models import GUID, JSONB
 
 # revision identifiers, used by Alembic.
-revision = 'daae3789a8f5'
-down_revision: Sequence[str] | None = None
+revision = 'f4380a6f5ffa'
+down_revision = '62af69c6fc72'
 branch_labels: Sequence[str] | None = None
 depends_on: Sequence[str] | None = None
 
@@ -98,19 +98,23 @@ def upgrade():
 
     op.create_table('evm_snapshots',
     sa.Column('project_id', GUID(), nullable=False),
-    sa.Column('status_date', sa.Date(), nullable=False),
-    sa.Column('planned_value', sa.Numeric(precision=15, scale=2), nullable=True),
-    sa.Column('earned_value', sa.Numeric(precision=15, scale=2), nullable=True),
-    sa.Column('actual_cost', sa.Numeric(precision=15, scale=2), nullable=True),
-    sa.Column('budget_at_completion', sa.Numeric(precision=15, scale=2), nullable=True),
-    sa.Column('estimate_at_completion', sa.Numeric(precision=15, scale=2), nullable=True),
-    sa.Column('estimate_to_complete', sa.Numeric(precision=15, scale=2), nullable=True),
-    sa.Column('variance_at_completion', sa.Numeric(precision=15, scale=2), nullable=True),
-    sa.Column('schedule_variance', sa.Numeric(precision=15, scale=2), nullable=True),
-    sa.Column('cost_variance', sa.Numeric(precision=15, scale=2), nullable=True),
-    sa.Column('schedule_performance_index', sa.Numeric(precision=10, scale=4), nullable=True),
-    sa.Column('cost_performance_index', sa.Numeric(precision=10, scale=4), nullable=True),
-    sa.Column('to_complete_performance_index', sa.Numeric(precision=10, scale=4), nullable=True),
+    sa.Column('snapshot_date', sa.Date(), nullable=False),
+    sa.Column('bac', sa.Numeric(precision=15, scale=2), nullable=True),
+    sa.Column('pv', sa.Numeric(precision=15, scale=2), nullable=True),
+    sa.Column('ac', sa.Numeric(precision=15, scale=2), nullable=True),
+    sa.Column('ev_physical', sa.Numeric(precision=15, scale=2), nullable=True),
+    sa.Column('ev_milestone', sa.Numeric(precision=15, scale=2), nullable=True),
+    sa.Column('cv_physical', sa.Numeric(precision=15, scale=2), nullable=True),
+    sa.Column('sv_physical', sa.Numeric(precision=15, scale=2), nullable=True),
+    sa.Column('cpi_physical', sa.Numeric(precision=10, scale=4), nullable=True),
+    sa.Column('spi_physical', sa.Numeric(precision=10, scale=4), nullable=True),
+    sa.Column('eac_cpi_physical', sa.Numeric(precision=15, scale=2), nullable=True),
+    sa.Column('eac_cpispi_physical', sa.Numeric(precision=15, scale=2), nullable=True),
+    sa.Column('eac_plan_physical', sa.Numeric(precision=15, scale=2), nullable=True),
+    sa.Column('etc_physical', sa.Numeric(precision=15, scale=2), nullable=True),
+    sa.Column('vac_physical', sa.Numeric(precision=15, scale=2), nullable=True),
+    sa.Column('tcpi_bac', sa.Numeric(precision=10, scale=4), nullable=True),
+    sa.Column('percent_complete', sa.Numeric(precision=5, scale=2), nullable=True),
     sa.Column('id', GUID(), nullable=False),
     sa.Column('created_at', sa.DateTime(), server_default=sa.text('(CURRENT_TIMESTAMP)'), nullable=False),
     sa.Column('updated_at', sa.DateTime(), server_default=sa.text('(CURRENT_TIMESTAMP)'), nullable=False),
@@ -119,7 +123,7 @@ def upgrade():
     )
     with op.batch_alter_table('evm_snapshots', schema=None) as batch_op:
         batch_op.create_index(batch_op.f('ix_evm_snapshots_project_id'), ['project_id'], unique=False)
-        batch_op.create_index(batch_op.f('ix_evm_snapshots_status_date'), ['status_date'], unique=False)
+        batch_op.create_index(batch_op.f('ix_evm_snapshots_snapshot_date'), ['snapshot_date'], unique=False)
 
     op.create_table('milestones',
     sa.Column('project_id', GUID(), nullable=False),
@@ -255,6 +259,26 @@ def upgrade():
         batch_op.create_index(batch_op.f('ix_expenses_reference_number'), ['reference_number'], unique=False)
         batch_op.create_index(batch_op.f('ix_expenses_resource_id'), ['resource_id'], unique=False)
 
+    op.create_table('milestone_rae',
+    sa.Column('milestone_id', GUID(), nullable=False),
+    sa.Column('date', sa.DateTime(), nullable=False),
+    sa.Column('amount', sa.Numeric(precision=15, scale=2), nullable=False),
+    sa.Column('updated_by', GUID(), nullable=False),
+    sa.Column('comment', sa.String(length=500), nullable=True),
+    sa.Column('details', JSONB(), nullable=True),
+    sa.Column('id', GUID(), nullable=False),
+    sa.Column('created_at', sa.DateTime(), server_default=sa.text('(CURRENT_TIMESTAMP)'), nullable=False),
+    sa.Column('updated_at', sa.DateTime(), server_default=sa.text('(CURRENT_TIMESTAMP)'), nullable=False),
+    sa.ForeignKeyConstraint(['milestone_id'], ['milestones.id'], ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id')
+    )
+    with op.batch_alter_table('milestone_rae', schema=None) as batch_op:
+        batch_op.create_index('idx_milestone_rae_date', ['date'], unique=False)
+        batch_op.create_index('idx_milestone_rae_milestone_date', ['milestone_id', 'date'], unique=False)
+        batch_op.create_index(batch_op.f('ix_milestone_rae_date'), ['date'], unique=False)
+        batch_op.create_index(batch_op.f('ix_milestone_rae_milestone_id'), ['milestone_id'], unique=False)
+        batch_op.create_index(batch_op.f('ix_milestone_rae_updated_by'), ['updated_by'], unique=False)
+
     op.create_table('milestone_tasks',
     sa.Column('milestone_id', GUID(), nullable=False),
     sa.Column('task_id', GUID(), nullable=False),
@@ -273,8 +297,10 @@ def upgrade():
     op.create_table('progress_updates',
     sa.Column('project_id', GUID(), nullable=False),
     sa.Column('task_id', GUID(), nullable=True),
-    sa.Column('update_date', sa.Date(), nullable=False),
+    sa.Column('update_date', sa.DateTime(), nullable=False),
+    sa.Column('previous_percent_complete', sa.Numeric(precision=5, scale=2), nullable=False),
     sa.Column('percent_complete', sa.Numeric(precision=5, scale=2), nullable=False),
+    sa.Column('updated_by', GUID(), nullable=False),
     sa.Column('earned_value', sa.Numeric(precision=15, scale=2), nullable=True),
     sa.Column('actual_cost', sa.Numeric(precision=15, scale=2), nullable=True),
     sa.Column('notes', sa.Text(), nullable=True),
@@ -289,35 +315,7 @@ def upgrade():
         batch_op.create_index(batch_op.f('ix_progress_updates_project_id'), ['project_id'], unique=False)
         batch_op.create_index(batch_op.f('ix_progress_updates_task_id'), ['task_id'], unique=False)
         batch_op.create_index(batch_op.f('ix_progress_updates_update_date'), ['update_date'], unique=False)
-
-    op.create_table('rae_entries',
-    sa.Column('task_id', GUID(), nullable=False),
-    sa.Column('type', sa.String(length=20), nullable=False),
-    sa.Column('category', sa.String(length=50), nullable=False),
-    sa.Column('severity', sa.String(length=20), nullable=False),
-    sa.Column('status', sa.String(length=20), nullable=False),
-    sa.Column('description', sa.Text(), nullable=False),
-    sa.Column('mitigation', sa.Text(), nullable=True),
-    sa.Column('identified_date', sa.Date(), nullable=True),
-    sa.Column('resolution_date', sa.Date(), nullable=True),
-    sa.Column('details', JSONB(), nullable=True),
-    sa.Column('id', GUID(), nullable=False),
-    sa.Column('created_at', sa.DateTime(), server_default=sa.text('(CURRENT_TIMESTAMP)'), nullable=False),
-    sa.Column('updated_at', sa.DateTime(), server_default=sa.text('(CURRENT_TIMESTAMP)'), nullable=False),
-    sa.CheckConstraint("category IN ('technical', 'financial', 'schedule', 'resource', 'quality', 'other')", name='ck_rae_entries_category'),
-    sa.CheckConstraint("severity IN ('low', 'medium', 'high', 'critical')", name='ck_rae_entries_severity'),
-    sa.CheckConstraint("status IN ('open', 'mitigated', 'resolved', 'closed')", name='ck_rae_entries_status'),
-    sa.CheckConstraint("type IN ('risk', 'assumption', 'exception')", name='ck_rae_entries_type'),
-    sa.ForeignKeyConstraint(['task_id'], ['tasks.id'], ondelete='CASCADE'),
-    sa.PrimaryKeyConstraint('id')
-    )
-    with op.batch_alter_table('rae_entries', schema=None) as batch_op:
-        batch_op.create_index(batch_op.f('ix_rae_entries_category'), ['category'], unique=False)
-        batch_op.create_index(batch_op.f('ix_rae_entries_identified_date'), ['identified_date'], unique=False)
-        batch_op.create_index(batch_op.f('ix_rae_entries_severity'), ['severity'], unique=False)
-        batch_op.create_index(batch_op.f('ix_rae_entries_status'), ['status'], unique=False)
-        batch_op.create_index(batch_op.f('ix_rae_entries_task_id'), ['task_id'], unique=False)
-        batch_op.create_index(batch_op.f('ix_rae_entries_type'), ['type'], unique=False)
+        batch_op.create_index(batch_op.f('ix_progress_updates_updated_by'), ['updated_by'], unique=False)
 
     op.create_table('task_predecessors',
     sa.Column('predecessor_id', GUID(), nullable=False),
@@ -348,16 +346,8 @@ def downgrade():
         batch_op.drop_index(batch_op.f('ix_task_predecessors_predecessor_id'))
 
     op.drop_table('task_predecessors')
-    with op.batch_alter_table('rae_entries', schema=None) as batch_op:
-        batch_op.drop_index(batch_op.f('ix_rae_entries_type'))
-        batch_op.drop_index(batch_op.f('ix_rae_entries_task_id'))
-        batch_op.drop_index(batch_op.f('ix_rae_entries_status'))
-        batch_op.drop_index(batch_op.f('ix_rae_entries_severity'))
-        batch_op.drop_index(batch_op.f('ix_rae_entries_identified_date'))
-        batch_op.drop_index(batch_op.f('ix_rae_entries_category'))
-
-    op.drop_table('rae_entries')
     with op.batch_alter_table('progress_updates', schema=None) as batch_op:
+        batch_op.drop_index(batch_op.f('ix_progress_updates_updated_by'))
         batch_op.drop_index(batch_op.f('ix_progress_updates_update_date'))
         batch_op.drop_index(batch_op.f('ix_progress_updates_task_id'))
         batch_op.drop_index(batch_op.f('ix_progress_updates_project_id'))
@@ -368,6 +358,14 @@ def downgrade():
         batch_op.drop_index(batch_op.f('ix_milestone_tasks_milestone_id'))
 
     op.drop_table('milestone_tasks')
+    with op.batch_alter_table('milestone_rae', schema=None) as batch_op:
+        batch_op.drop_index(batch_op.f('ix_milestone_rae_updated_by'))
+        batch_op.drop_index(batch_op.f('ix_milestone_rae_milestone_id'))
+        batch_op.drop_index(batch_op.f('ix_milestone_rae_date'))
+        batch_op.drop_index('idx_milestone_rae_milestone_date')
+        batch_op.drop_index('idx_milestone_rae_date')
+
+    op.drop_table('milestone_rae')
     with op.batch_alter_table('expenses', schema=None) as batch_op:
         batch_op.drop_index(batch_op.f('ix_expenses_resource_id'))
         batch_op.drop_index(batch_op.f('ix_expenses_reference_number'))
@@ -405,7 +403,7 @@ def downgrade():
 
     op.drop_table('milestones')
     with op.batch_alter_table('evm_snapshots', schema=None) as batch_op:
-        batch_op.drop_index(batch_op.f('ix_evm_snapshots_status_date'))
+        batch_op.drop_index(batch_op.f('ix_evm_snapshots_snapshot_date'))
         batch_op.drop_index(batch_op.f('ix_evm_snapshots_project_id'))
 
     op.drop_table('evm_snapshots')

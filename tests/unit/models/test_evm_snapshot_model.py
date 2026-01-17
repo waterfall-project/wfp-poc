@@ -46,13 +46,13 @@ class TestEVMSnapshotModel:
     def test_create_evm_snapshot_minimal(self, app, project):
         """Test creating an EVM snapshot with minimal required fields.
 
-        Given: Required fields only (project_id, status_date)
+        Given: Required fields only (project_id, snapshot_date)
         When: Creating an EVMSnapshot instance
         Then: Snapshot is created with correct defaults
         """
         snapshot = EVMSnapshot(
             project_id=project.id,
-            status_date=date(2026, 6, 1),
+            snapshot_date=date(2026, 6, 1),
         )
         db.session.add(snapshot)
         db.session.commit()
@@ -60,11 +60,13 @@ class TestEVMSnapshotModel:
         assert snapshot.id is not None
         assert isinstance(snapshot.id, uuid.UUID)
         assert snapshot.project_id == project.id
-        assert snapshot.status_date == date(2026, 6, 1)
-        # All EVM metrics should default to None or 0
-        assert snapshot.planned_value is None
-        assert snapshot.earned_value is None
-        assert snapshot.actual_cost is None
+        assert snapshot.snapshot_date == date(2026, 6, 1)
+        # All EVM metrics should default to None
+        assert snapshot.bac is None
+        assert snapshot.pv is None
+        assert snapshot.ac is None
+        assert snapshot.ev_physical is None
+        assert snapshot.ev_milestone is None
         assert snapshot.created_at is not None
         assert snapshot.updated_at is not None
 
@@ -77,37 +79,46 @@ class TestEVMSnapshotModel:
         """
         snapshot = EVMSnapshot(
             project_id=project.id,
-            status_date=date(2026, 6, 15),
-            # Core metrics (PV, EV, AC)
-            planned_value=Decimal("50000.00"),
-            earned_value=Decimal("45000.00"),
-            actual_cost=Decimal("48000.00"),
-            # Budget metrics
-            budget_at_completion=Decimal("100000.00"),
-            estimate_at_completion=Decimal("106667.00"),
-            estimate_to_complete=Decimal("58667.00"),
-            variance_at_completion=Decimal("-6667.00"),
-            # Variance metrics
-            schedule_variance=Decimal("-5000.00"),
-            cost_variance=Decimal("-3000.00"),
-            # Performance indices
-            schedule_performance_index=Decimal("0.90"),
-            cost_performance_index=Decimal("0.94"),
-            to_complete_performance_index=Decimal("1.13"),
+            snapshot_date=date(2026, 6, 15),
+            # Core metrics
+            bac=Decimal("100000.00"),
+            pv=Decimal("50000.00"),
+            ac=Decimal("48000.00"),
+            ev_physical=Decimal("45000.00"),
+            ev_milestone=Decimal("44000.00"),
+            # Variance metrics (physical method)
+            cv_physical=Decimal("-3000.00"),
+            sv_physical=Decimal("-5000.00"),
+            # Performance indices (physical method)
+            cpi_physical=Decimal("0.9375"),
+            spi_physical=Decimal("0.90"),
+            # Forecast metrics (physical method)
+            eac_cpi_physical=Decimal("106667.00"),
+            eac_cpispi_physical=Decimal("118519.00"),
+            eac_plan_physical=Decimal("103000.00"),
+            etc_physical=Decimal("58667.00"),
+            vac_physical=Decimal("-6667.00"),
+            tcpi_bac=Decimal("1.0577"),
+            percent_complete=Decimal("45.00"),
         )
         db.session.add(snapshot)
         db.session.commit()
 
         assert snapshot.id is not None
-        assert snapshot.planned_value == Decimal("50000.00")
-        assert snapshot.earned_value == Decimal("45000.00")
-        assert snapshot.actual_cost == Decimal("48000.00")
-        assert snapshot.budget_at_completion == Decimal("100000.00")
-        assert snapshot.estimate_at_completion == Decimal("106667.00")
-        assert snapshot.schedule_variance == Decimal("-5000.00")
-        assert snapshot.cost_variance == Decimal("-3000.00")
-        assert snapshot.schedule_performance_index == Decimal("0.90")
-        assert snapshot.cost_performance_index == Decimal("0.94")
+        assert snapshot.bac == Decimal("100000.00")
+        assert snapshot.pv == Decimal("50000.00")
+        assert snapshot.ac == Decimal("48000.00")
+        assert snapshot.ev_physical == Decimal("45000.00")
+        assert snapshot.ev_milestone == Decimal("44000.00")
+        assert snapshot.cv_physical == Decimal("-3000.00")
+        assert snapshot.sv_physical == Decimal("-5000.00")
+        assert snapshot.cpi_physical == Decimal("0.9375")
+        assert snapshot.spi_physical == Decimal("0.90")
+        assert snapshot.eac_cpi_physical == Decimal("106667.00")
+        assert snapshot.etc_physical == Decimal("58667.00")
+        assert snapshot.vac_physical == Decimal("-6667.00")
+        assert snapshot.tcpi_bac == Decimal("1.0577")
+        assert snapshot.percent_complete == Decimal("45.00")
 
     def test_evm_snapshot_multiple_per_project(self, app, project):
         """Test multiple EVM snapshots for same project.
@@ -118,22 +129,22 @@ class TestEVMSnapshotModel:
         """
         snapshot1 = EVMSnapshot(
             project_id=project.id,
-            status_date=date(2026, 1, 31),
-            planned_value=Decimal("10000.00"),
-            earned_value=Decimal("9000.00"),
+            snapshot_date=date(2026, 1, 31),
+            pv=Decimal("10000.00"),
+            ev_physical=Decimal("9000.00"),
         )
         snapshot2 = EVMSnapshot(
             project_id=project.id,
-            status_date=date(2026, 2, 28),
-            planned_value=Decimal("20000.00"),
-            earned_value=Decimal("19000.00"),
+            snapshot_date=date(2026, 2, 28),
+            pv=Decimal("20000.00"),
+            ev_physical=Decimal("19000.00"),
         )
         db.session.add_all([snapshot1, snapshot2])
         db.session.commit()
 
         assert snapshot1.project_id == project.id
         assert snapshot2.project_id == project.id
-        assert snapshot1.status_date != snapshot2.status_date
+        assert snapshot1.snapshot_date != snapshot2.snapshot_date
 
     def test_evm_snapshot_calculated_metrics(self, app, project):
         """Test EVM calculated metrics (SV, CV, SPI, CPI).
@@ -148,7 +159,7 @@ class TestEVMSnapshotModel:
         ac = Decimal("48000.00")
         bac = Decimal("100000.00")
 
-        # Calculate metrics
+        # Calculate metrics (physical method)
         sv = ev - pv  # -5000 (behind schedule)
         cv = ev - ac  # -3000 (over budget)
         spi = ev / pv  # 0.90
@@ -160,28 +171,28 @@ class TestEVMSnapshotModel:
 
         snapshot = EVMSnapshot(
             project_id=project.id,
-            status_date=date(2026, 6, 15),
-            planned_value=pv,
-            earned_value=ev,
-            actual_cost=ac,
-            budget_at_completion=bac,
-            schedule_variance=sv,
-            cost_variance=cv,
-            schedule_performance_index=spi,
-            cost_performance_index=cpi.quantize(Decimal("0.01")),
-            estimate_at_completion=eac.quantize(Decimal("0.01")),
-            estimate_to_complete=etc.quantize(Decimal("0.01")),
-            variance_at_completion=vac.quantize(Decimal("0.01")),
-            to_complete_performance_index=tcpi.quantize(Decimal("0.01")),
+            snapshot_date=date(2026, 6, 15),
+            bac=bac,
+            pv=pv,
+            ev_physical=ev,
+            ac=ac,
+            sv_physical=sv,
+            cv_physical=cv,
+            spi_physical=spi,
+            cpi_physical=cpi.quantize(Decimal("0.01")),
+            eac_cpi_physical=eac.quantize(Decimal("0.01")),
+            etc_physical=etc.quantize(Decimal("0.01")),
+            vac_physical=vac.quantize(Decimal("0.01")),
+            tcpi_bac=tcpi.quantize(Decimal("0.01")),
         )
         db.session.add(snapshot)
         db.session.commit()
 
         # Verify stored values
-        assert snapshot.schedule_variance == Decimal("-5000.00")
-        assert snapshot.cost_variance == Decimal("-3000.00")
-        assert snapshot.schedule_performance_index == Decimal("0.90")
-        assert snapshot.cost_performance_index == Decimal("0.94")
+        assert snapshot.sv_physical == Decimal("-5000.00")
+        assert snapshot.cv_physical == Decimal("-3000.00")
+        assert snapshot.spi_physical == Decimal("0.90")
+        assert snapshot.cpi_physical == Decimal("0.94")
 
     def test_evm_snapshot_decimal_precision(self, app, project):
         """Test decimal precision for all monetary fields.
@@ -192,18 +203,18 @@ class TestEVMSnapshotModel:
         """
         snapshot = EVMSnapshot(
             project_id=project.id,
-            status_date=date(2026, 6, 1),
-            planned_value=Decimal("12345.67"),
-            earned_value=Decimal("12300.50"),
-            actual_cost=Decimal("12450.75"),
-            budget_at_completion=Decimal("100000.00"),
+            snapshot_date=date(2026, 6, 1),
+            pv=Decimal("12345.67"),
+            ev_physical=Decimal("12300.50"),
+            ac=Decimal("12450.75"),
+            bac=Decimal("100000.00"),
         )
         db.session.add(snapshot)
         db.session.commit()
 
-        assert snapshot.planned_value == Decimal("12345.67")
-        assert snapshot.earned_value == Decimal("12300.50")
-        assert snapshot.actual_cost == Decimal("12450.75")
+        assert snapshot.pv == Decimal("12345.67")
+        assert snapshot.ev_physical == Decimal("12300.50")
+        assert snapshot.ac == Decimal("12450.75")
 
     def test_evm_snapshot_performance_index_precision(self, app, project):
         """Test decimal precision for performance indices.
@@ -214,17 +225,17 @@ class TestEVMSnapshotModel:
         """
         snapshot = EVMSnapshot(
             project_id=project.id,
-            status_date=date(2026, 6, 1),
-            schedule_performance_index=Decimal("0.9523"),
-            cost_performance_index=Decimal("1.0456"),
-            to_complete_performance_index=Decimal("1.1234"),
+            snapshot_date=date(2026, 6, 1),
+            spi_physical=Decimal("0.9523"),
+            cpi_physical=Decimal("1.0456"),
+            tcpi_bac=Decimal("1.1234"),
         )
         db.session.add(snapshot)
         db.session.commit()
 
-        assert snapshot.schedule_performance_index == Decimal("0.9523")
-        assert snapshot.cost_performance_index == Decimal("1.0456")
-        assert snapshot.to_complete_performance_index == Decimal("1.1234")
+        assert snapshot.spi_physical == Decimal("0.9523")
+        assert snapshot.cpi_physical == Decimal("1.0456")
+        assert snapshot.tcpi_bac == Decimal("1.1234")
 
     def test_evm_snapshot_project_health_indicators(self, app, project):
         """Test EVM health indicators scenario.
@@ -235,33 +246,33 @@ class TestEVMSnapshotModel:
         """
         snapshot = EVMSnapshot(
             project_id=project.id,
-            status_date=date(2026, 6, 1),
-            planned_value=Decimal("50000.00"),
-            earned_value=Decimal("40000.00"),
-            actual_cost=Decimal("45000.00"),
-            schedule_performance_index=Decimal("0.80"),  # Behind schedule
-            cost_performance_index=Decimal("0.89"),  # Over budget
+            snapshot_date=date(2026, 6, 1),
+            pv=Decimal("50000.00"),
+            ev_physical=Decimal("40000.00"),
+            ac=Decimal("45000.00"),
+            spi_physical=Decimal("0.80"),  # Behind schedule
+            cpi_physical=Decimal("0.89"),  # Over budget
         )
         db.session.add(snapshot)
         db.session.commit()
 
         # SPI < 1.0 indicates behind schedule
-        assert snapshot.schedule_performance_index is not None
-        assert snapshot.schedule_performance_index < Decimal("1.0")
+        assert snapshot.spi_physical is not None
+        assert snapshot.spi_physical < Decimal("1.0")
         # CPI < 1.0 indicates over budget
-        assert snapshot.cost_performance_index is not None
-        assert snapshot.cost_performance_index < Decimal("1.0")
+        assert snapshot.cpi_physical is not None
+        assert snapshot.cpi_physical < Decimal("1.0")
 
     def test_evm_snapshot_repr(self, app, project):
         """Test string representation of EVMSnapshot.
 
         Given: An EVM snapshot instance
         When: Converting to string
-        Then: Repr shows id, project_id, and status_date
+        Then: Repr shows id, project_id, and snapshot_date
         """
         snapshot = EVMSnapshot(
             project_id=project.id,
-            status_date=date(2026, 6, 1),
+            snapshot_date=date(2026, 6, 1),
         )
         db.session.add(snapshot)
         db.session.commit()
@@ -279,7 +290,7 @@ class TestEVMSnapshotModel:
         """
         snapshot = EVMSnapshot(
             project_id=project.id,
-            status_date=date(2026, 6, 1),
+            snapshot_date=date(2026, 6, 1),
         )
         db.session.add(snapshot)
         db.session.commit()
@@ -297,7 +308,7 @@ class TestEVMSnapshotModel:
         """
         snapshot = EVMSnapshot(
             project_id=project.id,
-            status_date=date(2026, 6, 1),
+            snapshot_date=date(2026, 6, 1),
         )
         db.session.add(snapshot)
         db.session.commit()
@@ -316,23 +327,23 @@ class TestEVMSnapshotModel:
         """Test chronological ordering of snapshots.
 
         Given: Multiple snapshots for different dates
-        When: Querying by status_date
+        When: Querying by snapshot_date
         Then: Snapshots can be ordered chronologically
         """
         snapshot1 = EVMSnapshot(
             project_id=project.id,
-            status_date=date(2026, 3, 31),
-            earned_value=Decimal("30000.00"),
+            snapshot_date=date(2026, 3, 31),
+            ev_physical=Decimal("30000.00"),
         )
         snapshot2 = EVMSnapshot(
             project_id=project.id,
-            status_date=date(2026, 1, 31),
-            earned_value=Decimal("10000.00"),
+            snapshot_date=date(2026, 1, 31),
+            ev_physical=Decimal("10000.00"),
         )
         snapshot3 = EVMSnapshot(
             project_id=project.id,
-            status_date=date(2026, 2, 28),
-            earned_value=Decimal("20000.00"),
+            snapshot_date=date(2026, 2, 28),
+            ev_physical=Decimal("20000.00"),
         )
         db.session.add_all([snapshot1, snapshot2, snapshot3])
         db.session.commit()
@@ -341,11 +352,11 @@ class TestEVMSnapshotModel:
         snapshots = (
             db.session.query(EVMSnapshot)
             .filter_by(project_id=project.id)
-            .order_by(EVMSnapshot.status_date)
+            .order_by(EVMSnapshot.snapshot_date)
             .all()
         )
 
         assert len(snapshots) == 3
-        assert snapshots[0].status_date == date(2026, 1, 31)
-        assert snapshots[1].status_date == date(2026, 2, 28)
-        assert snapshots[2].status_date == date(2026, 3, 31)
+        assert snapshots[0].snapshot_date == date(2026, 1, 31)
+        assert snapshots[1].snapshot_date == date(2026, 2, 28)
+        assert snapshots[2].snapshot_date == date(2026, 3, 31)

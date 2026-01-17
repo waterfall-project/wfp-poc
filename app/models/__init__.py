@@ -19,10 +19,10 @@ from app.models.dummy import Dummy
 from app.models.evm_snapshot import EVMSnapshot
 from app.models.expense import Expense
 from app.models.milestone import Milestone
+from app.models.milestone_rae import MilestoneRAE
 from app.models.milestone_task import MilestoneTask
 from app.models.progress_update import ProgressUpdate
 from app.models.project import Project
-from app.models.rae_entry import RAEEntry
 from app.models.resource import Resource
 from app.models.task import Task
 from app.models.task_predecessor import TaskPredecessor
@@ -47,6 +47,6 @@ __all__ = [
     "Assignment",
     "Expense",
     "ProgressUpdate",
-    "RAEEntry",
+    "MilestoneRAE",
     "EVMSnapshot",
 ]

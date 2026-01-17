@@ -30,28 +30,7 @@ RAE:
       description: Optional explanation for this RAE estimate
     details:
       anyOf:
-        - type: object
-          properties:
-            task_estimates:
-              type: array
-              items:
-                type: object
-                required: [task_id, task_name, status, budget, estimate_to_complete]
-                properties:
-                  task_id:
-                    type: string
-                    format: uuid
-                  task_name:
-                    type: string
-                  status:
-                    type: string
-                    enum: [not_started, in_progress, completed]
-                  budget:
-                    type: number
-                    format: double
-                  estimate_to_complete:
-                    type: number
-                    format: double
+        - $ref: '#/RAEDetails'
         - type: 'null'
       description: Optional task-level breakdown used for bottom-up calculation
     updated_by:
@@ -83,24 +62,30 @@ RAECreate:
       maxLength: 500
       description: Optional explanation
     details:
-      type: object
-      properties:
-        task_estimates:
-          type: array
-          items:
-            type: object
-            required: [task_id, task_name, remaining_cost]
-            properties:
-              task_id:
-                type: string
-                format: uuid
-              task_name:
-                type: string
-              remaining_cost:
-                type: number
-                format: double
-              comment:
-                type: string
+      $ref: '#/RAEDetails'
+
+RAEDetails:
+  type: object
+  properties:
+    task_estimates:
+      type: array
+      items:
+        $ref: '#/RAEDetailsTaskEstimate'
+
+RAEDetailsTaskEstimate:
+  type: object
+  required: [task_id, task_name, remaining_cost]
+  properties:
+    task_id:
+      type: string
+      format: uuid
+    task_name:
+      type: string
+    remaining_cost:
+      type: number
+      format: double
+    comment:
+      type: string
 
 RAEResponse:
   type: object

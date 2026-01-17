@@ -335,7 +335,6 @@ class TestTaskModel:
         assert hasattr(task, "assignments")
         assert hasattr(task, "milestone_links")
         assert hasattr(task, "progress_updates")
-        assert hasattr(task, "rae_entries")
 
         # Test collections are initially empty
         assert task.children == []
@@ -344,7 +343,6 @@ class TestTaskModel:
         assert task.assignments == []
         assert task.milestone_links == []
         assert task.progress_updates == []
-        assert task.rae_entries == []
 
     def test_task_cascade_delete_children(self, app, project):
         """Test cascade delete of child tasks.

@@ -6,6 +6,7 @@
     tags: [Statistics]
     security:
       - bearerAuth: []
+      - cookieAuth: []
     parameters:
       - $ref: '../components/parameters.yaml#/VersionParam'
       - $ref: '../components/parameters.yaml#/ProjectIdPathParam'
@@ -37,6 +38,43 @@
           application/json:
             schema:
               $ref: '../components/schemas/evm.yaml#/ExpenseBreakdown'
+            example:
+              data:
+                project_id: "a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d"
+                total_expenses: 820000.0
+                breakdown:
+                  - category: labor
+                    amount: 450000.0
+                    percentage: 54.88
+                    count: 156
+                  - category: subcontracting
+                    amount: 220000.0
+                    percentage: 26.83
+                    count: 42
+                  - category: procurement
+                    amount: 120000.0
+                    percentage: 14.63
+                    count: 68
+                  - category: overhead
+                    amount: 30000.0
+                    percentage: 3.66
+                    count: 24
+                echarts_format:
+                  series:
+                    - name: Expenses by Category
+                      type: pie
+                      radius: ["40%", "70%"]
+                      data:
+                        - value: 450000.0
+                          name: "Labor (54.88%)"
+                        - value: 220000.0
+                          name: "Subcontracting (26.83%)"
+                        - value: 120000.0
+                          name: "Procurement (14.63%)"
+                        - value: 30000.0
+                          name: "Overhead (3.66%)"
+      '400':
+        $ref: '../components/responses.yaml#/BadRequest'
       '401':
         $ref: '../components/responses.yaml#/Unauthorized'
       '403':
@@ -56,6 +94,7 @@
     tags: [Statistics]
     security:
       - bearerAuth: []
+      - cookieAuth: []
     parameters:
       - $ref: '../components/parameters.yaml#/VersionParam'
       - $ref: '../components/parameters.yaml#/ProjectIdPathParam'
@@ -116,6 +155,8 @@
                     - name: "Labor Cost"
                       type: "bar"
                       data: [85000.00, 72000.00, 65000.00]
+      '400':
+        $ref: '../components/responses.yaml#/BadRequest'
       '401':
         $ref: '../components/responses.yaml#/Unauthorized'
       '403':
@@ -135,6 +176,7 @@
     tags: [Statistics]
     security:
       - bearerAuth: []
+      - cookieAuth: []
     parameters:
       - $ref: '../components/parameters.yaml#/VersionParam'
       - $ref: '../components/parameters.yaml#/ProjectIdPathParam'
@@ -212,6 +254,8 @@
                       type: "bar"
                       stack: "total"
                       data: [2000, 3000, 4000]
+      '400':
+        $ref: '../components/responses.yaml#/BadRequest'
       '401':
         $ref: '../components/responses.yaml#/Unauthorized'
       '403':

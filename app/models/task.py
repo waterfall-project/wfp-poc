@@ -41,7 +41,6 @@ if TYPE_CHECKING:
     from app.models.milestone_task import MilestoneTask
     from app.models.progress_update import ProgressUpdate
     from app.models.project import Project
-    from app.models.rae_entry import RAEEntry
     from app.models.task_predecessor import TaskPredecessor
 else:
     from app import db
@@ -269,13 +268,6 @@ class Task(UUIDMixin, TimestampMixin, Model):
         back_populates="task",
         cascade=CASCADE_ALL_DELETE_ORPHAN,
         doc="Progress update history for this task",
-    )
-
-    rae_entries: Mapped[list["RAEEntry"]] = relationship(
-        "RAEEntry",
-        back_populates="task",
-        cascade=CASCADE_ALL_DELETE_ORPHAN,
-        doc="Risk, Assumption, Exception entries for this task",
     )
 
     # Constraints
