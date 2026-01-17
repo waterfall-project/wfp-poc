@@ -52,7 +52,8 @@ from app.schemas.task_schema import (
 )
 from app.services.guardian_service import Operation
 from app.utils.api_version import validate_api_version
-from app.utils.correlation import get_correlation_id as _get_correlation_id
+from app.utils.correlation import ResponseTuple
+from app.utils.correlation import error_response as _error_response
 from app.utils.jwt_decorators import (
     access_required,
     get_current_company_id,
@@ -339,7 +340,7 @@ class TaskListResource(Resource):
     @require_jwt_auth
     @access_required(Operation.LIST, "tasks")
     @limiter.limit("100 per minute", key_func=rate_limit_user_key)
-    def get(self, project_id: str, version: str | None = None) -> tuple[dict, int]:
+    def get(self, project_id: str, version: str | None = None) -> ResponseTuple:
         """Retrieve paginated list of tasks for a project.
 
         Query Parameters:
@@ -387,27 +388,24 @@ class TaskListResource(Resource):
         try:
             project_uuid = uuid.UUID(project_id)
         except ValueError:
-            return {
-                "message": INVALID_PROJECT_ID_MSG,
-                "errors": {"validation": INVALID_REQUEST_MSG},
-            }, 400
+            return _error_response(
+                INVALID_PROJECT_ID_MSG,
+                400,
+                errors={"validation": INVALID_REQUEST_MSG},
+            )
 
         project = Project.query.filter_by(
             id=project_uuid, company_id=company_id
         ).first()
         if not project:
-            return {
-                "message": PROJECT_NOT_FOUND_MSG,
-            }, 404
+            return _error_response(PROJECT_NOT_FOUND_MSG, 404)
 
         # Parse and validate pagination parameters
         try:
             page = max(1, int(request.args.get("page", 1)))
             per_page = min(100, max(1, int(request.args.get("per_page", 20))))
         except ValueError:
-            return {
-                "message": INVALID_PAGINATION_MSG,
-            }, 400
+            return _error_response(INVALID_PAGINATION_MSG, 400)
 
         # Build base query filtered by project
         query = Task.query.filter_by(project_id=project_uuid)
@@ -422,10 +420,11 @@ class TaskListResource(Resource):
                     parent_uuid = uuid.UUID(parent_id_param)
                     query = query.filter_by(parent_id=parent_uuid)
                 except ValueError:
-                    return {
-                        "message": INVALID_UUID_MSG,
-                        "errors": {"validation": INVALID_REQUEST_MSG},
-                    }, 400
+                    return _error_response(
+                        INVALID_UUID_MSG,
+                        400,
+                        errors={"validation": INVALID_REQUEST_MSG},
+                    )
 
         # Apply boolean filters with strict validation
         try:
@@ -441,18 +440,17 @@ class TaskListResource(Resource):
             if is_critical is not None:
                 query = query.filter_by(is_critical=is_critical)
         except ValueError as e:
-            return {
-                "message": INVALID_BOOLEAN_PARAM_MSG,
-                "errors": {"query_params": str(e)},
-            }, 400
+            return _error_response(
+                INVALID_BOOLEAN_PARAM_MSG,
+                400,
+                errors={"query_params": str(e)},
+            )
 
         # Apply status filter
         status = request.args.get("status")
         if status:
             if status not in ["not_started", "in_progress", "completed", "cancelled"]:
-                return {
-                    "message": INVALID_STATUS_MSG.format(status=status),
-                }, 400
+                return _error_response(INVALID_STATUS_MSG.format(status=status), 400)
             query = query.filter_by(status=status)
 
         # Apply search filter
@@ -466,14 +464,12 @@ class TaskListResource(Resource):
         sort_order = request.args.get("sort_order", "asc")
 
         if sort_by not in ["wbs", "name", "start", "finish"]:
-            return {
-                "message": INVALID_SORT_BY_MSG.format(sort_by=sort_by),
-            }, 400
+            return _error_response(INVALID_SORT_BY_MSG.format(sort_by=sort_by), 400)
 
         if sort_order not in ["asc", "desc"]:
-            return {
-                "message": INVALID_SORT_ORDER_MSG.format(sort_order=sort_order),
-            }, 400
+            return _error_response(
+                INVALID_SORT_ORDER_MSG.format(sort_order=sort_order), 400
+            )
 
         # Map sort_by to model fields
         sort_field_map = {
@@ -509,7 +505,7 @@ class TaskListResource(Resource):
     @require_jwt_auth
     @access_required(Operation.CREATE, "tasks")
     @limiter.limit("30 per minute", key_func=rate_limit_user_key)
-    def post(self, project_id: str, version: str | None = None) -> tuple[dict, int]:
+    def post(self, project_id: str, version: str | None = None) -> ResponseTuple:
         """Create a new task within a project.
 
         Args:
@@ -544,33 +540,34 @@ class TaskListResource(Resource):
         try:
             project_uuid = uuid.UUID(project_id)
         except ValueError:
-            return {
-                "message": INVALID_PROJECT_ID_MSG,
-                "errors": {"validation": INVALID_REQUEST_MSG},
-            }, 400
+            return _error_response(
+                INVALID_PROJECT_ID_MSG,
+                400,
+                errors={"validation": INVALID_REQUEST_MSG},
+            )
 
         project = Project.query.filter_by(
             id=project_uuid, company_id=company_id
         ).first()
         if not project:
-            return {
-                "message": PROJECT_NOT_FOUND_MSG,
-            }, 404
+            return _error_response(PROJECT_NOT_FOUND_MSG, 404)
 
         # Validate request body
         if not request.is_json:
-            return {
-                "message": INVALID_JSON_BODY_MSG,
-                "errors": {"body": "Request body must be JSON"},
-            }, 400
+            return _error_response(
+                INVALID_JSON_BODY_MSG,
+                400,
+                errors={"body": "Request body must be JSON"},
+            )
 
         json_data_raw = request.get_json()
 
         if not isinstance(json_data_raw, dict):
-            return {
-                "message": INVALID_JSON_BODY_MSG,
-                "errors": {"body": "Request body must be a JSON object"},
-            }, 400
+            return _error_response(
+                INVALID_JSON_BODY_MSG,
+                400,
+                errors={"body": "Request body must be a JSON object"},
+            )
 
         json_data = cast("dict[str, Any]", json_data_raw)
 
@@ -580,10 +577,7 @@ class TaskListResource(Resource):
                 "dict[str, Any]", self.create_schema.load(json_data)
             )
         except ValidationError as err:
-            return {
-                "message": VALIDATION_FAILED_MSG,
-                "errors": err.messages,
-            }, 422
+            return _error_response(VALIDATION_FAILED_MSG, 400, errors=err.messages)
 
         # Validate predecessors belong to same project
         predecessors = validated_data.get("predecessors", [])
@@ -591,10 +585,11 @@ class TaskListResource(Resource):
             predecessors, project_uuid
         )
         if not is_valid:
-            return {
-                "message": INVALID_PREDECESSOR_REFERENCE_MSG,
-                "errors": {"predecessors": error_msg},
-            }, 400
+            return _error_response(
+                INVALID_PREDECESSOR_REFERENCE_MSG,
+                400,
+                errors={"predecessors": error_msg},
+            )
 
         # Note: Circular dependency check is deferred to PATCH/update
         # where the task ID is known. For POST, we allow creation and
@@ -632,12 +627,11 @@ class TaskListResource(Resource):
             db.session.commit()
         except IntegrityError as e:
             db.session.rollback()
-            return {
-                "message": DATABASE_INTEGRITY_ERROR_MSG,
-                "errors": {
-                    "database": str(e.orig) if hasattr(e, "orig") else str(e),
-                },
-            }, 409
+            return _error_response(
+                DATABASE_INTEGRITY_ERROR_MSG,
+                409,
+                errors={"database": str(e.orig) if hasattr(e, "orig") else str(e)},
+            )
 
         # Serialize response
         response_data = {
@@ -666,7 +660,7 @@ class TaskResource(Resource):
     @limiter.limit("200 per minute", key_func=rate_limit_user_key)
     def get(
         self, project_id: str, id: str, version: str | None = None
-    ) -> tuple[dict, int]:
+    ) -> ResponseTuple:
         """Retrieve a specific task by ID.
 
         Args:
@@ -699,26 +693,23 @@ class TaskResource(Resource):
             project_uuid = uuid.UUID(project_id)
             task_uuid = uuid.UUID(id)
         except ValueError:
-            return {
-                "message": INVALID_UUID_MSG,
-                "errors": {"validation": INVALID_REQUEST_MSG},
-            }, 400
+            return _error_response(
+                INVALID_UUID_MSG,
+                400,
+                errors={"validation": INVALID_REQUEST_MSG},
+            )
 
         # Validate project exists and belongs to company
         project = Project.query.filter_by(
             id=project_uuid, company_id=company_id
         ).first()
         if not project:
-            return {
-                "message": PROJECT_NOT_FOUND_MSG,
-            }, 404
+            return _error_response(PROJECT_NOT_FOUND_MSG, 404)
 
         # Retrieve task
         task = Task.query.filter_by(id=task_uuid, project_id=project_uuid).first()
         if not task:
-            return {
-                "message": TASK_NOT_FOUND_MSG,
-            }, 404
+            return _error_response(TASK_NOT_FOUND_MSG, 404)
 
         # Serialize response
         response_data = {
@@ -732,7 +723,7 @@ class TaskResource(Resource):
     @limiter.limit("50 per minute", key_func=rate_limit_user_key)
     def patch(
         self, project_id: str, id: str, version: str | None = None
-    ) -> tuple[dict, int] | tuple[dict, int, dict[str, str]]:
+    ) -> ResponseTuple:
         """Update a task (partial update).
 
         Args:
@@ -768,39 +759,32 @@ class TaskResource(Resource):
             project_uuid = uuid.UUID(project_id)
             task_uuid = uuid.UUID(id)
         except ValueError:
-            return {
-                "message": INVALID_UUID_MSG,
-                "errors": {"validation": INVALID_REQUEST_MSG},
-            }, 400
+            return _error_response(
+                INVALID_UUID_MSG,
+                400,
+                errors={"validation": INVALID_REQUEST_MSG},
+            )
 
         # Validate project exists and belongs to company
         project = Project.query.filter_by(
             id=project_uuid, company_id=company_id
         ).first()
         if not project:
-            return {
-                "message": PROJECT_NOT_FOUND_MSG,
-            }, 404
+            return _error_response(PROJECT_NOT_FOUND_MSG, 404)
 
         # Retrieve task
         task = Task.query.filter_by(id=task_uuid, project_id=project_uuid).first()
         if not task:
-            return {
-                "message": TASK_NOT_FOUND_MSG,
-            }, 404
+            return _error_response(TASK_NOT_FOUND_MSG, 404)
 
         # Validate request body
         if not request.is_json:
-            return {
-                "message": INVALID_JSON_BODY_MSG,
-            }, 400
+            return _error_response(INVALID_JSON_BODY_MSG, 400)
 
         json_data_raw = request.get_json()
 
         if not isinstance(json_data_raw, dict):
-            return {
-                "message": INVALID_JSON_BODY_MSG,
-            }, 400
+            return _error_response(INVALID_JSON_BODY_MSG, 400)
 
         json_data = cast("dict[str, Any]", json_data_raw)
 
@@ -810,10 +794,7 @@ class TaskResource(Resource):
                 "dict[str, Any]", self.update_schema.load(json_data)
             )
         except ValidationError as err:
-            return {
-                "message": VALIDATION_FAILED_MSG,
-                "errors": err.messages,
-            }, 422
+            return _error_response(VALIDATION_FAILED_MSG, 400, errors=err.messages)
 
         # Check for circular dependencies if predecessors are being updated
         predecessors = validated_data.get("predecessors")
@@ -823,22 +804,18 @@ class TaskResource(Resource):
                 predecessors, project_uuid
             )
             if not is_valid:
-                return {
-                    "message": INVALID_PREDECESSOR_REFERENCE_MSG,
-                    "errors": {"predecessors": error_msg},
-                }, 400
+                return _error_response(
+                    INVALID_PREDECESSOR_REFERENCE_MSG,
+                    400,
+                    errors={"predecessors": error_msg},
+                )
 
             # Check for circular dependencies
             if _detect_circular_dependency(task_uuid, predecessors, project_uuid):
-                correlation_id = _get_correlation_id()
-                return (
-                    {
-                        "message": CIRCULAR_DEPENDENCY_MSG,
-                        "errors": {"predecessors": "Circular dependency detected"},
-                        "correlation_id": correlation_id,
-                    },
+                return _error_response(
+                    CIRCULAR_DEPENDENCY_MSG,
                     409,
-                    {"X-Correlation-ID": correlation_id},
+                    errors={"predecessors": "Circular dependency detected"},
                 )
 
         # Update task fields
@@ -882,12 +859,11 @@ class TaskResource(Resource):
             db.session.commit()
         except IntegrityError as e:
             db.session.rollback()
-            return {
-                "message": DATABASE_INTEGRITY_ERROR_MSG,
-                "errors": {
-                    "database": str(e.orig) if hasattr(e, "orig") else str(e),
-                },
-            }, 409
+            return _error_response(
+                DATABASE_INTEGRITY_ERROR_MSG,
+                409,
+                errors={"database": str(e.orig) if hasattr(e, "orig") else str(e)},
+            )
 
         # Refresh to get updated relationships
         db.session.refresh(task)
@@ -905,7 +881,7 @@ class TaskResource(Resource):
     @limiter.limit("20 per minute", key_func=rate_limit_user_key)
     def delete(
         self, project_id: str, id: str, version: str | None = None
-    ) -> tuple[dict | str, int] | tuple[dict, int, dict[str, str]]:
+    ) -> ResponseTuple:
         """Delete a task.
 
         Cascades to assignments and child tasks. Blocks if task is
@@ -939,26 +915,23 @@ class TaskResource(Resource):
             project_uuid = uuid.UUID(project_id)
             task_uuid = uuid.UUID(id)
         except ValueError:
-            return {
-                "message": INVALID_UUID_MSG,
-                "errors": {"validation": INVALID_REQUEST_MSG},
-            }, 400
+            return _error_response(
+                INVALID_UUID_MSG,
+                400,
+                errors={"validation": INVALID_REQUEST_MSG},
+            )
 
         # Validate project exists and belongs to company
         project = Project.query.filter_by(
             id=project_uuid, company_id=company_id
         ).first()
         if not project:
-            return {
-                "message": PROJECT_NOT_FOUND_MSG,
-            }, 404
+            return _error_response(PROJECT_NOT_FOUND_MSG, 404)
 
         # Retrieve task
         task = Task.query.filter_by(id=task_uuid, project_id=project_uuid).first()
         if not task:
-            return {
-                "message": TASK_NOT_FOUND_MSG,
-            }, 404
+            return _error_response(TASK_NOT_FOUND_MSG, 404)
 
         # Check if task is referenced as predecessor by tasks in the same project
         successor_count = (
@@ -970,15 +943,10 @@ class TaskResource(Resource):
             .count()
         )
         if successor_count > 0:
-            correlation_id = _get_correlation_id()
-            return (
-                {
-                    "message": REFERENCED_TASK_MSG,
-                    "errors": {"predecessor": "Task is referenced by other tasks"},
-                    "correlation_id": correlation_id,
-                },
+            return _error_response(
+                REFERENCED_TASK_MSG,
                 409,
-                {"X-Correlation-ID": correlation_id},
+                errors={"predecessor": "Task is referenced by other tasks"},
             )
 
         # Delete task (cascade will handle children and assignments)
@@ -987,10 +955,11 @@ class TaskResource(Resource):
             db.session.commit()
         except IntegrityError as e:
             db.session.rollback()
-            return {
-                "message": DATABASE_INTEGRITY_ERROR_MSG,
-                "errors": {"database": str(e.orig) if hasattr(e, "orig") else str(e)},
-            }, 409
+            return _error_response(
+                DATABASE_INTEGRITY_ERROR_MSG,
+                409,
+                errors={"database": str(e.orig) if hasattr(e, "orig") else str(e)},
+            )
 
         return "", 204
 
@@ -1011,7 +980,7 @@ class TaskBulkResource(Resource):
     @require_jwt_auth
     @access_required(Operation.CREATE, "tasks")
     @limiter.limit("10 per minute", key_func=rate_limit_user_key)
-    def post(self, project_id: str, version: str | None = None) -> tuple[dict, int]:
+    def post(self, project_id: str, version: str | None = None) -> ResponseTuple:
         """Bulk create tasks for a project.
 
         Allows partial success - returns created tasks and errors for failed items.
@@ -1048,31 +1017,26 @@ class TaskBulkResource(Resource):
         try:
             project_uuid = uuid.UUID(project_id)
         except ValueError:
-            return {
-                "message": INVALID_PROJECT_ID_MSG,
-                "errors": {"validation": INVALID_REQUEST_MSG},
-            }, 400
+            return _error_response(
+                INVALID_PROJECT_ID_MSG,
+                400,
+                errors={"validation": INVALID_REQUEST_MSG},
+            )
 
         project = Project.query.filter_by(
             id=project_uuid, company_id=company_id
         ).first()
         if not project:
-            return {
-                "message": PROJECT_NOT_FOUND_MSG,
-            }, 404
+            return _error_response(PROJECT_NOT_FOUND_MSG, 404)
 
         # Validate request body
         if not request.is_json:
-            return {
-                "message": INVALID_JSON_BODY_MSG,
-            }, 400
+            return _error_response(INVALID_JSON_BODY_MSG, 400)
 
         json_data_raw = request.get_json()
 
         if not isinstance(json_data_raw, dict):
-            return {
-                "message": INVALID_JSON_BODY_MSG,
-            }, 400
+            return _error_response(INVALID_JSON_BODY_MSG, 400)
 
         json_data = cast("dict[str, Any]", json_data_raw)
 
@@ -1081,10 +1045,7 @@ class TaskBulkResource(Resource):
             validated_data_raw = self.bulk_create_schema.load(json_data)
             validated_data = cast("dict[str, Any]", validated_data_raw)
         except ValidationError as err:
-            return {
-                "message": VALIDATION_FAILED_MSG,
-                "errors": err.messages,
-            }, 422
+            return _error_response(VALIDATION_FAILED_MSG, 400, errors=err.messages)
 
         tasks_data = validated_data["tasks"]
         created_tasks = []
@@ -1164,12 +1125,11 @@ class TaskBulkResource(Resource):
             db.session.commit()
         except IntegrityError as e:
             db.session.rollback()
-            return {
-                "message": DATABASE_INTEGRITY_ERROR_MSG,
-                "errors": {
-                    "database": str(e.orig) if hasattr(e, "orig") else str(e),
-                },
-            }, 409
+            return _error_response(
+                DATABASE_INTEGRITY_ERROR_MSG,
+                409,
+                errors={"database": str(e.orig) if hasattr(e, "orig") else str(e)},
+            )
 
         # Prepare response
         created_count = len(created_tasks)
@@ -1204,7 +1164,7 @@ class TaskSyncResource(Resource):
     @require_jwt_auth
     @access_required(Operation.UPDATE, "tasks")
     @limiter.limit("10 per minute", key_func=rate_limit_user_key)
-    def put(self, project_id: str, version: str | None = None) -> tuple[dict, int]:
+    def put(self, project_id: str, version: str | None = None) -> ResponseTuple:
         """Sync tasks using ms_project_uid as reconciliation key.
 
         Updates existing tasks by ms_project_uid. Tasks not found are tracked
@@ -1247,31 +1207,26 @@ class TaskSyncResource(Resource):
         try:
             project_uuid = uuid.UUID(project_id)
         except ValueError:
-            return {
-                "message": INVALID_PROJECT_ID_MSG,
-                "errors": {"validation": INVALID_REQUEST_MSG},
-            }, 400
+            return _error_response(
+                INVALID_PROJECT_ID_MSG,
+                400,
+                errors={"validation": INVALID_REQUEST_MSG},
+            )
 
         project = Project.query.filter_by(
             id=project_uuid, company_id=company_id
         ).first()
         if not project:
-            return {
-                "message": PROJECT_NOT_FOUND_MSG,
-            }, 404
+            return _error_response(PROJECT_NOT_FOUND_MSG, 404)
 
         # Validate request body
         if not request.is_json:
-            return {
-                "message": INVALID_JSON_BODY_MSG,
-            }, 400
+            return _error_response(INVALID_JSON_BODY_MSG, 400)
 
         json_data_raw = request.get_json()
 
         if not isinstance(json_data_raw, dict):
-            return {
-                "message": INVALID_JSON_BODY_MSG,
-            }, 400
+            return _error_response(INVALID_JSON_BODY_MSG, 400)
 
         json_data = cast("dict[str, Any]", json_data_raw)
 
@@ -1280,10 +1235,7 @@ class TaskSyncResource(Resource):
             validated_data_raw = self.sync_schema.load(json_data)
             validated_data = cast("dict[str, Any]", validated_data_raw)
         except ValidationError as err:
-            return {
-                "message": VALIDATION_FAILED_MSG,
-                "errors": err.messages,
-            }, 422
+            return _error_response(VALIDATION_FAILED_MSG, 400, errors=err.messages)
 
         tasks_data = validated_data["tasks"]
         updated_count = 0
@@ -1366,12 +1318,11 @@ class TaskSyncResource(Resource):
             db.session.commit()
         except IntegrityError as e:
             db.session.rollback()
-            return {
-                "message": DATABASE_INTEGRITY_ERROR_MSG,
-                "errors": {
-                    "database": str(e.orig) if hasattr(e, "orig") else str(e),
-                },
-            }, 409
+            return _error_response(
+                DATABASE_INTEGRITY_ERROR_MSG,
+                409,
+                errors={"database": str(e.orig) if hasattr(e, "orig") else str(e)},
+            )
 
         # Prepare response matching OpenAPI spec
         milestone_recalculated_count = len(recalculated_milestones)

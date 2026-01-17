@@ -58,34 +58,11 @@
       '403':
         $ref: '../components/responses.yaml#/Forbidden'
       '404':
-        description: Task or resource not found
-        content:
-          application/json:
-            schema:
-              $ref: '../components/schemas/common.yaml#/Error'
+        $ref: '../components/responses.yaml#/NotFound'
       '409':
-        description: Duplicate assignment (same task + resource combination)
-        headers:
-          X-Correlation-ID:
-            schema:
-              type: string
-            description: Correlation ID for tracing
-        content:
-          application/json:
-            schema:
-              $ref: '../components/schemas/common.yaml#/Error'
-            example:
-              message: "Assignment already exists for this task and resource"
-              correlation_id: "123e4567-e89b-12d3-a456-426614174000"
+        $ref: '../components/responses.yaml#/Conflict'
       '422':
-        description: Resource and task belong to different companies
-        content:
-          application/json:
-            schema:
-              $ref: '../components/schemas/common.yaml#/Error'
-            example:
-              message: "Resource and task must belong to the same company"
-              correlation_id: "123e4567-e89b-12d3-a456-426614174000"
+        $ref: '../components/responses.yaml#/UnprocessableEntity'
       '429':
         $ref: '../components/responses.yaml#/TooManyRequests'
       '500':
@@ -134,6 +111,8 @@
               per_page: 20
               total: 150
               total_pages: 8
+      '400':
+        $ref: '../components/responses.yaml#/BadRequest'
       '401':
         $ref: '../components/responses.yaml#/Unauthorized'
       '403':
@@ -177,6 +156,8 @@
                 actual_cost: 2720.00
                 created_at: "2026-01-11T11:00:00Z"
                 updated_at: "2026-01-11T11:30:00Z"
+      '400':
+        $ref: '../components/responses.yaml#/BadRequest'
       '401':
         $ref: '../components/responses.yaml#/Unauthorized'
       '403':
@@ -249,6 +230,8 @@
     responses:
       '204':
         description: Assignment deleted successfully
+      '400':
+        $ref: '../components/responses.yaml#/BadRequest'
       '401':
         $ref: '../components/responses.yaml#/Unauthorized'
       '403':

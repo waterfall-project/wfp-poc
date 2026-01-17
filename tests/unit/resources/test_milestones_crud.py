@@ -372,7 +372,6 @@ class TestMilestoneResourcePatch:
         update_data = {
             "is_achieved": True,
             "achieved_date": achieved_date.isoformat(),
-            "status": "achieved",
         }
 
         response = authenticated_client.patch(
@@ -385,6 +384,83 @@ class TestMilestoneResourcePatch:
         assert data["data"]["is_achieved"] is True
         assert data["data"]["status"] == "achieved"
         assert data["data"]["achieved_date"] is not None
+        assert data["data"]["actual_date"] is not None
+
+    @patch("app.services.guardian_service.requests.post")
+    def test_update_milestone_actual_date_outside_project_range(
+        self,
+        mock_guardian: MagicMock,
+        authenticated_client: FlaskClient,
+        project_data: Project,
+        milestone_data: Milestone,
+    ) -> None:
+        """Test updating milestone with actual_date outside project range.
+
+        Given: actual_date is after project finish_date
+        When: PATCH milestone is called
+        Then: Returns 422 unprocessable entity
+        """
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"access_granted": True, "reason": "granted"}
+        mock_guardian.return_value = mock_response
+
+        actual_date = project_data.finish_date + timedelta(days=1)
+        update_data = {
+            "actual_date": actual_date.isoformat(),
+        }
+
+        response = authenticated_client.patch(
+            f"/v0/projects/{project_data.id}/milestones/{milestone_data.id}",
+            json=update_data,
+        )
+
+        assert response.status_code == 422
+        data = response.get_json()
+        assert "actual_date" in data["message"]
+
+    @patch("app.services.guardian_service.requests.post")
+    def test_update_milestone_duplicate_target_date(
+        self,
+        mock_guardian: MagicMock,
+        authenticated_client: FlaskClient,
+        app: Flask,
+        project_data: Project,
+        milestone_data: Milestone,
+    ) -> None:
+        """Test updating milestone with duplicate target_date.
+
+        Given: Another milestone exists with the same target_date
+        When: PATCH milestone target_date to duplicate
+        Then: Returns 400 bad request
+        """
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"access_granted": True, "reason": "granted"}
+        mock_guardian.return_value = mock_response
+
+        with app.app_context():
+            other_milestone = Milestone(
+                project_id=project_data.id,
+                name="Duplicate Target Date",
+                target_date=milestone_data.target_date + timedelta(days=1),
+                budget_weight=Decimal("0.10"),
+                status="upcoming",
+                is_achieved=False,
+            )
+            db.session.add(other_milestone)
+            db.session.commit()
+
+        update_data = {"target_date": other_milestone.target_date.isoformat()}
+
+        response = authenticated_client.patch(
+            f"/v0/projects/{project_data.id}/milestones/{milestone_data.id}",
+            json=update_data,
+        )
+
+        assert response.status_code == 400
+        data = response.get_json()
+        assert "overlap" in data["message"]
 
     @patch("app.services.guardian_service.requests.post")
     def test_update_milestone_not_found(

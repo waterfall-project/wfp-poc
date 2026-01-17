@@ -67,22 +67,12 @@ paths:
       responses:
         '200':
           description: Service is alive (ok or degraded)
-          headers:
-            Cache-Control:
-              schema:
-                type: string
-              example: no-cache, no-store, must-revalidate
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/HealthResponse'
         '500':
           description: Internal server error
-          headers:
-            Cache-Control:
-              schema:
-                type: string
-              example: no-cache, no-store, must-revalidate
           content:
             application/json:
               schema:
@@ -98,22 +88,12 @@ paths:
       responses:
         '200':
           description: Ready
-          headers:
-            Cache-Control:
-              schema:
-                type: string
-              example: no-cache, no-store, must-revalidate
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ReadyResponse'
         '503':
           description: Not ready
-          headers:
-            Cache-Control:
-              schema:
-                type: string
-              example: no-cache, no-store, must-revalidate
           content:
             application/json:
               schema:
@@ -129,22 +109,12 @@ paths:
       responses:
         '200':
           description: Version info
-          headers:
-            Cache-Control:
-              schema:
-                type: string
-              example: public, max-age=3600
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/VersionResponse'
         '500':
           description: Internal server error
-          headers:
-            Cache-Control:
-              schema:
-                type: string
-              example: public, max-age=3600
           content:
             application/json:
               schema:
@@ -161,11 +131,6 @@ paths:
       responses:
         '200':
           description: Prometheus metrics
-          headers:
-            Cache-Control:
-              schema:
-                type: string
-              example: no-cache, no-store, must-revalidate
           content:
             text/plain; version=0.0.4; charset=utf-8:
               schema:
@@ -179,11 +144,6 @@ paths:
                     python_info{implementation="CPython",major="3",minor="11",patchlevel="7",version="3.11.7"} 1.0
         '401':
           description: Missing or invalid API key
-          headers:
-            Cache-Control:
-              schema:
-                type: string
-              example: no-cache, no-store, must-revalidate
           content:
             application/json:
               schema:
@@ -207,30 +167,7 @@ paths:
                     message: Invalid API key
                     timestamp: '2026-01-07T10:30:00Z'
         '429':
-          description: Rate limit exceeded
-          headers:
-            Cache-Control:
-              schema:
-                type: string
-              example: no-cache, no-store, must-revalidate
-          content:
-            application/json:
-              schema:
-                type: object
-                required:
-                  - message
-                  - retry_after
-                properties:
-                  message:
-                    type: string
-                  retry_after:
-                    type: integer
-                    minimum: 0
-              examples:
-                rate_limited:
-                  value:
-                    message: 'Rate limit exceeded: 10 per minute'
-                    retry_after: 45
+          $ref: '#/components/responses/TooManyRequests'
         '500':
           $ref: '#/components/responses/InternalServerError'
   /{version}/projects:
@@ -299,6 +236,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ProjectList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -346,18 +285,7 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
         '409':
-          description: Project code already exists
-          headers:
-            X-Correlation-ID:
-              schema:
-                type: string
-              description: Correlation ID for tracing
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-              example:
-                message: Project with code 'G.PRJ.12345' already exists for this company
+          $ref: '#/components/responses/Conflict'
         '422':
           $ref: '#/components/responses/UnprocessableEntity'
         '429':
@@ -381,12 +309,16 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ProjectResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
         '500':
           $ref: '#/components/responses/InternalServerError'
     patch:
@@ -419,8 +351,12 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
         '422':
           $ref: '#/components/responses/UnprocessableEntity'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
         '500':
           $ref: '#/components/responses/InternalServerError'
     delete:
@@ -437,6 +373,8 @@ paths:
       responses:
         '204':
           description: Project deleted successfully
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -444,19 +382,9 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
         '409':
-          description: Project cannot be deleted because related data exists
-          headers:
-            X-Correlation-ID:
-              schema:
-                type: string
-              description: Correlation ID for tracing
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-              example:
-                message: Cannot delete project with existing tasks/milestones/expenses
-                correlation_id: 123e4567-e89b-12d3-a456-426614174000
+          $ref: '#/components/responses/Conflict'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
         '500':
           $ref: '#/components/responses/InternalServerError'
   /{version}/projects/{project_id}/tasks:
@@ -491,18 +419,7 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
         '409':
-          description: Circular dependency in predecessors
-          headers:
-            X-Correlation-ID:
-              schema:
-                type: string
-              description: Correlation ID for tracing
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '422':
-          $ref: '#/components/responses/UnprocessableEntity'
+          $ref: '#/components/responses/Conflict'
         '429':
           $ref: '#/components/responses/TooManyRequests'
         '500':
@@ -624,8 +541,8 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
-        '422':
-          $ref: '#/components/responses/UnprocessableEntity'
+        '409':
+          $ref: '#/components/responses/Conflict'
         '429':
           $ref: '#/components/responses/TooManyRequests'
         '500':
@@ -664,8 +581,8 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
-        '422':
-          $ref: '#/components/responses/UnprocessableEntity'
+        '409':
+          $ref: '#/components/responses/Conflict'
         '429':
           $ref: '#/components/responses/TooManyRequests'
         '500':
@@ -696,6 +613,8 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
         '500':
           $ref: '#/components/responses/InternalServerError'
     patch:
@@ -730,18 +649,9 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
         '409':
-          description: Circular dependency in predecessors
-          headers:
-            X-Correlation-ID:
-              schema:
-                type: string
-              description: Correlation ID for tracing
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '422':
-          $ref: '#/components/responses/UnprocessableEntity'
+          $ref: '#/components/responses/Conflict'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
         '500':
           $ref: '#/components/responses/InternalServerError'
     delete:
@@ -766,16 +676,9 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
         '409':
-          description: Task is referenced by other tasks as predecessor
-          headers:
-            X-Correlation-ID:
-              schema:
-                type: string
-              description: Correlation ID for tracing
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
+          $ref: '#/components/responses/Conflict'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
         '500':
           $ref: '#/components/responses/InternalServerError'
   /{version}/projects/{project_id}/milestones:
@@ -835,19 +738,7 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
         '409':
-          description: Conflict - Milestone overlaps or budget_weight sum exceeds 1.0
-          headers:
-            X-Correlation-ID:
-              schema:
-                type: string
-              description: Correlation ID for tracing
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-              example:
-                message: 'Sum of milestone budget_weight would exceed 1.0 (current: 0.90, adding: 0.15)'
-                correlation_id: 123e4567-e89b-12d3-a456-426614174000
+          $ref: '#/components/responses/Conflict'
         '422':
           $ref: '#/components/responses/UnprocessableEntity'
         '429':
@@ -910,6 +801,8 @@ paths:
                 per_page: 20
                 total: 8
                 total_pages: 1
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -954,6 +847,8 @@ paths:
                   achieved_date: null
                   created_at: '2026-01-11T10:00:00Z'
                   updated_at: '2026-01-11T10:00:00Z'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -1005,16 +900,7 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
         '409':
-          description: Budget weight sum would exceed 1.0
-          headers:
-            X-Correlation-ID:
-              schema:
-                type: string
-              description: Correlation ID for tracing
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
+          $ref: '#/components/responses/Conflict'
         '422':
           $ref: '#/components/responses/UnprocessableEntity'
         '429':
@@ -1036,6 +922,8 @@ paths:
       responses:
         '204':
           description: Milestone deleted successfully
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -1043,19 +931,7 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
         '409':
-          description: Cannot delete milestone with associated expenses or deliverables
-          headers:
-            X-Correlation-ID:
-              schema:
-                type: string
-              description: Correlation ID for tracing
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-              example:
-                message: Cannot delete milestone with 3 associated expenses
-                correlation_id: 123e4567-e89b-12d3-a456-426614174000
+          $ref: '#/components/responses/Conflict'
         '429':
           $ref: '#/components/responses/TooManyRequests'
         '500':
@@ -1149,6 +1025,8 @@ paths:
                       planned_finish_date: '2027-01-22T18:00:00Z'
                       is_critical: true
                       ms_project_uid: 123
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -1262,16 +1140,7 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
         '409':
-          description: Resource name already exists for this company
-          headers:
-            X-Correlation-ID:
-              schema:
-                type: string
-              description: Correlation ID for tracing
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
+          $ref: '#/components/responses/Conflict'
         '429':
           $ref: '#/components/responses/TooManyRequests'
         '500':
@@ -1330,6 +1199,8 @@ paths:
                 per_page: 20
                 total: 45
                 total_pages: 3
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -1370,6 +1241,8 @@ paths:
                   is_active: true
                   created_at: '2026-01-11T10:00:00Z'
                   updated_at: '2026-01-11T10:00:00Z'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -1422,6 +1295,8 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
         '429':
           $ref: '#/components/responses/TooManyRequests'
         '500':
@@ -1440,6 +1315,8 @@ paths:
       responses:
         '204':
           description: Resource deleted successfully
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -1447,19 +1324,7 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
         '409':
-          description: Cannot delete resource with active assignments
-          headers:
-            X-Correlation-ID:
-              schema:
-                type: string
-              description: Correlation ID for tracing
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-              example:
-                message: Cannot delete resource with 5 active assignments
-                correlation_id: 123e4567-e89b-12d3-a456-426614174000
+          $ref: '#/components/responses/Conflict'
         '429':
           $ref: '#/components/responses/TooManyRequests'
         '500':
@@ -1525,34 +1390,11 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
         '404':
-          description: Task or resource not found
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
+          $ref: '#/components/responses/NotFound'
         '409':
-          description: Duplicate assignment (same task + resource combination)
-          headers:
-            X-Correlation-ID:
-              schema:
-                type: string
-              description: Correlation ID for tracing
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-              example:
-                message: Assignment already exists for this task and resource
-                correlation_id: 123e4567-e89b-12d3-a456-426614174000
+          $ref: '#/components/responses/Conflict'
         '422':
-          description: Resource and task belong to different companies
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-              example:
-                message: Resource and task must belong to the same company
-                correlation_id: 123e4567-e89b-12d3-a456-426614174000
+          $ref: '#/components/responses/UnprocessableEntity'
         '429':
           $ref: '#/components/responses/TooManyRequests'
         '500':
@@ -1601,6 +1443,8 @@ paths:
                 per_page: 20
                 total: 150
                 total_pages: 8
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -1644,6 +1488,8 @@ paths:
                   actual_cost: 2720
                   created_at: '2026-01-11T11:00:00Z'
                   updated_at: '2026-01-11T11:30:00Z'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -1716,6 +1562,8 @@ paths:
       responses:
         '204':
           description: Assignment deleted successfully
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -1799,28 +1647,9 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
         '409':
-          description: Duplicate expense (same reference_number + date + amount)
-          headers:
-            X-Correlation-ID:
-              schema:
-                type: string
-              description: Correlation ID for tracing
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-              example:
-                message: Duplicate expense detected
-                correlation_id: 123e4567-e89b-12d3-a456-426614174000
+          $ref: '#/components/responses/Conflict'
         '422':
-          description: Expense date outside milestone range
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-              example:
-                message: Expense date must fall between project milestone dates
-                correlation_id: 123e4567-e89b-12d3-a456-426614174000
+          $ref: '#/components/responses/UnprocessableEntity'
         '429':
           description: Rate limit exceeded (standard 100 rpm; bulk endpoints 10 rpm)
           $ref: '#/components/responses/TooManyRequests'
@@ -1895,6 +1724,8 @@ paths:
                 per_page: 20
                 total: 458
                 total_pages: 23
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -1972,6 +1803,8 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
         '429':
           $ref: '#/components/responses/TooManyRequests'
         '500':
@@ -2016,6 +1849,8 @@ paths:
                   origin_group: STOR
                   created_at: '2026-01-11T12:00:00Z'
                   updated_at: '2026-01-11T12:00:00Z'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -2069,11 +1904,7 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
         '422':
-          description: Updated date outside milestone range
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
+          $ref: '#/components/responses/UnprocessableEntity'
         '429':
           $ref: '#/components/responses/TooManyRequests'
         '500':
@@ -2093,6 +1924,8 @@ paths:
       responses:
         '204':
           description: Expense deleted successfully
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -2169,6 +2002,8 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
         '422':
           $ref: '#/components/responses/UnprocessableEntity'
         '429':
@@ -2246,6 +2081,8 @@ paths:
                 per_page: 20
                 total: 156
                 total_pages: 8
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -2764,7 +2601,9 @@ components:
       bearerFormat: JWT
       description: |
         JWT token obtained from Identity service authentication endpoint.
-        Include in Authorization header as: Bearer <token>
+        Provide either:
+        - Authorization header: Bearer <token>
+        - access_token cookie
 
         Required claims: user_id, company_id, email
 
@@ -2924,10 +2763,12 @@ components:
           schema:
             $ref: '#/components/schemas/Error'
           example:
+            error: Bad Request
             message: Validation failed
             errors:
               start_date:
                 - Start date must be before finish date
+            correlation_id: 123e4567-e89b-12d3-a456-426614174000
     Unauthorized:
       description: Authentication required or invalid token
       headers:
@@ -2940,7 +2781,9 @@ components:
           schema:
             $ref: '#/components/schemas/Error'
           example:
+            error: Unauthorized
             message: Invalid or expired token
+            correlation_id: 123e4567-e89b-12d3-a456-426614174000
     Forbidden:
       description: Insufficient permissions
       headers:
@@ -2953,7 +2796,9 @@ components:
           schema:
             $ref: '#/components/schemas/Error'
           example:
+            error: Forbidden
             message: Insufficient Guardian permissions for this operation
+            correlation_id: 123e4567-e89b-12d3-a456-426614174000
     NotFound:
       description: Resource not found
       headers:
@@ -2966,7 +2811,9 @@ components:
           schema:
             $ref: '#/components/schemas/Error'
           example:
+            error: Not Found
             message: Resource not found
+            correlation_id: 123e4567-e89b-12d3-a456-426614174000
     UnprocessableEntity:
       description: Business logic error
       headers:
@@ -2979,7 +2826,9 @@ components:
           schema:
             $ref: '#/components/schemas/Error'
           example:
+            error: Unprocessable Entity
             message: Start date must be before finish date
+            correlation_id: 123e4567-e89b-12d3-a456-426614174000
     TooManyRequests:
       description: Rate limit exceeded
       headers:
@@ -3000,7 +2849,9 @@ components:
           schema:
             $ref: '#/components/schemas/Error'
           example:
+            error: Too Many Requests
             message: Rate limit exceeded. Maximum 10 requests per minute.
+            correlation_id: 123e4567-e89b-12d3-a456-426614174000
     InternalServerError:
       description: Internal server error
       headers:
@@ -3013,7 +2864,23 @@ components:
           schema:
             $ref: '#/components/schemas/Error'
           example:
+            error: Internal Server Error
             message: An unexpected error occurred
+            correlation_id: 123e4567-e89b-12d3-a456-426614174000
+    Conflict:
+      description: Conflict with current state of resource
+      headers:
+        X-Correlation-ID:
+          schema:
+            type: string
+          description: Correlation ID for tracing
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: Conflict
+            message: Conflict with existing resource state
             correlation_id: 123e4567-e89b-12d3-a456-426614174000
   schemas:
     Project:
@@ -5769,7 +5636,11 @@ components:
       type: object
       required:
         - message
+        - correlation_id
       properties:
+        error:
+          type: string
+          description: Error category (e.g., Bad Request, Unauthorized)
         message:
           type: string
           description: Human-readable error message

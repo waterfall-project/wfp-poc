@@ -4,7 +4,9 @@ bearerAuth:
   bearerFormat: JWT
   description: |
     JWT token obtained from Identity service authentication endpoint.
-    Include in Authorization header as: Bearer <token>
+    Provide either:
+    - Authorization header: Bearer <token>
+    - access_token cookie
 
     Required claims: user_id, company_id, email
 

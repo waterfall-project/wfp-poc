@@ -186,12 +186,14 @@ def _build_predecessor_tasks(
     """Serialize tasks for milestone predecessor response payloads."""
     serialized: list[dict[str, Any]] = []
     for task in tasks:
+        planned_finish_date = (
+            task.planned_finish_date.isoformat() if task.planned_finish_date else None
+        )
         item: dict[str, Any] = {
             "id": str(task.id),
             "name": task.name,
-            "planned_finish_date": task.planned_finish_date.isoformat()
-            if task.planned_finish_date
-            else None,
+            "planned_finish_date": planned_finish_date,
+            "planned_finish": planned_finish_date,
             "is_critical": bool(task.is_critical)
             if task.is_critical is not None
             else False,

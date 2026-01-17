@@ -144,14 +144,14 @@ class TestTaskCreate:
 
         Given: Payload omits required scheduling fields
         When: POST /v0/projects/{project_id}/tasks is called
-        Then: Response is 422 with validation errors including start
+        Then: Response is 400 with validation errors including start
         """
 
         response = integration_client.post(
             f"/v0/projects/{project.id}/tasks", json={"name": "Incomplete"}
         )
 
-        assert response.status_code == 422
+        assert response.status_code == 400
         data = response.get_json()
         assert "errors" in data
         assert "start" in str(data["errors"])

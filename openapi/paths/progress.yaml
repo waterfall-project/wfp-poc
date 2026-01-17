@@ -63,6 +63,8 @@
         $ref: '../components/responses.yaml#/Forbidden'
       '404':
         $ref: '../components/responses.yaml#/NotFound'
+      '409':
+        $ref: '../components/responses.yaml#/Conflict'
       '422':
         $ref: '../components/responses.yaml#/UnprocessableEntity'
       '429':
@@ -140,6 +142,8 @@
               per_page: 20
               total: 156
               total_pages: 8
+      '400':
+        $ref: '../components/responses.yaml#/BadRequest'
       '401':
         $ref: '../components/responses.yaml#/Unauthorized'
       '403':

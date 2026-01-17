@@ -30,18 +30,7 @@
       '404':
         $ref: '../components/responses.yaml#/NotFound'
       '409':
-        description: Circular dependency in predecessors
-        headers:
-          X-Correlation-ID:
-            schema:
-              type: string
-            description: Correlation ID for tracing
-        content:
-          application/json:
-            schema:
-              $ref: '../components/schemas/common.yaml#/Error'
-      '422':
-        $ref: '../components/responses.yaml#/UnprocessableEntity'
+        $ref: '../components/responses.yaml#/Conflict'
       '429':
         $ref: '../components/responses.yaml#/TooManyRequests'
       '500':
@@ -155,8 +144,8 @@
         $ref: '../components/responses.yaml#/Forbidden'
       '404':
         $ref: '../components/responses.yaml#/NotFound'
-      '422':
-        $ref: '../components/responses.yaml#/UnprocessableEntity'
+      '409':
+        $ref: '../components/responses.yaml#/Conflict'
       '429':
         $ref: '../components/responses.yaml#/TooManyRequests'
       '500':
@@ -196,8 +185,8 @@
         $ref: '../components/responses.yaml#/Forbidden'
       '404':
         $ref: '../components/responses.yaml#/NotFound'
-      '422':
-        $ref: '../components/responses.yaml#/UnprocessableEntity'
+      '409':
+        $ref: '../components/responses.yaml#/Conflict'
       '429':
         $ref: '../components/responses.yaml#/TooManyRequests'
       '500':
@@ -229,6 +218,8 @@
         $ref: '../components/responses.yaml#/Forbidden'
       '404':
         $ref: '../components/responses.yaml#/NotFound'
+      '429':
+        $ref: '../components/responses.yaml#/TooManyRequests'
       '500':
         $ref: '../components/responses.yaml#/InternalServerError'
 
@@ -264,18 +255,9 @@
       '404':
         $ref: '../components/responses.yaml#/NotFound'
       '409':
-        description: Circular dependency in predecessors
-        headers:
-          X-Correlation-ID:
-            schema:
-              type: string
-            description: Correlation ID for tracing
-        content:
-          application/json:
-            schema:
-              $ref: '../components/schemas/common.yaml#/Error'
-      '422':
-        $ref: '../components/responses.yaml#/UnprocessableEntity'
+        $ref: '../components/responses.yaml#/Conflict'
+      '429':
+        $ref: '../components/responses.yaml#/TooManyRequests'
       '500':
         $ref: '../components/responses.yaml#/InternalServerError'
 
@@ -301,15 +283,8 @@
       '404':
         $ref: '../components/responses.yaml#/NotFound'
       '409':
-        description: Task is referenced by other tasks as predecessor
-        headers:
-          X-Correlation-ID:
-            schema:
-              type: string
-            description: Correlation ID for tracing
-        content:
-          application/json:
-            schema:
-              $ref: '../components/schemas/common.yaml#/Error'
+        $ref: '../components/responses.yaml#/Conflict'
+      '429':
+        $ref: '../components/responses.yaml#/TooManyRequests'
       '500':
         $ref: '../components/responses.yaml#/InternalServerError'

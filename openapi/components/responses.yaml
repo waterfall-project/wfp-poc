@@ -10,9 +10,11 @@ BadRequest:
       schema:
         $ref: './schemas/common.yaml#/Error'
       example:
+        error: "Bad Request"
         message: "Validation failed"
         errors:
           start_date: ["Start date must be before finish date"]
+        correlation_id: "123e4567-e89b-12d3-a456-426614174000"
 
 Unauthorized:
   description: Authentication required or invalid token
@@ -26,7 +28,9 @@ Unauthorized:
       schema:
         $ref: './schemas/common.yaml#/Error'
       example:
+        error: "Unauthorized"
         message: "Invalid or expired token"
+        correlation_id: "123e4567-e89b-12d3-a456-426614174000"
 
 Forbidden:
   description: Insufficient permissions
@@ -40,7 +44,9 @@ Forbidden:
       schema:
         $ref: './schemas/common.yaml#/Error'
       example:
+        error: "Forbidden"
         message: "Insufficient Guardian permissions for this operation"
+        correlation_id: "123e4567-e89b-12d3-a456-426614174000"
 
 NotFound:
   description: Resource not found
@@ -54,7 +60,25 @@ NotFound:
       schema:
         $ref: './schemas/common.yaml#/Error'
       example:
+        error: "Not Found"
         message: "Resource not found"
+        correlation_id: "123e4567-e89b-12d3-a456-426614174000"
+
+Conflict:
+  description: Conflict with current state of resource
+  headers:
+    X-Correlation-ID:
+      schema:
+        type: string
+      description: Correlation ID for tracing
+  content:
+    application/json:
+      schema:
+        $ref: './schemas/common.yaml#/Error'
+      example:
+        error: "Conflict"
+        message: "Conflict with existing resource state"
+        correlation_id: "123e4567-e89b-12d3-a456-426614174000"
 
 UnprocessableEntity:
   description: Business logic error
@@ -68,7 +92,9 @@ UnprocessableEntity:
       schema:
         $ref: './schemas/common.yaml#/Error'
       example:
+        error: "Unprocessable Entity"
         message: "Start date must be before finish date"
+        correlation_id: "123e4567-e89b-12d3-a456-426614174000"
 
 TooManyRequests:
   description: Rate limit exceeded
@@ -90,7 +116,9 @@ TooManyRequests:
       schema:
         $ref: './schemas/common.yaml#/Error'
       example:
+        error: "Too Many Requests"
         message: "Rate limit exceeded. Maximum 10 requests per minute."
+        correlation_id: "123e4567-e89b-12d3-a456-426614174000"
 
 InternalServerError:
   description: Internal server error
@@ -104,5 +132,6 @@ InternalServerError:
       schema:
         $ref: './schemas/common.yaml#/Error'
       example:
+        error: "Internal Server Error"
         message: "An unexpected error occurred"
         correlation_id: "123e4567-e89b-12d3-a456-426614174000"

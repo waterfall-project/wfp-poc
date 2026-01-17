@@ -255,7 +255,7 @@ class TestTaskCreate:
 
         Given: Task data missing required name
         When: POST /v0/projects/{id}/tasks is called
-        Then: Returns 422 validation error
+        Then: Returns 400 validation error
         """
         mock_response = MagicMock()
         mock_response.status_code = 200
@@ -271,7 +271,7 @@ class TestTaskCreate:
             f"/v0/projects/{test_project.id}/tasks", json=payload
         )
 
-        assert response.status_code == 422
+        assert response.status_code == 400
         data = response.get_json()
         assert data["message"] == "Validation failed"
 
@@ -286,7 +286,7 @@ class TestTaskCreate:
 
         Given: Task data with finish before start
         When: POST /v0/projects/{id}/tasks is called
-        Then: Returns 422 validation error
+        Then: Returns 400 validation error
         """
         mock_response = MagicMock()
         mock_response.status_code = 200
@@ -303,7 +303,7 @@ class TestTaskCreate:
             f"/v0/projects/{test_project.id}/tasks", json=payload
         )
 
-        assert response.status_code == 422
+        assert response.status_code == 400
 
 
 class TestTaskGet:

@@ -29,6 +29,11 @@ class TestProgressUpdateModel:
     """Test suite for ProgressUpdate model."""
 
     @pytest.fixture
+    def user_id(self) -> uuid.UUID:
+        """Provide a sample user ID for progress updates."""
+        return uuid.uuid4()
+
+    @pytest.fixture
     def project(self, app, company_id):
         """Create a test project."""
         project = Project(
@@ -56,7 +61,7 @@ class TestProgressUpdateModel:
         db.session.refresh(task)
         return task
 
-    def test_create_progress_update_minimal_project_level(self, app, project):
+    def test_create_progress_update_minimal_project_level(self, app, project, user_id):
         """Test creating a project-level progress update with minimal fields.
 
         Given: Required fields only (project_id, update_date)
@@ -66,6 +71,7 @@ class TestProgressUpdateModel:
         progress_update = ProgressUpdate(
             project_id=project.id,
             update_date=date(2026, 6, 1),
+            updated_by=user_id,
         )
         db.session.add(progress_update)
         db.session.commit()
@@ -74,14 +80,16 @@ class TestProgressUpdateModel:
         assert isinstance(progress_update.id, uuid.UUID)
         assert progress_update.project_id == project.id
         assert progress_update.task_id is None
-        assert progress_update.update_date == date(2026, 6, 1)
+        assert progress_update.update_date.date() == date(2026, 6, 1)
         assert progress_update.earned_value is None
         assert progress_update.actual_cost is None
         assert progress_update.notes is None
         assert progress_update.created_at is not None
         assert progress_update.updated_at is not None
 
-    def test_create_progress_update_minimal_task_level(self, app, project, task):
+    def test_create_progress_update_minimal_task_level(
+        self, app, project, task, user_id
+    ):
         """Test creating a task-level progress update with minimal fields.
 
         Given: Required fields (project_id, task_id, update_date)
@@ -92,6 +100,7 @@ class TestProgressUpdateModel:
             project_id=project.id,
             task_id=task.id,
             update_date=date(2026, 6, 1),
+            updated_by=user_id,
         )
         db.session.add(progress_update)
         db.session.commit()
@@ -99,9 +108,9 @@ class TestProgressUpdateModel:
         assert progress_update.id is not None
         assert progress_update.project_id == project.id
         assert progress_update.task_id == task.id
-        assert progress_update.update_date == date(2026, 6, 1)
+        assert progress_update.update_date.date() == date(2026, 6, 1)
 
-    def test_create_progress_update_full(self, app, project, task):
+    def test_create_progress_update_full(self, app, project, task, user_id):
         """Test creating a progress update with all fields populated.
 
         Given: All fields provided
@@ -115,6 +124,7 @@ class TestProgressUpdateModel:
             earned_value=Decimal("25000.00"),
             actual_cost=Decimal("27000.00"),
             notes="Monthly progress snapshot",
+            updated_by=user_id,
         )
         db.session.add(progress_update)
         db.session.commit()
@@ -122,12 +132,12 @@ class TestProgressUpdateModel:
         assert progress_update.id is not None
         assert progress_update.project_id == project.id
         assert progress_update.task_id == task.id
-        assert progress_update.update_date == date(2026, 6, 15)
+        assert progress_update.update_date.date() == date(2026, 6, 15)
         assert progress_update.earned_value == Decimal("25000.00")
         assert progress_update.actual_cost == Decimal("27000.00")
         assert progress_update.notes == "Monthly progress snapshot"
 
-    def test_progress_update_multiple_per_project(self, app, project):
+    def test_progress_update_multiple_per_project(self, app, project, user_id):
         """Test multiple progress updates for same project.
 
         Given: One project
@@ -138,11 +148,13 @@ class TestProgressUpdateModel:
             project_id=project.id,
             update_date=date(2026, 1, 31),
             earned_value=Decimal("10000.00"),
+            updated_by=user_id,
         )
         update2 = ProgressUpdate(
             project_id=project.id,
             update_date=date(2026, 2, 28),
             earned_value=Decimal("22000.00"),
+            updated_by=user_id,
         )
         db.session.add_all([update1, update2])
         db.session.commit()
@@ -151,7 +163,7 @@ class TestProgressUpdateModel:
         assert update2.project_id == project.id
         assert update1.update_date != update2.update_date
 
-    def test_progress_update_multiple_per_task(self, app, project, task):
+    def test_progress_update_multiple_per_task(self, app, project, task, user_id):
         """Test multiple progress updates for same task.
 
         Given: One task
@@ -163,12 +175,14 @@ class TestProgressUpdateModel:
             task_id=task.id,
             update_date=date(2026, 1, 15),
             earned_value=Decimal("1000.00"),
+            updated_by=user_id,
         )
         update2 = ProgressUpdate(
             project_id=project.id,
             task_id=task.id,
             update_date=date(2026, 1, 31),
             earned_value=Decimal("2500.00"),
+            updated_by=user_id,
         )
         db.session.add_all([update1, update2])
         db.session.commit()
@@ -177,7 +191,7 @@ class TestProgressUpdateModel:
         assert update2.task_id == task.id
         assert update1.update_date != update2.update_date
 
-    def test_progress_update_evm_metrics(self, app, project):
+    def test_progress_update_evm_metrics(self, app, project, user_id):
         """Test EVM metrics tracking (EV, AC).
 
         Given: A progress update
@@ -189,6 +203,7 @@ class TestProgressUpdateModel:
             update_date=date(2026, 6, 1),
             earned_value=Decimal("50000.00"),
             actual_cost=Decimal("55000.00"),
+            updated_by=user_id,
         )
         db.session.add(progress_update)
         db.session.commit()
@@ -197,7 +212,7 @@ class TestProgressUpdateModel:
         assert progress_update.actual_cost == Decimal("55000.00")
         # Cost variance would be: EV - AC = 50000 - 55000 = -5000 (over budget)
 
-    def test_progress_update_cost_precision(self, app, project):
+    def test_progress_update_cost_precision(self, app, project, user_id):
         """Test cost fields with decimal precision.
 
         Given: A progress update with costs
@@ -209,6 +224,7 @@ class TestProgressUpdateModel:
             update_date=date(2026, 6, 1),
             earned_value=Decimal("123456.78"),
             actual_cost=Decimal("123999.99"),
+            updated_by=user_id,
         )
         db.session.add(progress_update)
         db.session.commit()
@@ -216,7 +232,7 @@ class TestProgressUpdateModel:
         assert progress_update.earned_value == pytest.approx(123456.78)
         assert progress_update.actual_cost == pytest.approx(123999.99)
 
-    def test_progress_update_with_notes(self, app, project):
+    def test_progress_update_with_notes(self, app, project, user_id):
         """Test progress update with notes field.
 
         Given: A progress update with notes
@@ -227,6 +243,7 @@ class TestProgressUpdateModel:
             project_id=project.id,
             update_date=date(2026, 6, 1),
             notes="Project is ahead of schedule. Team morale is high.",
+            updated_by=user_id,
         )
         db.session.add(progress_update)
         db.session.commit()
@@ -236,7 +253,7 @@ class TestProgressUpdateModel:
             == "Project is ahead of schedule. Team morale is high."
         )
 
-    def test_progress_update_repr(self, app, project):
+    def test_progress_update_repr(self, app, project, user_id):
         """Test string representation of ProgressUpdate.
 
         Given: A progress update instance
@@ -246,6 +263,7 @@ class TestProgressUpdateModel:
         progress_update = ProgressUpdate(
             project_id=project.id,
             update_date=date(2026, 6, 1),
+            updated_by=user_id,
         )
         db.session.add(progress_update)
         db.session.commit()
@@ -254,7 +272,7 @@ class TestProgressUpdateModel:
         assert "ProgressUpdate" in repr_str
         assert str(progress_update.id) in repr_str
 
-    def test_progress_update_relationships_exist(self, app, project, task):
+    def test_progress_update_relationships_exist(self, app, project, task, user_id):
         """Test that relationship attributes exist.
 
         Given: A progress update instance with task
@@ -265,6 +283,7 @@ class TestProgressUpdateModel:
             project_id=project.id,
             task_id=task.id,
             update_date=date(2026, 6, 1),
+            updated_by=user_id,
         )
         db.session.add(progress_update)
         db.session.commit()
@@ -275,7 +294,7 @@ class TestProgressUpdateModel:
         assert progress_update.project == project
         assert progress_update.task == task
 
-    def test_progress_update_cascade_delete_project(self, app, project):
+    def test_progress_update_cascade_delete_project(self, app, project, user_id):
         """Test cascade delete when project is deleted.
 
         Given: A progress update linked to a project
@@ -285,6 +304,7 @@ class TestProgressUpdateModel:
         progress_update = ProgressUpdate(
             project_id=project.id,
             update_date=date(2026, 6, 1),
+            updated_by=user_id,
         )
         db.session.add(progress_update)
         db.session.commit()
@@ -299,7 +319,7 @@ class TestProgressUpdateModel:
         deleted_update = db.session.get(ProgressUpdate, update_id)
         assert deleted_update is None
 
-    def test_progress_update_cascade_delete_task(self, app, project, task):
+    def test_progress_update_cascade_delete_task(self, app, project, task, user_id):
         """Test CASCADE delete when task is deleted.
 
         Given: A task-level progress update
@@ -310,6 +330,7 @@ class TestProgressUpdateModel:
             project_id=project.id,
             task_id=task.id,
             update_date=date(2026, 6, 1),
+            updated_by=user_id,
         )
         db.session.add(progress_update)
         db.session.commit()

@@ -563,7 +563,7 @@ graph TB
 #### Progress Updates (REQ-PU-xxx)
 
 - **REQ-PU-001**: System SHALL support bulk progress updates via POST /projects/{project_id}/progress endpoint
-- **REQ-PU-002**: System SHALL accept progress updates as array of {task_id, percent_complete, date} objects
+- **REQ-PU-002**: System SHALL accept progress updates as an object with a top-level `date` and an `updates` array of {task_id, percent_complete, comment} objects
 - **REQ-PU-003**: System SHALL validate percent_complete values are between 0 and 100
 - **REQ-PU-004**: System SHALL automatically update task status based on percent_complete (0=not_started, 1-99=in_progress, 100=completed)
 - **REQ-PU-005**: System SHALL maintain progress update history with timestamps
@@ -572,14 +572,14 @@ graph TB
 ### Security Requirements (SEC-xxx)
 
 **Authentication:**
-- **SEC-001**: Endpoints SHALL require valid JWT token in `access_token` cookie (following Waterfall template pattern)
+- **SEC-001**: Endpoints SHALL require a valid JWT token provided via `Authorization: Bearer <JWT>` header or `access_token` cookie
 - **SEC-002**: JWT SHALL contain required claims: `user_id`, `company_id`, `email`
 - **SEC-003**: JWT validation SHALL use Identity service public key (mocked for POC)
 - **SEC-004**: Unauthenticated requests SHALL return 401 Unauthorized status
 
 **Authorization:**
 - **SEC-005**: Endpoints SHALL check Guardian permissions using `@access_required` decorator (mocked for POC to allow all)
-- **SEC-006**: Guardian operations SHALL map to: LIST (GET collections), READ (GET single), CREATE (POST), UPDATE (PATCH), DELETE (DELETE)
+- **SEC-006**: Guardian operations SHALL map to: LIST (GET collections), READ (GET single), CREATE (POST), UPDATE (PATCH), DELETE (DELETE), unless a specific endpoint explicitly defines a different operation
 - **SEC-007**: Guardian context SHALL include `company_id`, `project_id`, `resource_id` as applicable
 - **SEC-008**: Forbidden requests SHALL return 403 Forbidden status with reason
 
@@ -601,6 +601,50 @@ graph TB
 - **SEC-019**: Standard endpoints SHALL enforce rate limit of 100 requests per minute per user
 - **SEC-020**: EVM calculation endpoints SHALL enforce rate limit of 20 requests per minute per user (computationally expensive)
 - **SEC-021**: Rate limit exceeded requests SHALL return 429 Too Many Requests with Retry-After header
+
+**Endpoint Rate Limits (Implemented):**
+
+| Endpoint | Method | Limit |
+|---|---|---|
+| /projects | GET | 100/min |
+| /projects | POST | 100/min |
+| /projects/{id} | GET | 100/min |
+| /projects/{id} | PATCH | 50/min |
+| /projects/{id} | DELETE | 50/min |
+| /projects/{project_id}/tasks | GET | 100/min |
+| /projects/{project_id}/tasks | POST | 30/min |
+| /projects/{project_id}/tasks/{id} | GET | 200/min |
+| /projects/{project_id}/tasks/{id} | PATCH | 50/min |
+| /projects/{project_id}/tasks/{id} | DELETE | 20/min |
+| /projects/{project_id}/tasks/bulk | POST | 10/min |
+| /projects/{project_id}/tasks/sync | PUT | 10/min |
+| /projects/{project_id}/assignments | GET | 100/min |
+| /projects/{project_id}/assignments | POST | 20/min |
+| /projects/{project_id}/assignments/{id} | GET | 100/min |
+| /projects/{project_id}/assignments/{id} | PATCH | 60/min |
+| /projects/{project_id}/assignments/{id} | DELETE | 30/min |
+| /projects/{project_id}/expenses | GET | 100/min |
+| /projects/{project_id}/expenses | POST | 100/min |
+| /projects/{project_id}/expenses/bulk | POST | 10/min |
+| /projects/{project_id}/expenses/{id} | GET | 100/min |
+| /projects/{project_id}/expenses/{id} | PATCH | 100/min |
+| /projects/{project_id}/expenses/{id} | DELETE | 100/min |
+| /projects/{project_id}/milestones | GET | 100/min |
+| /projects/{project_id}/milestones | POST | 100/min |
+| /projects/{project_id}/milestones/{id} | GET | 100/min |
+| /projects/{project_id}/milestones/{id} | PATCH | 100/min |
+| /projects/{project_id}/milestones/{id} | DELETE | 100/min |
+| /milestones/{milestone_id}/tasks | GET | 100/min |
+| /milestones/{milestone_id}/tasks | POST | 100/min |
+| /milestones/{milestone_id}/tasks/sync | PUT | 100/min |
+| /projects/{project_id}/progress | POST | 10/min |
+| /projects/{project_id}/progress/history | GET | 100/min |
+| /resources | GET | 100/min |
+| /resources | POST | 100/min |
+| /resources/{id} | GET | 100/min |
+| /resources/{id} | PATCH | 50/min |
+| /resources/{id} | DELETE | 50/min |
+| /metrics | GET | RATE_LIMIT_DEFAULT (configurable) |
 
 ### Performance Requirements (PERF-xxx)
 
@@ -2197,8 +2241,13 @@ Stores historical EVM metrics at specific points in time for performance trackin
 **Description:** Create a new project
 
 **Request Headers:**
-- `Authorization: Bearer <JWT>` (required)
+- `Authorization: Bearer <JWT>` (required) **or** `access_token` cookie (required)
 - `Content-Type: application/json` (required)
+
+**Authorization (Guardian):**
+- Resource: `progress`
+- Operation: `UPDATE`
+- Context: `{project_id: <uuid>}`
 
 **Request Body:**
 ```json
@@ -4072,7 +4121,7 @@ POST /v0/milestones/milestone-uuid-2/rae
     ],
     "errors": []
   },
-  "message": "Progress updated successfully for 3 tasks"
+  "message": "Progress updated successfully"
 }
 ```
 
@@ -4088,11 +4137,14 @@ POST /v0/milestones/milestone-uuid-2/rae
 **Error Responses:**
 - `400 Bad Request`: Validation errors (percent_complete not in 0-100 range)
 - `404 Not Found`: Project or task not found
+- `409 Conflict`: Database integrity errors
 - `422 Unprocessable Entity`: Business logic error (cannot update completed task)
 
 **Notes:**
-- Partial success supported: some updates may succeed while others fail
-- Use database transaction for atomicity within single update
+- Partial success supported: valid updates are applied; invalid updates are reported in `errors`
+- If **all** updates fail with `task not found`, the endpoint returns `404 Not Found`
+- If **all** updates fail because tasks are `completed` or `cancelled`, the endpoint returns `422 Unprocessable Entity`
+- Use a single database transaction for the successful updates in a request
 - `date` field allows backdated progress reporting for historical tracking
 
 ---
@@ -4104,7 +4156,12 @@ POST /v0/milestones/milestone-uuid-2/rae
 **Description:** Retrieve progress update history for trend analysis
 
 **Request Headers:**
-- `Authorization: Bearer <JWT>` (required)
+- `Authorization: Bearer <JWT>` (required) **or** `access_token` cookie (required)
+
+**Authorization (Guardian):**
+- Resource: `progress`
+- Operation: `READ`
+- Context: `{project_id: <uuid>}`
 
 **Path Parameters:**
 - `project_id` (uuid, required): Project identifier
@@ -4156,6 +4213,7 @@ POST /v0/milestones/milestone-uuid-2/rae
 ```
 
 **Error Responses:**
+- `400 Bad Request`: Invalid query parameters (date range, UUID format)
 - `404 Not Found`: Project not found
 
 **Notes:**
@@ -4176,8 +4234,8 @@ POST /v0/milestones/milestone-uuid-2/rae
 
 | Code | Description | When to Use |
 |------|-------------|-------------|
-| 200 | OK | Successful GET/PATCH/DELETE |
-| 201 | Created | Successful POST |
+| 200 | OK | Successful GET/PATCH/DELETE or bulk update POST returning summary |
+| 201 | Created | Successful POST creating a new resource |
 | 204 | No Content | Successful DELETE with no body |
 | 400 | Bad Request | Validation errors |
 | 401 | Unauthorized | Invalid/missing JWT token |
@@ -4828,12 +4886,14 @@ Defines testable acceptance criteria for each functional requirement using Given
 
 ### Progress Updates (AC-PU-xxx)
 
-- **AC-PU-001**: Given bulk progress update with 50 task updates, When submitting via POST /progress, Then the system SHALL process all updates atomically (all or none)
-- **AC-PU-002**: Given progress update for task not in project, When validating, Then the system SHALL return 400 with error for invalid `task_id`
+- **AC-PU-001**: Given bulk progress update with 50 task updates, When submitting via POST /progress, Then the system SHALL process valid updates and return per-item errors for invalid updates (partial success allowed)
+- **AC-PU-002**: Given progress update with invalid task_id format, When validating, Then the system SHALL return 400 with error for invalid `task_id`
 - **AC-PU-003**: Given progress update with `percent_complete=150`, When validating, Then the system SHALL return 400 with error "percent must be 0-100"
 - **AC-PU-004**: Given progress history request, When querying with pagination, Then the system SHALL support `page`, `per_page`, and return `total_pages`
-- **AC-PU-005**: Given progress history, When filtering by date range, Then the system SHALL support `from_date` and `to_date` query parameters
+- **AC-PU-005**: Given progress history, When filtering by date range, Then the system SHALL support `start_date` and `end_date` query parameters
 - **AC-PU-006**: Given progress update, When recording, Then the system SHALL capture `updated_by` from JWT `user_id` claim automatically
+- **AC-PU-007**: Given progress update where all items reference tasks outside the project, When validating, Then the system SHALL return 404 with per-item errors
+- **AC-PU-008**: Given progress update where all items reference completed/cancelled tasks, When validating, Then the system SHALL return 422 with per-item errors
 
 ### Security (AC-SEC-xxx)
 

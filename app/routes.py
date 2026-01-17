@@ -23,6 +23,10 @@ from app.resources.milestone_task_res import (
     MilestoneTasksResource,
     MilestoneTasksSyncResource,
 )
+from app.resources.progress_res import (
+    ProjectProgressHistoryResource,
+    ProjectProgressResource,
+)
 from app.resources.project_res import ProjectListResource, ProjectResource
 from app.resources.resource_res import ResourceListResource, ResourceResource
 from app.resources.task_res import (
@@ -132,6 +136,18 @@ def register_routes(app):
         MilestoneTasksSyncResource,
         "/v0/milestones/<string:milestone_id>/tasks/sync",
         "/<string:version>/milestones/<string:milestone_id>/tasks/sync",
+    )
+
+    # Progress Updates
+    api.add_resource(
+        ProjectProgressResource,
+        "/v0/projects/<string:project_id>/progress",
+        "/<string:version>/projects/<string:project_id>/progress",
+    )
+    api.add_resource(
+        ProjectProgressHistoryResource,
+        "/v0/projects/<string:project_id>/progress/history",
+        "/<string:version>/projects/<string:project_id>/progress/history",
     )
 
     # Resources

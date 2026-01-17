@@ -1,7 +1,7 @@
 """Update milestones table for OpenAPI compliance
 
 Revision ID: 7754e8504794
-Revises: 9d1ae3c65d7a
+Revises: daae3789a8f5
 Create Date: 2026-01-15 05:53:57.026335
 
 """
@@ -14,7 +14,7 @@ from app.models.types import GUID, JSONB
 
 # revision identifiers, used by Alembic.
 revision = '7754e8504794'
-down_revision = '9d1ae3c65d7a'
+down_revision = 'daae3789a8f5'
 branch_labels: Sequence[str] | None = None
 depends_on: Sequence[str] | None = None
 
