@@ -8,7 +8,7 @@
       - bearerAuth: []
     parameters:
       - $ref: '../components/parameters.yaml#/VersionParam'
-      - $ref: '../components/parameters.yaml#/ProjectIdQueryParam'
+      - $ref: '../components/parameters.yaml#/ProjectIdPathParam'
     requestBody:
       required: true
       content:
@@ -107,7 +107,7 @@
       - bearerAuth: []
     parameters:
       - $ref: '../components/parameters.yaml#/VersionParam'
-      - $ref: '../components/parameters.yaml#/ProjectIdQueryParam'
+      - $ref: '../components/parameters.yaml#/ProjectIdPathParam'
       - $ref: '../components/parameters.yaml#/PageParam'
       - $ref: '../components/parameters.yaml#/PerPageParam'
       - name: category
@@ -183,7 +183,7 @@
       - bearerAuth: []
     parameters:
       - $ref: '../components/parameters.yaml#/VersionParam'
-      - $ref: '../components/parameters.yaml#/ProjectIdQueryParam'
+      - $ref: '../components/parameters.yaml#/ProjectIdPathParam'
     requestBody:
       required: true
       content:
@@ -254,7 +254,7 @@
       - bearerAuth: []
     parameters:
       - $ref: '../components/parameters.yaml#/VersionParam'
-      - $ref: '../components/parameters.yaml#/ProjectIdQueryParam'
+      - $ref: '../components/parameters.yaml#/ProjectIdPathParam'
       - $ref: '../components/parameters.yaml#/ExpenseIdParam'
     responses:
       '200':
@@ -303,7 +303,7 @@
       - bearerAuth: []
     parameters:
       - $ref: '../components/parameters.yaml#/VersionParam'
-      - $ref: '../components/parameters.yaml#/ProjectIdQueryParam'
+      - $ref: '../components/parameters.yaml#/ProjectIdPathParam'
       - $ref: '../components/parameters.yaml#/ExpenseIdParam'
     requestBody:
       required: true
@@ -355,7 +355,7 @@
       - bearerAuth: []
     parameters:
       - $ref: '../components/parameters.yaml#/VersionParam'
-      - $ref: '../components/parameters.yaml#/ProjectIdQueryParam'
+      - $ref: '../components/parameters.yaml#/ProjectIdPathParam'
       - $ref: '../components/parameters.yaml#/ExpenseIdParam'
     responses:
       '204':

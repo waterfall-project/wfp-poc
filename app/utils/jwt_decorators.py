@@ -13,6 +13,7 @@ This module provides decorators for JWT-based authentication and
 Guardian-based authorization, extracting user claims and checking permissions.
 """
 
+import uuid
 from collections.abc import Callable
 from functools import wraps
 from typing import Any
@@ -46,6 +47,76 @@ class JWTError(Exception):
         self.message = message
         self.status_code = status_code
         super().__init__(self.message)
+
+
+def _get_correlation_id() -> str:
+    return str(getattr(g, "correlation_id", "N/A"))
+
+
+def _extract_token() -> str | None:
+    token = request.cookies.get(current_app.config["JWT_COOKIE_NAME"])
+    if token:
+        return token
+
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header.startswith("Bearer "):
+        return auth_header.removeprefix("Bearer ").strip() or None
+
+    return None
+
+
+def _decode_token(token: str) -> dict[str, Any] | ResponseTuple:
+    try:
+        decoded: Any = jwt.decode(
+            token,
+            current_app.config["JWT_SECRET_KEY"],
+            algorithms=[current_app.config["JWT_ALGORITHM"]],
+        )
+        if not isinstance(decoded, dict):
+            current_app.logger.error(
+                "JWT payload is not an object",
+                extra={"correlation_id": _get_correlation_id()},
+            )
+            return _error_response("Invalid token.", 401, error="Unauthorized")
+        return decoded
+    except ExpiredSignatureError:
+        current_app.logger.warning(
+            "JWT token expired",
+            extra={"correlation_id": _get_correlation_id()},
+        )
+        return _error_response("Token has expired.", 401, error="Unauthorized")
+    except DecodeError:
+        current_app.logger.error(
+            "JWT decode error",
+            extra={"correlation_id": _get_correlation_id()},
+        )
+        return _error_response("Invalid token format.", 401, error="Unauthorized")
+    except InvalidTokenError as exc:
+        current_app.logger.error(
+            "JWT validation error",
+            extra={
+                "correlation_id": _get_correlation_id(),
+                "error": str(exc),
+            },
+        )
+        return _error_response("Invalid token.", 401, error="Unauthorized")
+
+
+def _validate_string_claim(value: Any) -> str | None:
+    if not isinstance(value, str) or not value:
+        return None
+    return value
+
+
+def _set_user_context(payload: dict[str, Any]) -> bool:
+    user_id = _validate_string_claim(payload.get("user_id"))
+    company_id = _validate_string_claim(payload.get("company_id"))
+
+    g.user_id = user_id
+    g.company_id = company_id
+    g.email = payload.get("email") if isinstance(payload.get("email"), str) else None
+
+    return bool(user_id and company_id)
 
 
 def require_jwt_auth(f: Callable[..., Any]) -> Callable[..., Any]:
@@ -86,18 +157,11 @@ def require_jwt_auth(f: Callable[..., Any]) -> Callable[..., Any]:
         Returns:
             Response from wrapped function or error response.
         """
-        # Get token from cookie (browser-style) or Authorization header (service-style)
-        token = request.cookies.get(current_app.config["JWT_COOKIE_NAME"])
-
-        if not token:
-            auth_header = request.headers.get("Authorization", "")
-            if auth_header.startswith("Bearer "):
-                token = auth_header.removeprefix("Bearer ").strip()
-
+        token = _extract_token()
         if not token:
             current_app.logger.warning(
                 "Missing JWT token",
-                extra={"correlation_id": getattr(g, "correlation_id", "N/A")},
+                extra={"correlation_id": _get_correlation_id()},
             )
             return _error_response(
                 "Authentication required. No token provided.",
@@ -105,68 +169,35 @@ def require_jwt_auth(f: Callable[..., Any]) -> Callable[..., Any]:
                 error="Unauthorized",
             )
 
-        try:
-            # Decode and verify token
-            payload = jwt.decode(
-                token,
-                current_app.config["JWT_SECRET_KEY"],
-                algorithms=[current_app.config["JWT_ALGORITHM"]],
-            )
+        decoded = _decode_token(token)
+        if not isinstance(decoded, dict):
+            return decoded
 
-            # Extract required claims
-            g.user_id = payload.get("user_id")
-            g.company_id = payload.get("company_id")
-            g.email = payload.get("email")
-
-            # Validate that required claims are present
-            if not g.user_id or not g.company_id:
-                current_app.logger.error(
-                    "JWT token missing required claims",
-                    extra={
-                        "correlation_id": getattr(g, "correlation_id", "N/A"),
-                        "has_user_id": bool(g.user_id),
-                        "has_company_id": bool(g.company_id),
-                    },
-                )
-                return _error_response(
-                    "Invalid token: missing required claims.",
-                    401,
-                    error="Unauthorized",
-                )
-
-            current_app.logger.debug(
-                "JWT authentication successful",
+        if not _set_user_context(decoded):
+            current_app.logger.error(
+                "JWT token missing required claims",
                 extra={
-                    "correlation_id": getattr(g, "correlation_id", "N/A"),
-                    "user_id": g.user_id,
-                    "company_id": g.company_id,
+                    "correlation_id": _get_correlation_id(),
+                    "has_user_id": bool(getattr(g, "user_id", None)),
+                    "has_company_id": bool(getattr(g, "company_id", None)),
                 },
             )
+            return _error_response(
+                "Invalid token: missing required claims.",
+                401,
+                error="Unauthorized",
+            )
 
-            # Call original function
-            return f(*args, **kwargs)
+        current_app.logger.debug(
+            "JWT authentication successful",
+            extra={
+                "correlation_id": _get_correlation_id(),
+                "user_id": g.user_id,
+                "company_id": g.company_id,
+            },
+        )
 
-        except ExpiredSignatureError:
-            current_app.logger.warning(
-                "JWT token expired",
-                extra={"correlation_id": getattr(g, "correlation_id", "N/A")},
-            )
-            return _error_response("Token has expired.", 401, error="Unauthorized")
-        except DecodeError:
-            current_app.logger.error(
-                "JWT decode error",
-                extra={"correlation_id": getattr(g, "correlation_id", "N/A")},
-            )
-            return _error_response("Invalid token format.", 401, error="Unauthorized")
-        except InvalidTokenError as e:
-            current_app.logger.error(
-                "JWT validation error",
-                extra={
-                    "correlation_id": getattr(g, "correlation_id", "N/A"),
-                    "error": str(e),
-                },
-            )
-            return _error_response("Invalid token.", 401, error="Unauthorized")
+        return f(*args, **kwargs)
 
     return decorated_function
 
@@ -199,6 +230,111 @@ def get_current_company_id() -> str | None:
         ...     return jsonify({"company_id": company_id})
     """
     return getattr(g, "company_id", None)
+
+
+def get_current_company_uuid() -> uuid.UUID | None:
+    """Get the current authenticated user's company ID as UUID.
+
+    Returns:
+        Company UUID parsed from JWT claims or None if unavailable/invalid.
+    """
+    company_id = get_current_company_id()
+    if not company_id:
+        return None
+    try:
+        return uuid.UUID(company_id)
+    except ValueError:
+        return None
+
+
+def _infer_resource_name(explicit_name: str | None) -> str | None:
+    if explicit_name:
+        return explicit_name
+
+    endpoint = request.endpoint
+    if not endpoint:
+        return None
+
+    parts = endpoint.split(".")
+    if len(parts) <= 1:
+        return None
+
+    return parts[-1].replace("_resource", "s")
+
+
+def _get_user_context_or_error() -> tuple[tuple[str, str] | None, ResponseTuple | None]:
+    user_id = get_current_user_id()
+    company_id = get_current_company_id()
+    if user_id and company_id:
+        return (user_id, company_id), None
+
+    current_app.logger.error(
+        "Missing user context for authorization",
+        extra={
+            "correlation_id": _get_correlation_id(),
+        },
+    )
+    return (
+        None,
+        _error_response(
+            "User context missing. Use @require_jwt_auth first.",
+            401,
+            error="Unauthorized",
+        ),
+    )
+
+
+def _build_guardian_context(kwargs: dict[str, Any]) -> dict[str, str] | None:
+    context = {key: str(value) for key, value in kwargs.items() if key != "version"}
+    return context or None
+
+
+def _check_guardian_access_or_error(
+    *,
+    user_id: str,
+    company_id: str,
+    resource_name: str,
+    operation: Operation,
+    context: dict[str, str] | None,
+) -> ResponseTuple | None:
+    try:
+        access_granted, reason = GuardianService.check_access(
+            user_id=user_id,
+            company_id=company_id,
+            resource_name=resource_name,
+            operation=operation,
+            context=context,
+        )
+
+        if access_granted:
+            return None
+
+        current_app.logger.warning(
+            "Access denied by Guardian",
+            extra={
+                "user_id": user_id,
+                "company_id": company_id,
+                "resource_name": resource_name,
+                "operation": operation.value,
+                "reason": reason,
+                "correlation_id": _get_correlation_id(),
+            },
+        )
+        return _error_response(f"Access denied: {reason}", 403, error="Forbidden")
+
+    except GuardianError as exc:
+        current_app.logger.error(
+            "Guardian service error",
+            extra={
+                "error": str(exc),
+                "correlation_id": _get_correlation_id(),
+            },
+        )
+        return _error_response(
+            "Authorization service unavailable.",
+            503,
+            error="Service Unavailable",
+        )
 
 
 def get_current_user_email() -> str | None:
@@ -254,23 +390,14 @@ def access_required(
             Returns:
                 Response from wrapped function or 403 error.
             """
-            # Extract resource name from route if not provided
             nonlocal resource_name
-            if not resource_name:
-                # Try to get from endpoint name
-                endpoint = request.endpoint
-                if endpoint:
-                    # Convert 'api.user_resource' -> 'users'
-                    parts = endpoint.split(".")
-                    if len(parts) > 1:
-                        resource_name = parts[-1].replace("_resource", "s")
-
+            resource_name = _infer_resource_name(resource_name)
             if not resource_name:
                 current_app.logger.error(
                     "Cannot determine resource name for access check",
                     extra={
                         "endpoint": request.endpoint,
-                        "correlation_id": getattr(g, "correlation_id", "N/A"),
+                        "correlation_id": _get_correlation_id(),
                     },
                 )
                 return _error_response(
@@ -279,70 +406,25 @@ def access_required(
                     error="Internal Server Error",
                 )
 
-            # Get user context from JWT (set by @require_jwt_auth)
-            user_id = get_current_user_id()
-            company_id = get_current_company_id()
+            user_ctx, user_err = _get_user_context_or_error()
+            if user_err:
+                return user_err
 
-            if not user_id or not company_id:
-                current_app.logger.error(
-                    "Missing user context for authorization",
-                    extra={
-                        "correlation_id": getattr(g, "correlation_id", "N/A"),
-                    },
-                )
-                return _error_response(
-                    "User context missing. Use @require_jwt_auth first.",
-                    401,
-                    error="Unauthorized",
-                )
+            assert user_ctx is not None
+            user_id, company_id = user_ctx
+            context = _build_guardian_context(kwargs)
 
-            # Build context from route parameters (exclude API version segment)
-            context = {
-                key: str(value) for key, value in kwargs.items() if key != "version"
-            }
+            guardian_err = _check_guardian_access_or_error(
+                user_id=user_id,
+                company_id=company_id,
+                resource_name=resource_name,
+                operation=operation,
+                context=context,
+            )
+            if guardian_err:
+                return guardian_err
 
-            try:
-                # Check access with Guardian
-                access_granted, reason = GuardianService.check_access(
-                    user_id=user_id,
-                    company_id=company_id,
-                    resource_name=resource_name,
-                    operation=operation,
-                    context=context if context else None,
-                )
-
-                if not access_granted:
-                    current_app.logger.warning(
-                        "Access denied by Guardian",
-                        extra={
-                            "user_id": user_id,
-                            "company_id": company_id,
-                            "resource_name": resource_name,
-                            "operation": operation.value,
-                            "reason": reason,
-                            "correlation_id": getattr(g, "correlation_id", "N/A"),
-                        },
-                    )
-                    return _error_response(
-                        f"Access denied: {reason}", 403, error="Forbidden"
-                    )
-
-                # Access granted, call original function
-                return f(*args, **kwargs)
-
-            except GuardianError as e:
-                current_app.logger.error(
-                    "Guardian service error",
-                    extra={
-                        "error": str(e),
-                        "correlation_id": getattr(g, "correlation_id", "N/A"),
-                    },
-                )
-                return _error_response(
-                    "Authorization service unavailable.",
-                    503,
-                    error="Service Unavailable",
-                )
+            return f(*args, **kwargs)
 
         return decorated_function
 

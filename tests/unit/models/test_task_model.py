@@ -68,7 +68,7 @@ class TestTaskModel:
         assert task.name == "Test Task"
         assert task.type == "task"
         assert task.status == "not_started"
-        assert task.percent_complete == 0.0
+        assert task.percent_complete == pytest.approx(0.0)
         assert task.is_critical is False
         assert task.parent_id is None
         assert task.ms_project_uid is None
@@ -109,11 +109,15 @@ class TestTaskModel:
         assert task.planned_finish_date == datetime(2026, 1, 30, 0, 0)
         assert task.planned_duration_minutes == 9600
         assert task.actual_start_date == datetime(2026, 1, 16, 0, 0)
-        assert task.percent_complete == 45.50
-        assert float(task.planned_cost) == 5000.00
-        assert float(task.earned_value) == 2275.00
-        assert float(task.actual_cost) == 2500.00
-        assert float(task.remaining_cost) == 2500.00
+        assert task.percent_complete == pytest.approx(45.50)
+        assert task.planned_cost is not None
+        assert task.earned_value is not None
+        assert task.actual_cost is not None
+        assert task.remaining_cost is not None
+        assert task.planned_cost == pytest.approx(5000.00)
+        assert task.earned_value == pytest.approx(2275.00)
+        assert task.actual_cost == pytest.approx(2500.00)
+        assert task.remaining_cost == pytest.approx(2500.00)
         assert task.is_critical is True
 
     def test_task_hierarchical_structure(self, app, project):

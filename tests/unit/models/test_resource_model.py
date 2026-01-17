@@ -81,9 +81,8 @@ class TestResourceModel:
             assert resource.name == "Jane Smith"
             assert resource.type == "labor"
             assert resource.ms_project_uid == 123
-            # SQLAlchemy returns Decimal, equality with float is safe
-            assert resource.standard_rate == 75.50  # noqa: SIM300
-            assert resource.overtime_rate == 112.75  # noqa: SIM300
+            assert resource.standard_rate == pytest.approx(75.50)
+            assert resource.overtime_rate == pytest.approx(112.75)
             assert resource.email == "jane.smith@example.com"
             assert resource.is_active is True
 
@@ -105,7 +104,7 @@ class TestResourceModel:
             db.session.commit()
 
             assert resource.type == "material"
-            assert resource.standard_rate == 150.00  # noqa: SIM300
+            assert resource.standard_rate == pytest.approx(150.00)
 
     def test_create_resource_cost(self, app, company_id):
         """Test creating a cost resource.
@@ -125,7 +124,7 @@ class TestResourceModel:
             db.session.commit()
 
             assert resource.type == "cost"
-            assert resource.standard_rate == 500.00  # noqa: SIM300
+            assert resource.standard_rate == pytest.approx(500.00)
 
     def test_resource_unique_name_per_company(self, app, company_id):
         """Test unique constraint on (company_id, name).
@@ -298,6 +297,8 @@ class TestResourceModel:
 
             # Retrieve and check precision
             retrieved = db.session.get(Resource, resource.id)
-            # SQLAlchemy Decimal to float comparison is safe
-            assert float(retrieved.standard_rate) == 75.99  # noqa: SIM300
-            assert float(retrieved.overtime_rate) == 113.49  # noqa: SIM300
+            assert retrieved is not None
+            assert retrieved.standard_rate is not None
+            assert retrieved.overtime_rate is not None
+            assert float(retrieved.standard_rate) == pytest.approx(75.99)
+            assert float(retrieved.overtime_rate) == pytest.approx(113.49)

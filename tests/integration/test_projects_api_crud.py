@@ -16,6 +16,8 @@ database and authentication.
 import uuid
 from datetime import UTC, datetime, timedelta
 
+import pytest
+
 from app.models.db import db
 from app.models.project import Project
 from app.models.task import Task
@@ -52,7 +54,7 @@ class TestProjectCreate:
         assert data["data"]["name"] == "Integration Test Project"
         assert data["data"]["code"] == "INT-001"
         assert data["data"]["status"] == "active"
-        assert data["data"]["budget"] == 500000.00
+        assert data["data"]["budget"] == pytest.approx(500000.00)
         assert data["data"]["currency_code"] == "USD"
         assert "id" in data["data"]
         assert "created_at" in data["data"]
@@ -99,7 +101,7 @@ class TestProjectCreate:
         Then: Returns 409 conflict error
         """
         with app.app_context():
-            project = Project(  # type: ignore[call-arg]
+            project = Project(
                 company_id=uuid.UUID(company_id),
                 name="Existing Project",
                 code="DUP-001",
@@ -175,7 +177,7 @@ class TestProjectRetrieve:
         Then: Returns 200 with complete project data
         """
         with app.app_context():
-            project = Project(  # type: ignore[call-arg]
+            project = Project(
                 company_id=uuid.UUID(company_id),
                 name="Fetch Me Project",
                 code="FETCH-001",
@@ -201,7 +203,7 @@ class TestProjectRetrieve:
         assert data["data"]["code"] == "FETCH-001"
         assert data["data"]["title"] == "Integration Test"
         assert data["data"]["status"] == "active"
-        assert data["data"]["budget"] == 100000.00
+        assert data["data"]["budget"] == pytest.approx(100000.00)
         assert data["data"]["currency_code"] == "EUR"
         assert data["data"]["description"] == "Test project for retrieval"
         assert "created_at" in data["data"]
@@ -248,7 +250,7 @@ class TestProjectRetrieve:
         other_company_id = generate_uuid()
 
         with app.app_context():
-            project = Project(  # type: ignore[call-arg]
+            project = Project(
                 company_id=uuid.UUID(other_company_id),
                 name="Other Company Project",
                 code="OTHER-001",
@@ -275,7 +277,7 @@ class TestProjectUpdate:
         Then: Returns 200 with updated project and persists changes
         """
         with app.app_context():
-            project = Project(  # type: ignore[call-arg]
+            project = Project(
                 company_id=uuid.UUID(company_id),
                 name="Original Name",
                 code="PATCH-001",
@@ -303,7 +305,7 @@ class TestProjectUpdate:
         assert data["message"] == "Project updated successfully"
         assert data["data"]["name"] == "Updated Name"
         assert data["data"]["status"] == "on_hold"
-        assert data["data"]["budget"] == 150000.00
+        assert data["data"]["budget"] == pytest.approx(150000.00)
         assert data["data"]["description"] == "Updated description"
         assert data["data"]["code"] == "PATCH-001"  # Unchanged
 
@@ -313,7 +315,7 @@ class TestProjectUpdate:
             assert updated_project is not None
             assert updated_project.name == "Updated Name"
             assert updated_project.status == "on_hold"
-            assert updated_project.budget == 150000.00
+            assert updated_project.budget == pytest.approx(150000.00)
 
     def test_patch_project_single_field(
         self, integration_client, app, company_id
@@ -325,7 +327,7 @@ class TestProjectUpdate:
         Then: Returns 200 and only updates specified field
         """
         with app.app_context():
-            project = Project(  # type: ignore[call-arg]
+            project = Project(
                 company_id=uuid.UUID(company_id),
                 name="Original",
                 code="SINGLE-001",
@@ -356,7 +358,7 @@ class TestProjectUpdate:
         Then: Returns 200 and updates dates
         """
         with app.app_context():
-            project = Project(  # type: ignore[call-arg]
+            project = Project(
                 company_id=uuid.UUID(company_id),
                 name="Date Update Project",
                 code="DATE-001",
@@ -390,7 +392,7 @@ class TestProjectUpdate:
         Then: Returns 400 validation error
         """
         with app.app_context():
-            project = Project(  # type: ignore[call-arg]
+            project = Project(
                 company_id=uuid.UUID(company_id),
                 name="Invalid Date Project",
                 code="INV-DATE-001",
@@ -437,14 +439,14 @@ class TestProjectUpdate:
         Then: Returns 409 conflict error
         """
         with app.app_context():
-            project1 = Project(  # type: ignore[call-arg]
+            project1 = Project(
                 company_id=uuid.UUID(company_id),
                 name="Project 1",
                 code="CODE-001",
                 start_date=datetime.now(UTC),
                 finish_date=datetime.now(UTC) + timedelta(days=30),
             )
-            project2 = Project(  # type: ignore[call-arg]
+            project2 = Project(
                 company_id=uuid.UUID(company_id),
                 name="Project 2",
                 code="CODE-002",
@@ -475,7 +477,7 @@ class TestProjectDelete:
         Then: Returns 204 and removes project from database
         """
         with app.app_context():
-            project = Project(  # type: ignore[call-arg]
+            project = Project(
                 company_id=uuid.UUID(company_id),
                 name="Deletable Project",
                 code="DEL-001",
@@ -506,7 +508,7 @@ class TestProjectDelete:
         Then: Returns 409 conflict error and does not delete
         """
         with app.app_context():
-            project = Project(  # type: ignore[call-arg]
+            project = Project(
                 company_id=uuid.UUID(company_id),
                 name="Project with Tasks",
                 code="DEL-002",
@@ -516,7 +518,7 @@ class TestProjectDelete:
             db.session.add(project)
             db.session.commit()
 
-            task = Task(  # type: ignore[call-arg]
+            task = Task(
                 project_id=project.id,
                 name="Child Task",
                 type="task",
@@ -578,7 +580,7 @@ class TestProjectDelete:
         other_company_id = generate_uuid()
 
         with app.app_context():
-            project = Project(  # type: ignore[call-arg]
+            project = Project(
                 company_id=uuid.UUID(other_company_id),
                 name="Other Company Project",
                 code="OTHER-DEL-001",

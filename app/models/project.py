@@ -14,9 +14,9 @@ the EVM system with multi-tenancy support and comprehensive tracking.
 """
 
 import uuid
-from datetime import datetime, time
+from datetime import UTC, date, datetime, time
 from decimal import Decimal
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import (
     CheckConstraint,
@@ -28,7 +28,7 @@ from sqlalchemy import (
     Time,
     UniqueConstraint,
 )
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship, validates
 
 from app.models.types import GUID, TimestampMixin, UUIDMixin
 
@@ -84,6 +84,96 @@ class Project(UUIDMixin, TimestampMixin, Model):
         created_at: Timestamp of creation (auto-generated).
         updated_at: Timestamp of last update (auto-updated).
     """
+
+    def __init__(
+        self,
+        company_id: uuid.UUID,
+        name: str,
+        start_date: datetime,
+        finish_date: datetime,
+        **kwargs: Any,
+    ) -> None:
+        """Initialize a Project instance.
+
+        Args:
+            company_id: Company UUID for multi-tenancy.
+            name: Project name.
+            start_date: Planned project start date.
+            finish_date: Planned project finish date.
+            code: Optional project code within company (kwarg).
+            description: Optional project description (kwarg).
+            title: Optional MS Project title (kwarg).
+            budget: Optional budget (BAC) as Decimal/float/int (kwarg).
+            currency_code: ISO 4217 currency code (kwarg).
+            status: Project status (kwarg).
+            ms_project_uid: Optional MS Project UID (kwarg).
+            ms_project_guid: Optional MS Project GUID (kwarg).
+            ms_project_save_version: Optional MS Project SaveVersion (kwarg).
+            creation_date: Optional MS Project creation date (kwarg).
+            last_saved_date: Optional MS Project last saved date (kwarg).
+            calendar_uid: Optional MS Project calendar UID (kwarg).
+            minutes_per_day: Working minutes per day (kwarg).
+            minutes_per_week: Working minutes per week (kwarg).
+            days_per_month: Working days per month (kwarg).
+            week_start_day: Week start day (kwarg).
+            default_start_time: Default task start time (kwarg).
+            default_finish_time: Default task finish time (kwarg).
+            planned_start_date: Deprecated alias for start_date (kwarg).
+            planned_finish_date: Deprecated alias for finish_date (kwarg).
+            **kwargs: Additional keyword arguments passed to parent.
+        """
+        code = kwargs.pop("code", None)
+        description = kwargs.pop("description", None)
+        title = kwargs.pop("title", None)
+        budget = kwargs.pop("budget", None)
+        currency_code = kwargs.pop("currency_code", "EUR")
+        status = kwargs.pop("status", "initialized")
+        ms_project_uid = kwargs.pop("ms_project_uid", None)
+        ms_project_guid = kwargs.pop("ms_project_guid", None)
+        ms_project_save_version = kwargs.pop("ms_project_save_version", None)
+        creation_date = kwargs.pop("creation_date", None)
+        last_saved_date = kwargs.pop("last_saved_date", None)
+        calendar_uid = kwargs.pop("calendar_uid", None)
+        minutes_per_day = kwargs.pop("minutes_per_day", 420)
+        minutes_per_week = kwargs.pop("minutes_per_week", 2100)
+        days_per_month = kwargs.pop("days_per_month", 20)
+        week_start_day = kwargs.pop("week_start_day", 1)
+        default_start_time = kwargs.pop("default_start_time", None)
+        default_finish_time = kwargs.pop("default_finish_time", None)
+        planned_start_date = kwargs.pop("planned_start_date", None)
+        planned_finish_date = kwargs.pop("planned_finish_date", None)
+
+        super().__init__(**kwargs)
+        self.company_id = company_id
+        self.name = name
+        self.code = code
+        self.description = description
+        self.title = title
+        self.start_date = start_date
+        self.finish_date = finish_date
+        self.planned_start_date = planned_start_date
+        self.planned_finish_date = planned_finish_date
+        self.currency_code = currency_code
+        self.status = status
+        self.ms_project_uid = ms_project_uid
+        self.ms_project_guid = ms_project_guid
+        self.ms_project_save_version = ms_project_save_version
+        self.creation_date = creation_date
+        self.last_saved_date = last_saved_date
+        self.calendar_uid = calendar_uid
+        self.minutes_per_day = minutes_per_day
+        self.minutes_per_week = minutes_per_week
+        self.days_per_month = days_per_month
+        self.week_start_day = week_start_day
+        self.default_start_time = default_start_time or time(9, 0, 0)
+        self.default_finish_time = default_finish_time or time(18, 0, 0)
+
+        if isinstance(budget, Decimal):
+            self.budget = budget
+        elif budget is None:
+            self.budget = None
+        else:
+            self.budget = Decimal(str(budget))
 
     __tablename__ = "projects"
 
@@ -307,3 +397,31 @@ class Project(UUIDMixin, TimestampMixin, Model):
             Human-readable string with key attributes.
         """
         return f"<Project(id={self.id}, name='{self.name}', status='{self.status}')>"
+
+    @staticmethod
+    def _normalize_datetime(value: datetime | date | None) -> datetime | None:
+        """Normalize datetimes to naive UTC for consistent storage."""
+        if value is None:
+            return None
+
+        if isinstance(value, date) and not isinstance(value, datetime):
+            value = datetime.combine(value, datetime.min.time())
+
+        if value.tzinfo is not None and value.utcoffset() is not None:
+            value = value.astimezone(UTC).replace(tzinfo=None)
+
+        return value
+
+    @validates(
+        "start_date",
+        "planned_start_date",
+        "finish_date",
+        "planned_finish_date",
+        "creation_date",
+        "last_saved_date",
+    )
+    def _validate_datetime_field(
+        self, key: str, value: datetime | date | None
+    ) -> datetime | None:
+        """Ensure project datetime fields are stored as naive UTC values."""
+        return self._normalize_datetime(value)

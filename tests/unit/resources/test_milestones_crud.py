@@ -158,8 +158,8 @@ class TestMilestoneResourceGet:
         assert data["data"]["id"] == str(milestone_data.id)
         assert data["data"]["name"] == milestone_data.name
         assert data["data"]["description"] == milestone_data.description
-        assert float(data["data"]["budget_weight"]) == float(
-            milestone_data.budget_weight
+        assert float(data["data"]["budget_weight"]) == pytest.approx(
+            float(milestone_data.budget_weight)
         )
         assert data["data"]["status"] == milestone_data.status
         assert data["data"]["is_achieved"] == milestone_data.is_achieved

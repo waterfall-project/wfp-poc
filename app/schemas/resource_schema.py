@@ -129,7 +129,7 @@ class ResourceCreateSchema(Schema):
     overtime_rate = fields.Decimal(
         allow_none=False, places=2, validate=Range(min=0), load_default=0
     )
-    email = fields.Email(required=True, validate=Length(max=255))
+    email = fields.Email(allow_none=True, validate=Length(max=255))
     is_active = fields.Boolean(load_default=True)
 
     @post_load

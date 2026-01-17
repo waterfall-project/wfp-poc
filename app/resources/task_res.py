@@ -21,10 +21,21 @@ from typing import Any, cast
 from flask import request
 from flask_restful import Resource
 from marshmallow import ValidationError
+from sqlalchemy import nullslast
 from sqlalchemy.exc import IntegrityError
 
 from app import limiter
+from app.constants.http import (
+    INVALID_JSON_BODY_MSG,
+    INVALID_PAGINATION_MSG,
+    INVALID_PROJECT_ID_MSG,
+    INVALID_REQUEST_MSG,
+    INVALID_UUID_MSG,
+    VALIDATION_FAILED_MSG,
+)
 from app.models.db import db
+from app.models.milestone import Milestone
+from app.models.milestone_task import MilestoneTask
 from app.models.project import Project
 from app.models.task import Task
 from app.models.task_predecessor import TaskPredecessor
@@ -45,9 +56,9 @@ from app.utils.correlation import get_correlation_id as _get_correlation_id
 from app.utils.jwt_decorators import (
     access_required,
     get_current_company_id,
-    get_current_user_id,
     require_jwt_auth,
 )
+from app.utils.rate_limit import rate_limit_user_key
 
 # HTTP Error Types
 BAD_REQUEST_ERROR = "Bad Request"
@@ -56,11 +67,6 @@ CONFLICT_ERROR = "Conflict"
 UNPROCESSABLE_ENTITY_ERROR = "Unprocessable Entity"
 
 # Common Error Messages
-INVALID_PROJECT_ID_MSG = "Invalid project_id format"
-INVALID_UUID_MSG = "Invalid UUID format"
-INVALID_PAGINATION_MSG = "Invalid pagination parameters"
-INVALID_JSON_BODY_MSG = "Request body must be a JSON object"
-VALIDATION_FAILED_MSG = "Validation failed"
 DATABASE_INTEGRITY_ERROR_MSG = "Database integrity error"
 
 # Task-specific Error Messages
@@ -72,6 +78,8 @@ INVALID_SORT_ORDER_MSG = "Invalid sort_order: {sort_order}"
 CIRCULAR_DEPENDENCY_MSG = "Circular dependency detected in task predecessors"
 REFERENCED_TASK_MSG = "Cannot delete task: it is referenced as a predecessor"
 BULK_LIMIT_EXCEEDED_MSG = "Bulk operation limited to 500 tasks per request"
+INVALID_BOOLEAN_PARAM_MSG = "Invalid boolean parameter"
+INVALID_PREDECESSOR_REFERENCE_MSG = "Invalid predecessor reference"
 
 # Success Messages
 TASK_CREATED_MSG = "Task created successfully"
@@ -102,17 +110,6 @@ def _normalize_datetime(value: datetime | date | None) -> datetime | None:
             return value
         return value.astimezone(UTC).replace(tzinfo=None)
     return value
-
-
-def _rate_limit_user_key() -> str:
-    """Rate limiting key based on authenticated user.
-
-    Falls back to remote address when user_id is absent.
-    """
-    user_id = get_current_user_id()
-    if user_id:
-        return str(user_id)
-    return request.remote_addr or "anonymous"
 
 
 def _validate_predecessors_in_project(
@@ -245,6 +242,87 @@ def _detect_circular_dependency(
     return has_cycle(task_id)
 
 
+def _get_milestone_target_date_and_critical_task(
+    milestone_id: uuid.UUID,
+) -> tuple[datetime | None, Task | None]:
+    """Get recalculated milestone target_date and critical task.
+
+    The target_date is derived as the MAX of linked tasks'
+    planned_finish_date. The critical task is the task that
+    determines this max finish date.
+
+    Args:
+        milestone_id: Milestone UUID.
+
+    Returns:
+        Tuple of (new_target_date, critical_task). If no linked tasks
+        or all finish dates are missing, returns (None, None).
+    """
+    critical_task = (
+        Task.query.join(MilestoneTask, MilestoneTask.task_id == Task.id)
+        .filter(MilestoneTask.milestone_id == milestone_id)
+        .order_by(nullslast(Task.planned_finish_date.desc()))
+        .first()
+    )
+
+    if not critical_task or critical_task.planned_finish_date is None:
+        return None, None
+
+    return critical_task.planned_finish_date, critical_task
+
+
+def _recalculate_milestones_for_tasks(
+    task_ids: set[uuid.UUID],
+) -> list[dict[str, Any]]:
+    """Recalculate milestone target_dates impacted by task updates.
+
+    Args:
+        task_ids: Set of task UUIDs whose planned_finish_date changed.
+
+    Returns:
+        List of milestone recalculation payloads for API response.
+    """
+    if not task_ids:
+        return []
+
+    milestone_rows = (
+        db.session.query(MilestoneTask.milestone_id)
+        .filter(MilestoneTask.task_id.in_(task_ids))
+        .distinct()
+        .all()
+    )
+
+    recalculated: list[dict[str, Any]] = []
+    for (milestone_id,) in milestone_rows:
+        milestone = db.session.get(Milestone, milestone_id)
+        if milestone is None:
+            continue
+
+        old_target_date = milestone.target_date
+        new_target_date, critical_task = _get_milestone_target_date_and_critical_task(
+            milestone_id
+        )
+        if new_target_date is None or critical_task is None:
+            continue
+
+        if old_target_date != new_target_date:
+            milestone.target_date = new_target_date
+            recalculated.append(
+                {
+                    "milestone_id": str(milestone_id),
+                    "name": milestone.name,
+                    "old_target_date": old_target_date.isoformat()
+                    if old_target_date
+                    else None,
+                    "new_target_date": new_target_date.isoformat(),
+                    "critical_task_id": str(critical_task.id),
+                    "critical_task_name": critical_task.name,
+                }
+            )
+
+    return recalculated
+
+
 class TaskListResource(Resource):
     """REST resource for task collection operations.
 
@@ -260,7 +338,7 @@ class TaskListResource(Resource):
 
     @require_jwt_auth
     @access_required(Operation.LIST, "tasks")
-    @limiter.limit("100 per minute", key_func=_rate_limit_user_key)
+    @limiter.limit("100 per minute", key_func=rate_limit_user_key)
     def get(self, project_id: str, version: str | None = None) -> tuple[dict, int]:
         """Retrieve paginated list of tasks for a project.
 
@@ -310,8 +388,8 @@ class TaskListResource(Resource):
             project_uuid = uuid.UUID(project_id)
         except ValueError:
             return {
-                "message": "Invalid project_id format",
-                "errors": {"validation": "Invalid request"},
+                "message": INVALID_PROJECT_ID_MSG,
+                "errors": {"validation": INVALID_REQUEST_MSG},
             }, 400
 
         project = Project.query.filter_by(
@@ -345,8 +423,8 @@ class TaskListResource(Resource):
                     query = query.filter_by(parent_id=parent_uuid)
                 except ValueError:
                     return {
-                        "message": "Invalid UUID format",
-                        "errors": {"validation": "Invalid request"},
+                        "message": INVALID_UUID_MSG,
+                        "errors": {"validation": INVALID_REQUEST_MSG},
                     }, 400
 
         # Apply boolean filters with strict validation
@@ -364,7 +442,7 @@ class TaskListResource(Resource):
                 query = query.filter_by(is_critical=is_critical)
         except ValueError as e:
             return {
-                "message": "Invalid boolean parameter",
+                "message": INVALID_BOOLEAN_PARAM_MSG,
                 "errors": {"query_params": str(e)},
             }, 400
 
@@ -430,7 +508,7 @@ class TaskListResource(Resource):
 
     @require_jwt_auth
     @access_required(Operation.CREATE, "tasks")
-    @limiter.limit("30 per minute", key_func=_rate_limit_user_key)
+    @limiter.limit("30 per minute", key_func=rate_limit_user_key)
     def post(self, project_id: str, version: str | None = None) -> tuple[dict, int]:
         """Create a new task within a project.
 
@@ -467,8 +545,8 @@ class TaskListResource(Resource):
             project_uuid = uuid.UUID(project_id)
         except ValueError:
             return {
-                "message": "Invalid project_id format",
-                "errors": {"validation": "Invalid request"},
+                "message": INVALID_PROJECT_ID_MSG,
+                "errors": {"validation": INVALID_REQUEST_MSG},
             }, 400
 
         project = Project.query.filter_by(
@@ -514,7 +592,7 @@ class TaskListResource(Resource):
         )
         if not is_valid:
             return {
-                "message": "Invalid predecessor reference",
+                "message": INVALID_PREDECESSOR_REFERENCE_MSG,
                 "errors": {"predecessors": error_msg},
             }, 400
 
@@ -527,9 +605,7 @@ class TaskListResource(Resource):
             validated_data.get("is_milestone"), validated_data.get("is_summary")
         )
 
-        task = Task()
-        task.project_id = project_uuid
-        task.name = validated_data["name"]
+        task = Task(project_id=project_uuid, name=validated_data["name"])
         task.wbs_code = validated_data.get("wbs")
         task.planned_start_date = _normalize_datetime(validated_data["start"])
         task.planned_finish_date = _normalize_datetime(validated_data["finish"])
@@ -545,20 +621,19 @@ class TaskListResource(Resource):
 
             # Add predecessors
             for pred in predecessors:
-                predecessor_rel = TaskPredecessor()
-                predecessor_rel.successor_id = task.id
-                predecessor_rel.predecessor_id = uuid.UUID(
-                    str(pred["predecessor_task_id"])
+                predecessor_rel = TaskPredecessor(
+                    predecessor_id=uuid.UUID(str(pred["predecessor_task_id"])),
+                    successor_id=task.id,
+                    type=pred["type"],
+                    lag_minutes=pred.get("lag", 0),
                 )
-                predecessor_rel.type = pred["type"]
-                predecessor_rel.lag_minutes = pred.get("lag", 0)
                 db.session.add(predecessor_rel)
 
             db.session.commit()
         except IntegrityError as e:
             db.session.rollback()
             return {
-                "message": "Database integrity error",
+                "message": DATABASE_INTEGRITY_ERROR_MSG,
                 "errors": {
                     "database": str(e.orig) if hasattr(e, "orig") else str(e),
                 },
@@ -588,7 +663,7 @@ class TaskResource(Resource):
 
     @require_jwt_auth
     @access_required(Operation.READ, "tasks")
-    @limiter.limit("200 per minute", key_func=_rate_limit_user_key)
+    @limiter.limit("200 per minute", key_func=rate_limit_user_key)
     def get(
         self, project_id: str, id: str, version: str | None = None
     ) -> tuple[dict, int]:
@@ -625,8 +700,8 @@ class TaskResource(Resource):
             task_uuid = uuid.UUID(id)
         except ValueError:
             return {
-                "message": "Invalid UUID format",
-                "errors": {"validation": "Invalid request"},
+                "message": INVALID_UUID_MSG,
+                "errors": {"validation": INVALID_REQUEST_MSG},
             }, 400
 
         # Validate project exists and belongs to company
@@ -654,7 +729,7 @@ class TaskResource(Resource):
 
     @require_jwt_auth
     @access_required(Operation.UPDATE, "tasks")
-    @limiter.limit("50 per minute", key_func=_rate_limit_user_key)
+    @limiter.limit("50 per minute", key_func=rate_limit_user_key)
     def patch(
         self, project_id: str, id: str, version: str | None = None
     ) -> tuple[dict, int] | tuple[dict, int, dict[str, str]]:
@@ -694,8 +769,8 @@ class TaskResource(Resource):
             task_uuid = uuid.UUID(id)
         except ValueError:
             return {
-                "message": "Invalid UUID format",
-                "errors": {"validation": "Invalid request"},
+                "message": INVALID_UUID_MSG,
+                "errors": {"validation": INVALID_REQUEST_MSG},
             }, 400
 
         # Validate project exists and belongs to company
@@ -749,7 +824,7 @@ class TaskResource(Resource):
             )
             if not is_valid:
                 return {
-                    "message": "Invalid predecessor reference",
+                    "message": INVALID_PREDECESSOR_REFERENCE_MSG,
                     "errors": {"predecessors": error_msg},
                 }, 400
 
@@ -795,13 +870,12 @@ class TaskResource(Resource):
 
             # Add new predecessors
             for pred in predecessors:
-                predecessor_rel = TaskPredecessor()
-                predecessor_rel.successor_id = task_uuid
-                predecessor_rel.predecessor_id = uuid.UUID(
-                    str(pred["predecessor_task_id"])
+                predecessor_rel = TaskPredecessor(
+                    predecessor_id=uuid.UUID(str(pred["predecessor_task_id"])),
+                    successor_id=task_uuid,
+                    type=pred["type"],
+                    lag_minutes=pred.get("lag", 0),
                 )
-                predecessor_rel.type = pred["type"]
-                predecessor_rel.lag_minutes = pred.get("lag", 0)
                 db.session.add(predecessor_rel)
 
         try:
@@ -809,7 +883,7 @@ class TaskResource(Resource):
         except IntegrityError as e:
             db.session.rollback()
             return {
-                "message": "Database integrity error",
+                "message": DATABASE_INTEGRITY_ERROR_MSG,
                 "errors": {
                     "database": str(e.orig) if hasattr(e, "orig") else str(e),
                 },
@@ -828,7 +902,7 @@ class TaskResource(Resource):
 
     @require_jwt_auth
     @access_required(Operation.DELETE, "tasks")
-    @limiter.limit("20 per minute", key_func=_rate_limit_user_key)
+    @limiter.limit("20 per minute", key_func=rate_limit_user_key)
     def delete(
         self, project_id: str, id: str, version: str | None = None
     ) -> tuple[dict | str, int] | tuple[dict, int, dict[str, str]]:
@@ -866,8 +940,8 @@ class TaskResource(Resource):
             task_uuid = uuid.UUID(id)
         except ValueError:
             return {
-                "message": "Invalid UUID format",
-                "errors": {"validation": "Invalid request"},
+                "message": INVALID_UUID_MSG,
+                "errors": {"validation": INVALID_REQUEST_MSG},
             }, 400
 
         # Validate project exists and belongs to company
@@ -914,7 +988,7 @@ class TaskResource(Resource):
         except IntegrityError as e:
             db.session.rollback()
             return {
-                "message": "Database integrity error",
+                "message": DATABASE_INTEGRITY_ERROR_MSG,
                 "errors": {"database": str(e.orig) if hasattr(e, "orig") else str(e)},
             }, 409
 
@@ -936,7 +1010,7 @@ class TaskBulkResource(Resource):
 
     @require_jwt_auth
     @access_required(Operation.CREATE, "tasks")
-    @limiter.limit("10 per minute", key_func=_rate_limit_user_key)
+    @limiter.limit("10 per minute", key_func=rate_limit_user_key)
     def post(self, project_id: str, version: str | None = None) -> tuple[dict, int]:
         """Bulk create tasks for a project.
 
@@ -975,8 +1049,8 @@ class TaskBulkResource(Resource):
             project_uuid = uuid.UUID(project_id)
         except ValueError:
             return {
-                "message": "Invalid project_id format",
-                "errors": {"validation": "Invalid request"},
+                "message": INVALID_PROJECT_ID_MSG,
+                "errors": {"validation": INVALID_REQUEST_MSG},
             }, 400
 
         project = Project.query.filter_by(
@@ -1030,9 +1104,7 @@ class TaskBulkResource(Resource):
                     task_data.get("is_milestone"), task_data.get("is_summary")
                 )
 
-                task = Task()
-                task.project_id = project_uuid
-                task.name = task_data["name"]
+                task = Task(project_id=project_uuid, name=task_data["name"])
                 task.wbs_code = task_data.get("wbs")
                 task.planned_start_date = _normalize_datetime(task_data["start"])
                 task.planned_finish_date = _normalize_datetime(task_data["finish"])
@@ -1057,11 +1129,12 @@ class TaskBulkResource(Resource):
                         invalid_predecessors.append(str(pred_id))
                         continue  # Skip invalid predecessor in bulk operation
 
-                    predecessor_rel = TaskPredecessor()
-                    predecessor_rel.successor_id = task.id
-                    predecessor_rel.predecessor_id = pred_id
-                    predecessor_rel.type = pred["type"]
-                    predecessor_rel.lag_minutes = pred.get("lag", 0)
+                    predecessor_rel = TaskPredecessor(
+                        predecessor_id=pred_id,
+                        successor_id=task.id,
+                        type=pred["type"],
+                        lag_minutes=pred.get("lag", 0),
+                    )
                     db.session.add(predecessor_rel)
 
                 if invalid_predecessors:
@@ -1092,7 +1165,7 @@ class TaskBulkResource(Resource):
         except IntegrityError as e:
             db.session.rollback()
             return {
-                "message": "Database integrity error",
+                "message": DATABASE_INTEGRITY_ERROR_MSG,
                 "errors": {
                     "database": str(e.orig) if hasattr(e, "orig") else str(e),
                 },
@@ -1130,7 +1203,7 @@ class TaskSyncResource(Resource):
 
     @require_jwt_auth
     @access_required(Operation.UPDATE, "tasks")
-    @limiter.limit("10 per minute", key_func=_rate_limit_user_key)
+    @limiter.limit("10 per minute", key_func=rate_limit_user_key)
     def put(self, project_id: str, version: str | None = None) -> tuple[dict, int]:
         """Sync tasks using ms_project_uid as reconciliation key.
 
@@ -1175,8 +1248,8 @@ class TaskSyncResource(Resource):
             project_uuid = uuid.UUID(project_id)
         except ValueError:
             return {
-                "message": "Invalid project_id format",
-                "errors": {"validation": "Invalid request"},
+                "message": INVALID_PROJECT_ID_MSG,
+                "errors": {"validation": INVALID_REQUEST_MSG},
             }, 400
 
         project = Project.query.filter_by(
@@ -1215,9 +1288,9 @@ class TaskSyncResource(Resource):
         tasks_data = validated_data["tasks"]
         updated_count = 0
         not_found_count = 0
-        milestone_recalculated_count = 0
         updated_tasks = []
         not_found_uids = []
+        changed_task_ids: set[uuid.UUID] = set()
 
         # Process each task
         for task_data in tasks_data:
@@ -1242,6 +1315,7 @@ class TaskSyncResource(Resource):
                     new_finish = _normalize_datetime(task_data["planned_finish_date"])
                     if new_finish != existing_task.planned_finish_date:
                         existing_task.planned_finish_date = new_finish
+                        changed_task_ids.add(existing_task.id)
 
                 # Update predecessors if provided
                 if "predecessors" in task_data:
@@ -1264,11 +1338,12 @@ class TaskSyncResource(Resource):
                         ).first()
 
                         if pred_task:
-                            predecessor_rel = TaskPredecessor()
-                            predecessor_rel.successor_id = existing_task.id
-                            predecessor_rel.predecessor_id = pred_task.id
-                            predecessor_rel.type = pred.get("type", "FS")
-                            predecessor_rel.lag_minutes = pred.get("lag", 0)
+                            predecessor_rel = TaskPredecessor(
+                                predecessor_id=pred_task.id,
+                                successor_id=existing_task.id,
+                                type=pred.get("type", "FS"),
+                                lag_minutes=pred.get("lag", 0),
+                            )
                             db.session.add(predecessor_rel)
 
                 updated_count += 1
@@ -1279,19 +1354,28 @@ class TaskSyncResource(Resource):
                 not_found_count += 1
                 not_found_uids.append(ms_project_uid)
 
+        recalculated_milestones: list[dict[str, Any]] = []
+        if changed_task_ids:
+            db.session.flush()
+            recalculated_milestones = _recalculate_milestones_for_tasks(
+                changed_task_ids
+            )
+
         # Commit all changes
         try:
             db.session.commit()
         except IntegrityError as e:
             db.session.rollback()
             return {
-                "message": "Database integrity error",
+                "message": DATABASE_INTEGRITY_ERROR_MSG,
                 "errors": {
                     "database": str(e.orig) if hasattr(e, "orig") else str(e),
                 },
             }, 409
 
         # Prepare response matching OpenAPI spec
+        milestone_recalculated_count = len(recalculated_milestones)
+
         response_data = {
             "data": {
                 "updated_count": updated_count,
@@ -1302,8 +1386,7 @@ class TaskSyncResource(Resource):
                 ],
                 "not_found_uids": not_found_uids,
                 "not_found_guids": [],  # Not used in current implementation
-                # TODO: Implement milestone recalculation
-                "recalculated_milestones": [],
+                "recalculated_milestones": recalculated_milestones,
             },
             "message": (
                 f"{updated_count} tasks updated, {not_found_count} not found, "

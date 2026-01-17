@@ -72,6 +72,7 @@ class Config:
     )
     SQLALCHEMY_TRACK_MODIFICATIONS: Final[bool] = False
     SQLALCHEMY_ECHO: bool = False
+    SQLALCHEMY_SESSION_OPTIONS: dict = {"expire_on_commit": False}
     SQLALCHEMY_POOL_SIZE: int = int(os.environ.get("SQLALCHEMY_POOL_SIZE", "5"))
     SQLALCHEMY_MAX_OVERFLOW: int = int(os.environ.get("SQLALCHEMY_MAX_OVERFLOW", "10"))
     SQLALCHEMY_POOL_TIMEOUT: int = int(os.environ.get("SQLALCHEMY_POOL_TIMEOUT", "30"))

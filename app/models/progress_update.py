@@ -14,8 +14,8 @@ progress snapshots of projects and tasks over time.
 """
 
 import uuid
-from datetime import datetime
-from typing import TYPE_CHECKING
+from datetime import date, datetime
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import Date, ForeignKey, Numeric, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -72,7 +72,7 @@ class ProgressUpdate(UUIDMixin, TimestampMixin, Model):
     )
 
     # Required Fields
-    update_date: Mapped[datetime] = mapped_column(
+    update_date: Mapped[date] = mapped_column(
         Date,
         nullable=False,
         index=True,
@@ -117,6 +117,44 @@ class ProgressUpdate(UUIDMixin, TimestampMixin, Model):
         back_populates="progress_updates",
         doc="Optional associated task",
     )
+
+    def __init__(
+        self,
+        project_id: uuid.UUID,
+        update_date: date | datetime,
+        task_id: uuid.UUID | None = None,
+        **kwargs: Any,
+    ) -> None:
+        """Initialize a ProgressUpdate instance.
+
+        Args:
+            project_id: Parent project UUID.
+            update_date: Date of this progress snapshot.
+            task_id: Optional task UUID for task-level updates.
+            percent_complete: Optional completion percentage (kwarg).
+            earned_value: Optional earned value (kwarg).
+            actual_cost: Optional actual cost (kwarg).
+            notes: Optional progress notes (kwarg).
+            **kwargs: Additional keyword arguments passed to parent.
+        """
+        percent_complete = kwargs.pop("percent_complete", None)
+        earned_value = kwargs.pop("earned_value", None)
+        actual_cost = kwargs.pop("actual_cost", None)
+        notes = kwargs.pop("notes", None)
+
+        super().__init__(**kwargs)
+        self.project_id = project_id
+        self.task_id = task_id
+        if isinstance(update_date, datetime):
+            update_date = update_date.date()
+        self.update_date = update_date
+        if percent_complete is not None:
+            self.percent_complete = float(percent_complete)
+        if earned_value is not None:
+            self.earned_value = float(earned_value)
+        if actual_cost is not None:
+            self.actual_cost = float(actual_cost)
+        self.notes = notes
 
     def __repr__(self) -> str:
         """String representation of ProgressUpdate.

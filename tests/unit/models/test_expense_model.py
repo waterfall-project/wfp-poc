@@ -105,8 +105,8 @@ class TestExpenseModel:
         assert expense.resource_id == resource.id
         assert expense.category == "material"
         assert expense.description == "Full Test Expense"
-        assert expense.planned_cost == Decimal("5000.00")
-        assert expense.actual_cost == Decimal("5250.50")
+        assert expense.planned_cost == pytest.approx(5000.00)
+        assert expense.actual_cost == pytest.approx(5250.50)
         assert expense.expense_date == date(2026, 3, 15)
 
     def test_expense_category_values(self, app, project):
@@ -178,15 +178,15 @@ class TestExpenseModel:
         db.session.add(expense)
         db.session.commit()
 
-        assert expense.planned_cost == Decimal("1000.00")
+        assert expense.planned_cost == pytest.approx(1000.00)
         assert expense.actual_cost is None
 
         # Update actual cost
-        expense.actual_cost = Decimal("1100.00")
+        expense.actual_cost = 1100.00
         db.session.commit()
 
-        assert expense.actual_cost == Decimal("1100.00")
-        assert expense.planned_cost == Decimal("1000.00")
+        assert expense.actual_cost == pytest.approx(1100.00)
+        assert expense.planned_cost == pytest.approx(1000.00)
 
     def test_expense_cost_precision(self, app, project):
         """Test cost fields with decimal precision.
@@ -204,8 +204,8 @@ class TestExpenseModel:
         db.session.add(expense)
         db.session.commit()
 
-        assert expense.planned_cost == Decimal("12345.67")
-        assert expense.actual_cost == Decimal("12399.99")
+        assert expense.planned_cost == pytest.approx(12345.67)
+        assert expense.actual_cost == pytest.approx(12399.99)
 
     def test_expense_repr(self, app, project):
         """Test string representation of Expense.

@@ -25,6 +25,7 @@ from sqlalchemy import func, or_
 from sqlalchemy.exc import IntegrityError
 
 from app import limiter
+from app.constants.http import MISSING_PROJECT_ID_MSG
 from app.models.db import db
 from app.models.project import Project
 from app.schemas.project_schema import (
@@ -39,9 +40,9 @@ from app.utils.api_version import validate_api_version
 from app.utils.jwt_decorators import (
     access_required,
     get_current_company_id,
-    get_current_user_id,
     require_jwt_auth,
 )
+from app.utils.rate_limit import rate_limit_user_key
 
 # HTTP Error Types
 BAD_REQUEST_ERROR = "Bad Request"
@@ -133,17 +134,6 @@ def _parse_query_datetime(
     return _normalize_datetime(parsed), None
 
 
-def _rate_limit_user_key() -> str:
-    """Rate limiting key based on authenticated user.
-
-    Falls back to remote address when user_id is absent.
-    """
-    user_id = get_current_user_id()
-    if user_id:
-        return str(user_id)
-    return request.remote_addr or "anonymous"
-
-
 class ProjectListResource(Resource):
     """REST resource for project collection operations.
 
@@ -160,7 +150,7 @@ class ProjectListResource(Resource):
 
     @require_jwt_auth
     @access_required(Operation.LIST, "projects")
-    @limiter.limit("100 per minute", key_func=_rate_limit_user_key)
+    @limiter.limit("100 per minute", key_func=rate_limit_user_key)
     def get(self, version: str | None = None) -> tuple[dict, int]:
         """Retrieve paginated list of projects for authenticated company.
 
@@ -304,7 +294,7 @@ class ProjectListResource(Resource):
 
     @require_jwt_auth
     @access_required(Operation.CREATE, "projects")
-    @limiter.limit("100 per minute", key_func=_rate_limit_user_key)
+    @limiter.limit("100 per minute", key_func=rate_limit_user_key)
     def post(self, version: str | None = None) -> tuple[dict, int]:
         """Create a new project for the authenticated company.
 
@@ -427,7 +417,7 @@ class ProjectResource(Resource):
 
     @require_jwt_auth
     @access_required(Operation.READ, "projects")
-    @limiter.limit("100 per minute", key_func=_rate_limit_user_key)
+    @limiter.limit("100 per minute", key_func=rate_limit_user_key)
     def get(
         self,
         project_id: str | None = None,
@@ -468,7 +458,7 @@ class ProjectResource(Resource):
 
         effective_id = project_id or id
         if not effective_id:
-            return {"error": BAD_REQUEST_ERROR, "message": "Missing project id"}, 400
+            return {"error": BAD_REQUEST_ERROR, "message": MISSING_PROJECT_ID_MSG}, 400
 
         project = self._get_project(effective_id)
         if project is None:
@@ -478,7 +468,7 @@ class ProjectResource(Resource):
 
     @require_jwt_auth
     @access_required(Operation.UPDATE, "projects")
-    @limiter.limit("50 per minute", key_func=_rate_limit_user_key)
+    @limiter.limit("50 per minute", key_func=rate_limit_user_key)
     def patch(
         self,
         project_id: str | None = None,
@@ -536,7 +526,7 @@ class ProjectResource(Resource):
 
         effective_id = project_id or id
         if not effective_id:
-            return {"error": BAD_REQUEST_ERROR, "message": "Missing project id"}, 400
+            return {"error": BAD_REQUEST_ERROR, "message": MISSING_PROJECT_ID_MSG}, 400
 
         project = self._get_project(effective_id)
         if project is None:
@@ -612,7 +602,7 @@ class ProjectResource(Resource):
 
     @require_jwt_auth
     @access_required(Operation.DELETE, "projects")
-    @limiter.limit("50 per minute", key_func=_rate_limit_user_key)
+    @limiter.limit("50 per minute", key_func=rate_limit_user_key)
     def delete(
         self,
         project_id: str | None = None,
@@ -638,7 +628,7 @@ class ProjectResource(Resource):
 
         effective_id = project_id or id
         if not effective_id:
-            return {"error": BAD_REQUEST_ERROR, "message": "Missing project id"}, 400
+            return {"error": BAD_REQUEST_ERROR, "message": MISSING_PROJECT_ID_MSG}, 400
 
         project = self._get_project(effective_id)
         if project is None:

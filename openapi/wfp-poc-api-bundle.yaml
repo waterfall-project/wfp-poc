@@ -468,7 +468,7 @@ paths:
         - Tasks
       parameters:
         - $ref: '#/components/parameters/VersionParam'
-        - $ref: '#/components/parameters/ProjectIdQueryParam'
+        - $ref: '#/components/parameters/ProjectIdPathParam'
       requestBody:
         required: true
         content:
@@ -515,7 +515,7 @@ paths:
         - Tasks
       parameters:
         - $ref: '#/components/parameters/VersionParam'
-        - $ref: '#/components/parameters/ProjectIdQueryParam'
+        - $ref: '#/components/parameters/ProjectIdPathParam'
         - $ref: '#/components/parameters/PageParam'
         - $ref: '#/components/parameters/PerPageParam'
         - name: parent_id
@@ -581,6 +581,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/TaskList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -600,7 +602,7 @@ paths:
         - Tasks
       parameters:
         - $ref: '#/components/parameters/VersionParam'
-        - $ref: '#/components/parameters/ProjectIdQueryParam'
+        - $ref: '#/components/parameters/ProjectIdPathParam'
       requestBody:
         required: true
         content:
@@ -622,6 +624,8 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
         '429':
           $ref: '#/components/responses/TooManyRequests'
         '500':
@@ -638,7 +642,7 @@ paths:
         - Tasks
       parameters:
         - $ref: '#/components/parameters/VersionParam'
-        - $ref: '#/components/parameters/ProjectIdQueryParam'
+        - $ref: '#/components/parameters/ProjectIdPathParam'
       requestBody:
         required: true
         content:
@@ -675,7 +679,7 @@ paths:
         - Tasks
       parameters:
         - $ref: '#/components/parameters/VersionParam'
-        - $ref: '#/components/parameters/ProjectIdQueryParam'
+        - $ref: '#/components/parameters/ProjectIdPathParam'
         - $ref: '#/components/parameters/TaskIdParam'
       responses:
         '200':
@@ -684,6 +688,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/TaskResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -700,7 +706,7 @@ paths:
         - Tasks
       parameters:
         - $ref: '#/components/parameters/VersionParam'
-        - $ref: '#/components/parameters/ProjectIdQueryParam'
+        - $ref: '#/components/parameters/ProjectIdPathParam'
         - $ref: '#/components/parameters/TaskIdParam'
       requestBody:
         required: true
@@ -746,11 +752,13 @@ paths:
         - Tasks
       parameters:
         - $ref: '#/components/parameters/VersionParam'
-        - $ref: '#/components/parameters/ProjectIdQueryParam'
+        - $ref: '#/components/parameters/ProjectIdPathParam'
         - $ref: '#/components/parameters/TaskIdParam'
       responses:
         '204':
           description: Task deleted successfully
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -781,7 +789,7 @@ paths:
         - bearerAuth: []
       parameters:
         - $ref: '#/components/parameters/VersionParam'
-        - $ref: '#/components/parameters/ProjectIdQueryParam'
+        - $ref: '#/components/parameters/ProjectIdPathParam'
       requestBody:
         required: true
         content:
@@ -856,7 +864,7 @@ paths:
         - bearerAuth: []
       parameters:
         - $ref: '#/components/parameters/VersionParam'
-        - $ref: '#/components/parameters/ProjectIdQueryParam'
+        - $ref: '#/components/parameters/ProjectIdPathParam'
         - $ref: '#/components/parameters/PageParam'
         - $ref: '#/components/parameters/PerPageParam'
         - name: status
@@ -923,7 +931,7 @@ paths:
         - bearerAuth: []
       parameters:
         - $ref: '#/components/parameters/VersionParam'
-        - $ref: '#/components/parameters/ProjectIdQueryParam'
+        - $ref: '#/components/parameters/ProjectIdPathParam'
         - $ref: '#/components/parameters/MilestoneIdParam'
       responses:
         '200':
@@ -966,7 +974,7 @@ paths:
         - bearerAuth: []
       parameters:
         - $ref: '#/components/parameters/VersionParam'
-        - $ref: '#/components/parameters/ProjectIdQueryParam'
+        - $ref: '#/components/parameters/ProjectIdPathParam'
         - $ref: '#/components/parameters/MilestoneIdParam'
       requestBody:
         required: true
@@ -1023,7 +1031,7 @@ paths:
         - bearerAuth: []
       parameters:
         - $ref: '#/components/parameters/VersionParam'
-        - $ref: '#/components/parameters/ProjectIdQueryParam'
+        - $ref: '#/components/parameters/ProjectIdPathParam'
         - $ref: '#/components/parameters/MilestoneIdParam'
       responses:
         '204':
@@ -1467,7 +1475,7 @@ paths:
         - bearerAuth: []
       parameters:
         - $ref: '#/components/parameters/VersionParam'
-        - $ref: '#/components/parameters/ProjectIdQueryParam'
+        - $ref: '#/components/parameters/ProjectIdPathParam'
       requestBody:
         required: true
         content:
@@ -1559,7 +1567,7 @@ paths:
         - bearerAuth: []
       parameters:
         - $ref: '#/components/parameters/VersionParam'
-        - $ref: '#/components/parameters/ProjectIdQueryParam'
+        - $ref: '#/components/parameters/ProjectIdPathParam'
         - $ref: '#/components/parameters/PageParam'
         - $ref: '#/components/parameters/PerPageParam'
         - name: task_id
@@ -1614,7 +1622,7 @@ paths:
         - bearerAuth: []
       parameters:
         - $ref: '#/components/parameters/VersionParam'
-        - $ref: '#/components/parameters/ProjectIdQueryParam'
+        - $ref: '#/components/parameters/ProjectIdPathParam'
         - $ref: '#/components/parameters/AssignmentIdParam'
       responses:
         '200':
@@ -1656,7 +1664,7 @@ paths:
         - bearerAuth: []
       parameters:
         - $ref: '#/components/parameters/VersionParam'
-        - $ref: '#/components/parameters/ProjectIdQueryParam'
+        - $ref: '#/components/parameters/ProjectIdPathParam'
         - $ref: '#/components/parameters/AssignmentIdParam'
       requestBody:
         required: true
@@ -1703,7 +1711,7 @@ paths:
         - bearerAuth: []
       parameters:
         - $ref: '#/components/parameters/VersionParam'
-        - $ref: '#/components/parameters/ProjectIdQueryParam'
+        - $ref: '#/components/parameters/ProjectIdPathParam'
         - $ref: '#/components/parameters/AssignmentIdParam'
       responses:
         '204':
@@ -1729,7 +1737,7 @@ paths:
         - bearerAuth: []
       parameters:
         - $ref: '#/components/parameters/VersionParam'
-        - $ref: '#/components/parameters/ProjectIdQueryParam'
+        - $ref: '#/components/parameters/ProjectIdPathParam'
       requestBody:
         required: true
         content:
@@ -1828,7 +1836,7 @@ paths:
         - bearerAuth: []
       parameters:
         - $ref: '#/components/parameters/VersionParam'
-        - $ref: '#/components/parameters/ProjectIdQueryParam'
+        - $ref: '#/components/parameters/ProjectIdPathParam'
         - $ref: '#/components/parameters/PageParam'
         - $ref: '#/components/parameters/PerPageParam'
         - name: category
@@ -1908,7 +1916,7 @@ paths:
         - bearerAuth: []
       parameters:
         - $ref: '#/components/parameters/VersionParam'
-        - $ref: '#/components/parameters/ProjectIdQueryParam'
+        - $ref: '#/components/parameters/ProjectIdPathParam'
       requestBody:
         required: true
         content:
@@ -1979,7 +1987,7 @@ paths:
         - bearerAuth: []
       parameters:
         - $ref: '#/components/parameters/VersionParam'
-        - $ref: '#/components/parameters/ProjectIdQueryParam'
+        - $ref: '#/components/parameters/ProjectIdPathParam'
         - $ref: '#/components/parameters/ExpenseIdParam'
       responses:
         '200':
@@ -2028,7 +2036,7 @@ paths:
         - bearerAuth: []
       parameters:
         - $ref: '#/components/parameters/VersionParam'
-        - $ref: '#/components/parameters/ProjectIdQueryParam'
+        - $ref: '#/components/parameters/ProjectIdPathParam'
         - $ref: '#/components/parameters/ExpenseIdParam'
       requestBody:
         required: true
@@ -2080,7 +2088,7 @@ paths:
         - bearerAuth: []
       parameters:
         - $ref: '#/components/parameters/VersionParam'
-        - $ref: '#/components/parameters/ProjectIdQueryParam'
+        - $ref: '#/components/parameters/ProjectIdPathParam'
         - $ref: '#/components/parameters/ExpenseIdParam'
       responses:
         '204':
@@ -2109,7 +2117,7 @@ paths:
         - bearerAuth: []
       parameters:
         - $ref: '#/components/parameters/VersionParam'
-        - $ref: '#/components/parameters/ProjectIdQueryParam'
+        - $ref: '#/components/parameters/ProjectIdPathParam'
       requestBody:
         required: true
         content:
@@ -2178,7 +2186,7 @@ paths:
         - bearerAuth: []
       parameters:
         - $ref: '#/components/parameters/VersionParam'
-        - $ref: '#/components/parameters/ProjectIdQueryParam'
+        - $ref: '#/components/parameters/ProjectIdPathParam'
         - name: task_id
           in: query
           required: false
@@ -2352,7 +2360,7 @@ paths:
         - bearerAuth: []
       parameters:
         - $ref: '#/components/parameters/VersionParam'
-        - $ref: '#/components/parameters/ProjectIdQueryParam'
+        - $ref: '#/components/parameters/ProjectIdPathParam'
         - name: as_of_date
           in: query
           schema:
@@ -2385,7 +2393,7 @@ paths:
         - EVM
       parameters:
         - $ref: '#/components/parameters/VersionParam'
-        - $ref: '#/components/parameters/ProjectIdQueryParam'
+        - $ref: '#/components/parameters/ProjectIdPathParam'
         - name: as_of_date
           in: query
           schema:
@@ -2424,7 +2432,7 @@ paths:
         - EVM
       parameters:
         - $ref: '#/components/parameters/VersionParam'
-        - $ref: '#/components/parameters/ProjectIdQueryParam'
+        - $ref: '#/components/parameters/ProjectIdPathParam'
         - name: start_date
           in: query
           schema:
@@ -2484,7 +2492,7 @@ paths:
         - EVM
       parameters:
         - $ref: '#/components/parameters/VersionParam'
-        - $ref: '#/components/parameters/ProjectIdQueryParam'
+        - $ref: '#/components/parameters/ProjectIdPathParam'
       responses:
         '200':
           description: Forecasts calculated
@@ -2509,7 +2517,7 @@ paths:
         - bearerAuth: []
       parameters:
         - $ref: '#/components/parameters/VersionParam'
-        - $ref: '#/components/parameters/ProjectIdQueryParam'
+        - $ref: '#/components/parameters/ProjectIdPathParam'
         - name: start_date
           in: query
           required: false
@@ -2559,7 +2567,7 @@ paths:
         - bearerAuth: []
       parameters:
         - $ref: '#/components/parameters/VersionParam'
-        - $ref: '#/components/parameters/ProjectIdQueryParam'
+        - $ref: '#/components/parameters/ProjectIdPathParam'
         - name: start_date
           in: query
           schema:
@@ -2644,7 +2652,7 @@ paths:
         - bearerAuth: []
       parameters:
         - $ref: '#/components/parameters/VersionParam'
-        - $ref: '#/components/parameters/ProjectIdQueryParam'
+        - $ref: '#/components/parameters/ProjectIdPathParam'
         - name: start_date
           in: query
           schema:
@@ -2811,11 +2819,21 @@ components:
         type: string
         format: uuid
       example: a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d
-    ProjectIdQueryParam:
+    ProjectIdPathParam:
       name: project_id
       in: path
       required: true
       description: Project unique identifier
+      schema:
+        type: string
+        format: uuid
+      example: a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d
+    ProjectIdQueryParam:
+      name: project_id
+      in: path
+      required: true
+      deprecated: true
+      description: Deprecated (misnamed). Use ProjectIdPathParam.
       schema:
         type: string
         format: uuid

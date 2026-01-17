@@ -17,6 +17,7 @@ PUT /v0/projects/{project_id}/tasks/sync endpoints.
 
 import uuid
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -24,6 +25,8 @@ from flask import Flask
 from flask.testing import FlaskClient
 
 from app.models.db import db
+from app.models.milestone import Milestone
+from app.models.milestone_task import MilestoneTask
 from app.models.project import Project
 from app.models.task import Task
 
@@ -605,3 +608,103 @@ class TestTaskSync:
             assert updated_task.status == "in_progress"
             assert updated_task.percent_complete == pytest.approx(50.0)
             assert updated_task.actual_start_date is not None
+
+    @patch("app.services.guardian_service.requests.post")
+    def test_sync_tasks_recalculates_milestone_target_date(
+        self,
+        mock_guardian: MagicMock,
+        authenticated_client: FlaskClient,
+        test_project: Project,
+        app: Flask,
+    ) -> None:
+        """Test sync recalculates milestone target_date.
+
+        Given: Milestone linked to tasks and one task finish date updated
+        When: PUT /v0/projects/{id}/tasks/sync is called
+        Then: Milestone target_date is recalculated and response includes details
+        """
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"access_granted": True, "reason": "granted"}
+        mock_guardian.return_value = mock_response
+
+        initial_target_date = datetime(2026, 2, 20, 18, 0, tzinfo=UTC)
+        task_early_finish = datetime(2026, 2, 15, 18, 0, tzinfo=UTC)
+        task_late_finish = datetime(2026, 2, 20, 18, 0, tzinfo=UTC)
+        new_finish = datetime(2026, 2, 25, 18, 0, tzinfo=UTC)
+
+        with app.app_context():
+            milestone = Milestone(
+                project_id=test_project.id,
+                name="Phase 1",
+                target_date=initial_target_date,
+                budget_weight=Decimal("0.2"),
+                status="upcoming",
+                is_achieved=False,
+            )
+            task_early = Task(
+                project_id=test_project.id,
+                name="Early Task",
+                ms_project_uid=101,
+                type="task",
+                status="not_started",
+                planned_start_date=datetime(2026, 2, 1, 9, 0, tzinfo=UTC),
+                planned_finish_date=task_early_finish,
+            )
+            task_late = Task(
+                project_id=test_project.id,
+                name="Late Task",
+                ms_project_uid=102,
+                type="task",
+                status="not_started",
+                planned_start_date=datetime(2026, 2, 5, 9, 0, tzinfo=UTC),
+                planned_finish_date=task_late_finish,
+            )
+
+            db.session.add_all([milestone, task_early, task_late])
+            db.session.commit()
+
+            db.session.add_all(
+                [
+                    MilestoneTask(milestone_id=milestone.id, task_id=task_early.id),
+                    MilestoneTask(milestone_id=milestone.id, task_id=task_late.id),
+                ]
+            )
+            db.session.commit()
+
+            milestone_id = milestone.id
+            task_early_id = task_early.id
+            old_target = milestone.target_date
+
+        payload = {
+            "tasks": [
+                {
+                    "ms_project_uid": 101,
+                    "planned_finish_date": "2026-02-25T18:00:00Z",
+                }
+            ]
+        }
+
+        response = authenticated_client.put(
+            f"/v0/projects/{test_project.id}/tasks/sync", json=payload
+        )
+
+        assert response.status_code == 200
+        data = response.get_json()
+
+        assert data["data"]["milestone_recalculated_count"] == 1
+        recalculated = data["data"]["recalculated_milestones"]
+        assert len(recalculated) == 1
+        assert recalculated[0]["milestone_id"] == str(milestone_id)
+        assert recalculated[0]["critical_task_id"] == str(task_early_id)
+        assert recalculated[0]["critical_task_name"] == "Early Task"
+
+        expected_old = old_target.isoformat() if old_target else None
+        expected_new = new_finish.replace(tzinfo=None).isoformat()
+        assert recalculated[0]["old_target_date"] == expected_old
+        assert recalculated[0]["new_target_date"] == expected_new
+
+        with app.app_context():
+            refreshed = db.session.get(Milestone, milestone_id)
+            assert refreshed is not None
+            assert refreshed.target_date == new_finish.replace(tzinfo=None)

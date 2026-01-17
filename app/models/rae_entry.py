@@ -14,8 +14,8 @@ and Exceptions associated with project tasks.
 """
 
 import uuid
-from datetime import datetime
-from typing import TYPE_CHECKING
+from datetime import date, datetime
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import CheckConstraint, Date, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -110,14 +110,14 @@ class RAEEntry(UUIDMixin, TimestampMixin, Model):
         doc="Mitigation plan or actions taken",
     )
 
-    identified_date: Mapped[datetime | None] = mapped_column(
+    identified_date: Mapped[date | None] = mapped_column(
         Date,
         nullable=True,
         index=True,
         doc="Date when entry was identified",
     )
 
-    resolution_date: Mapped[datetime | None] = mapped_column(
+    resolution_date: Mapped[date | None] = mapped_column(
         Date,
         nullable=True,
         doc="Date when entry was resolved",
@@ -155,6 +155,52 @@ class RAEEntry(UUIDMixin, TimestampMixin, Model):
             name="ck_rae_entries_status",
         ),
     )
+
+    def __init__(
+        self,
+        task_id: uuid.UUID,
+        type: str,
+        description: str,
+        category: str = "other",
+        severity: str = "medium",
+        status: str = "open",
+        **kwargs: Any,
+    ) -> None:
+        """Initialize an RAEEntry instance.
+
+        Args:
+            task_id: Parent task UUID.
+            type: Entry type (risk, assumption, exception).
+            description: Entry description.
+            category: Entry category.
+            severity: Severity level.
+            status: Current status.
+            mitigation: Optional mitigation plan (kwarg).
+            identified_date: Optional identified date (kwarg).
+            resolution_date: Optional resolution date (kwarg).
+            details: Optional details JSON (kwarg).
+            **kwargs: Additional keyword arguments passed to parent.
+        """
+        mitigation = kwargs.pop("mitigation", None)
+        identified_date: date | datetime | None = kwargs.pop("identified_date", None)
+        resolution_date: date | datetime | None = kwargs.pop("resolution_date", None)
+        details = kwargs.pop("details", None)
+
+        super().__init__(**kwargs)
+        self.task_id = task_id
+        self.type = type
+        self.category = category
+        self.severity = severity
+        self.status = status
+        self.description = description
+        self.mitigation = mitigation
+        if isinstance(identified_date, datetime):
+            identified_date = identified_date.date()
+        if isinstance(resolution_date, datetime):
+            resolution_date = resolution_date.date()
+        self.identified_date = identified_date
+        self.resolution_date = resolution_date
+        self.details = details
 
     def __repr__(self) -> str:
         """String representation of RAEEntry.

@@ -15,9 +15,9 @@ are used for EVM milestone completion method and expense allocation.
 """
 
 import uuid
-from datetime import datetime
+from datetime import UTC, date, datetime
 from decimal import Decimal
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import (
     Boolean,
@@ -30,7 +30,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
 )
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship, validates
 
 from app.models.types import GUID, TimestampMixin, UUIDMixin
 
@@ -93,7 +93,7 @@ class Milestone(UUIDMixin, TimestampMixin, Model):
     )
 
     target_date: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
+        DateTime,
         nullable=False,
         index=True,
         doc="Target completion date (auto-calculated from predecessor tasks)",
@@ -135,13 +135,13 @@ class Milestone(UUIDMixin, TimestampMixin, Model):
     )
 
     actual_date: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True),
+        DateTime,
         nullable=True,
         doc="Actual milestone completion date",
     )
 
     achieved_date: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True),
+        DateTime,
         nullable=True,
         index=True,
         doc="Date when milestone was achieved (for EV milestone method)",
@@ -154,7 +154,7 @@ class Milestone(UUIDMixin, TimestampMixin, Model):
     )
 
     current_rae_date: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True),
+        DateTime,
         nullable=True,
         doc="Date of last RAE update",
     )
@@ -196,6 +196,57 @@ class Milestone(UUIDMixin, TimestampMixin, Model):
         ),
     )
 
+    def __init__(
+        self,
+        project_id: uuid.UUID,
+        name: str,
+        target_date: datetime,
+        budget_weight: Decimal | float | int,
+        **kwargs: Any,
+    ) -> None:
+        """Initialize a Milestone instance.
+
+        Args:
+            project_id: Parent project UUID.
+            name: Milestone name.
+            target_date: Target completion date.
+            budget_weight: Weight for EV milestone calculation.
+            ms_project_uid: Optional MS Project UID (kwarg).
+            description: Optional milestone description (kwarg).
+            actual_date: Optional actual completion date (kwarg).
+            achieved_date: Optional achieved date (kwarg).
+            status: Milestone status (kwarg).
+            is_achieved: Milestone achieved flag (kwarg).
+            current_rae: Optional RAE value (kwarg).
+            current_rae_date: Optional RAE date (kwarg).
+            **kwargs: Additional keyword arguments passed to parent.
+        """
+        ms_project_uid = kwargs.pop("ms_project_uid", None)
+        description = kwargs.pop("description", None)
+        actual_date = kwargs.pop("actual_date", None)
+        achieved_date = kwargs.pop("achieved_date", None)
+        status = kwargs.pop("status", "upcoming")
+        is_achieved = kwargs.pop("is_achieved", False)
+        current_rae = kwargs.pop("current_rae", None)
+        current_rae_date = kwargs.pop("current_rae_date", None)
+
+        super().__init__(**kwargs)
+        self.project_id = project_id
+        self.name = name
+        self.target_date = target_date
+        self.status = status
+        self.is_achieved = is_achieved
+        self.ms_project_uid = ms_project_uid
+        self.description = description
+        self.actual_date = actual_date
+        self.achieved_date = achieved_date
+        self.current_rae = current_rae
+        self.current_rae_date = current_rae_date
+        if isinstance(budget_weight, Decimal):
+            self.budget_weight = budget_weight
+        else:
+            self.budget_weight = Decimal(str(budget_weight))
+
     def __repr__(self) -> str:
         """String representation of Milestone.
 
@@ -206,3 +257,34 @@ class Milestone(UUIDMixin, TimestampMixin, Model):
             f"<Milestone(id={self.id}, name='{self.name}', "
             f"status='{self.status}', budget_weight={self.budget_weight})>"
         )
+
+    @staticmethod
+    def _normalize_datetime(value: datetime | date | None) -> datetime | None:
+        """Normalize datetimes to naive UTC for storage consistency.
+
+        Converts date inputs to midnight datetimes and strips timezone
+        information while preserving the absolute UTC instant.
+
+        Args:
+            value: Date or datetime value to normalize.
+
+        Returns:
+            Naive datetime or None.
+        """
+        if value is None:
+            return None
+
+        if isinstance(value, date) and not isinstance(value, datetime):
+            value = datetime.combine(value, datetime.min.time())
+
+        if value.tzinfo is not None and value.utcoffset() is not None:
+            value = value.astimezone(UTC).replace(tzinfo=None)
+
+        return value
+
+    @validates("target_date", "actual_date", "achieved_date", "current_rae_date")
+    def _validate_datetime_field(
+        self, key: str, value: datetime | date | None
+    ) -> datetime | None:
+        """Ensure datetime fields are stored as naive UTC values."""
+        return self._normalize_datetime(value)

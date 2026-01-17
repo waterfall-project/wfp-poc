@@ -14,6 +14,8 @@ Flask application instances with proper configuration and extension
 initialization.
 """
 
+import math
+import time
 from contextlib import suppress
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any, Optional, cast
@@ -22,8 +24,10 @@ from flask import Flask, g, request
 
 if TYPE_CHECKING:
     from flask import Response
+
 from flask_cors import CORS
 from flask_limiter import Limiter
+from flask_limiter.errors import RateLimitExceeded
 from flask_limiter.util import get_remote_address
 from flask_marshmallow import Marshmallow
 from flask_migrate import Migrate
@@ -31,8 +35,10 @@ from flask_sqlalchemy import SQLAlchemy
 from prometheus_client import Gauge
 from prometheus_flask_exporter import PrometheusMetrics
 
+from app.utils.correlation import error_response
+
 # Initialize extensions
-db = SQLAlchemy()
+db = SQLAlchemy(session_options={"expire_on_commit": False})
 migrate = Migrate()
 ma = Marshmallow()
 limiter = Limiter(key_func=get_remote_address)
@@ -67,6 +73,8 @@ def create_app(config_class: str = "app.config.DevelopmentConfig") -> Flask:
 
     # Initialize extensions
     db.init_app(app)
+    # Keep primary keys accessible after commits to avoid DetachedInstanceError in tests
+    db.session.expire_on_commit = False  # type: ignore[attr-defined]
     migrate.init_app(app, db)
     ma.init_app(app)
 
@@ -77,6 +85,32 @@ def create_app(config_class: str = "app.config.DevelopmentConfig") -> Flask:
     # Configure rate limiting (initialize even when disabled so decorators are safe)
     limiter.enabled = app.config.get("RATE_LIMIT_ENABLED", True)
     limiter.init_app(app)
+
+    @app.errorhandler(RateLimitExceeded)
+    def handle_rate_limit(e: RateLimitExceeded):
+        """Return OpenAPI-compliant 429 with rate limit headers."""
+        reset_at = getattr(e, "reset_at", None)
+        headers: dict[str, str] = {}
+
+        if reset_at:
+            retry_after = max(0, math.ceil(reset_at - time.time()))
+            headers["Retry-After"] = str(retry_after)
+            headers["X-RateLimit-Reset"] = str(int(reset_at))
+
+        response = error_response(
+            "Rate limit exceeded. Maximum allowed by policy reached.",
+            429,
+            error="Too Many Requests",
+        )
+        body = response[0]
+        status = response[1]
+        # Merge rate limit headers with correlation headers from response
+        if len(response) > 2:
+            base_headers = response[2]
+            base_headers.update(headers)
+            return body, status, base_headers
+        # Fallback if no headers dict in tuple
+        return body, status, headers
 
     # Configure Prometheus metrics
     if app.config.get("PROMETHEUS_METRICS_ENABLED"):

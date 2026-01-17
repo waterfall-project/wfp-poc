@@ -14,7 +14,7 @@ with project milestones in a many-to-many relationship.
 """
 
 import uuid
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import ForeignKey, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -86,6 +86,23 @@ class MilestoneTask(UUIDMixin, TimestampMixin, Model):
             name="uq_milestone_tasks_pair",
         ),
     )
+
+    def __init__(
+        self,
+        milestone_id: uuid.UUID,
+        task_id: uuid.UUID,
+        **kwargs: Any,
+    ) -> None:
+        """Initialize a MilestoneTask instance.
+
+        Args:
+            milestone_id: Milestone UUID.
+            task_id: Task UUID.
+            **kwargs: Additional keyword arguments passed to parent.
+        """
+        super().__init__(**kwargs)
+        self.milestone_id = milestone_id
+        self.task_id = task_id
 
     def __repr__(self) -> str:
         """String representation of MilestoneTask.
