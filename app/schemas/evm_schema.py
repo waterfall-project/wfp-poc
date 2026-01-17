@@ -35,18 +35,39 @@ class EVMIndicatorsSchema(Schema):
 
     project_id = fields.UUID(required=True)
     as_of_date = fields.DateTime(required=True)
+    calculation_timestamp = fields.DateTime(required=True)
     bac = fields.Float(allow_none=True)
     pv = fields.Float(allow_none=True)
     ac = fields.Float(allow_none=True)
     ev_physical = fields.Float(allow_none=True)
     ev_milestone = fields.Float(allow_none=True)
     cv_physical = fields.Float(allow_none=True)
+    cv_milestone = fields.Float(allow_none=True)
     sv_physical = fields.Float(allow_none=True)
+    sv_milestone = fields.Float(allow_none=True)
     cpi_physical = fields.Float(allow_none=True)
+    cpi_milestone = fields.Float(allow_none=True)
     spi_physical = fields.Float(allow_none=True)
+    spi_milestone = fields.Float(allow_none=True)
     eac_cpi_physical = fields.Float(allow_none=True)
-    etc_physical = fields.Float(allow_none=True)
-    vac_physical = fields.Float(allow_none=True)
+    eac_cpi_milestone = fields.Float(allow_none=True)
+    eac_cpi_spi_physical = fields.Float(allow_none=True)
+    eac_cpi_spi_milestone = fields.Float(allow_none=True)
+    eac_plan_based = fields.Float(allow_none=True)
+    etc_cpi_physical = fields.Float(allow_none=True)
+    etc_cpi_milestone = fields.Float(allow_none=True)
+    etc_cpi_spi_physical = fields.Float(allow_none=True)
+    etc_cpi_spi_milestone = fields.Float(allow_none=True)
+    etc_plan_based = fields.Float(allow_none=True)
+    vac_cpi_physical = fields.Float(allow_none=True)
+    vac_cpi_milestone = fields.Float(allow_none=True)
+    vac_cpi_spi_physical = fields.Float(allow_none=True)
+    vac_cpi_spi_milestone = fields.Float(allow_none=True)
+    vac_plan_based = fields.Float(allow_none=True)
+    etc_physical = fields.Float(allow_none=True, metadata={"deprecated": True})
+    vac_physical = fields.Float(allow_none=True, metadata={"deprecated": True})
+    percent_complete_physical = fields.Float(allow_none=True)
+    percent_complete_milestone = fields.Float(allow_none=True)
 
     class Meta:
         """Schema configuration."""
@@ -88,6 +109,65 @@ class EVMTimeSeriesDataSchema(Schema):
     ev = fields.List(fields.Float(), required=True)
 
 
+class EVMTimeSeriesPointSchema(Schema):
+    """Schema for a single EVM time series data point."""
+
+    date = fields.DateTime(required=True)
+    pv = fields.Float(required=True)
+    ac = fields.Float(required=True)
+    ev = fields.Float(required=True)
+    cv = fields.Float(allow_none=True)
+    sv = fields.Float(allow_none=True)
+    cpi = fields.Float(allow_none=True)
+    spi = fields.Float(allow_none=True)
+
+    class Meta:
+        """Schema configuration."""
+
+        ordered = True
+
+
+class EVMTimeSeriesEChartsAxisSchema(Schema):
+    """Schema for ECharts xAxis configuration."""
+
+    type = fields.String(required=True)
+    data = fields.List(fields.String(), required=True)
+
+    class Meta:
+        """Schema configuration."""
+
+        ordered = True
+
+
+class EVMTimeSeriesEChartsSeriesSchema(Schema):
+    """Schema for ECharts series entries."""
+
+    name = fields.String(required=True)
+    type = fields.String(required=True)
+    data = fields.List(fields.Float(), required=True)
+
+    class Meta:
+        """Schema configuration."""
+
+        ordered = True
+
+
+class EVMTimeSeriesEChartsFormatSchema(Schema):
+    """Schema for ECharts format wrapper."""
+
+    x_axis = fields.Nested(
+        EVMTimeSeriesEChartsAxisSchema,
+        required=True,
+        data_key="xAxis",
+    )
+    series = fields.List(fields.Nested(EVMTimeSeriesEChartsSeriesSchema), required=True)
+
+    class Meta:
+        """Schema configuration."""
+
+        ordered = True
+
+
 class EVMTimeSeriesSchema(Schema):
     """Schema for EVM time series response."""
 
@@ -95,7 +175,10 @@ class EVMTimeSeriesSchema(Schema):
     start_date = fields.DateTime(required=True)
     end_date = fields.DateTime(required=True)
     granularity = fields.String(required=True)
-    data = fields.Nested(EVMTimeSeriesDataSchema, required=True)
+    ev_method = fields.String(required=True)
+    cumulative = fields.Boolean(required=True)
+    series = fields.List(fields.Nested(EVMTimeSeriesPointSchema), required=True)
+    echarts_format = fields.Nested(EVMTimeSeriesEChartsFormatSchema, required=True)
 
     class Meta:
         """Schema configuration."""
@@ -103,25 +186,19 @@ class EVMTimeSeriesSchema(Schema):
         ordered = True
 
 
-class EVMForecastMethodSchema(Schema):
-    """Schema for a single EVM forecast method entry."""
+class EVMForecastItemSchema(Schema):
+    """Schema for a single EVM forecast item."""
 
-    eac = fields.Float(allow_none=True)
-    etc = fields.Float(allow_none=True)
-    vac = fields.Float(allow_none=True)
-
-    class Meta:
-        """Schema configuration."""
-
-        ordered = True
-
-
-class EVMForecastsMethodsSchema(Schema):
-    """Schema for EVM forecast methods container."""
-
-    cpi_method = fields.Nested(EVMForecastMethodSchema, required=True)
-    cpi_spi_method = fields.Nested(EVMForecastMethodSchema, required=True)
-    plan_based = fields.Nested(EVMForecastMethodSchema, required=True)
+    method = fields.String(
+        required=True, validate=OneOf(["cpi", "cpi_spi", "plan_based"])
+    )
+    description = fields.String(required=True)
+    formula = fields.String(required=True)
+    eac = fields.Float(required=True)
+    etc = fields.Float(required=True)
+    vac = fields.Float(required=True)
+    confidence = fields.String(required=True, validate=OneOf(["low", "medium", "high"]))
+    use_case = fields.String(required=True)
 
     class Meta:
         """Schema configuration."""
@@ -134,9 +211,16 @@ class EVMForecastsSchema(Schema):
 
     project_id = fields.UUID(required=True)
     as_of_date = fields.DateTime(required=True)
-    bac = fields.Float(allow_none=True)
-    ac = fields.Float(allow_none=True)
-    forecasts = fields.Nested(EVMForecastsMethodsSchema, required=True)
+    bac = fields.Float(allow_none=True, required=True)
+    current_ac = fields.Float(allow_none=True, required=True)
+    current_ev = fields.Float(allow_none=True, required=True)
+    current_pv = fields.Float(allow_none=True, required=True)
+    remaining_pv = fields.Float(allow_none=True, required=True)
+    cpi = fields.Float(allow_none=True)
+    spi = fields.Float(allow_none=True)
+    forecasts = fields.List(fields.Nested(EVMForecastItemSchema), required=True)
+    recommended_method = fields.String(allow_none=True)
+    recommendation_reason = fields.String(allow_none=True)
 
     class Meta:
         """Schema configuration."""
@@ -149,3 +233,36 @@ class EVMForecastsQuerySchema(Schema):
 
     as_of_date = fields.DateTime(load_default=None)
     ev_method = fields.String(load_default="physical", validate=OneOf(EV_METHOD_VALUES))
+
+
+class EVMIndicatorsResponseSchema(Schema):
+    """Schema wrapper for EVM indicators responses."""
+
+    data = fields.Nested(EVMIndicatorsSchema, required=True)
+
+    class Meta:
+        """Schema configuration."""
+
+        ordered = True
+
+
+class EVMTimeSeriesResponseSchema(Schema):
+    """Schema wrapper for EVM time series responses."""
+
+    data = fields.Nested(EVMTimeSeriesSchema, required=True)
+
+    class Meta:
+        """Schema configuration."""
+
+        ordered = True
+
+
+class EVMForecastsResponseSchema(Schema):
+    """Schema wrapper for EVM forecasts responses."""
+
+    data = fields.Nested(EVMForecastsSchema, required=True)
+
+    class Meta:
+        """Schema configuration."""
+
+        ordered = True

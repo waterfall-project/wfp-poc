@@ -64,6 +64,7 @@ class TestMilestoneRAEResource:
         self,
         mock_guardian: MagicMock,
         authenticated_client: FlaskClient,
+        app: Flask,
         milestone: Milestone,
     ) -> None:
         """Test successful RAE creation.
@@ -104,9 +105,10 @@ class TestMilestoneRAEResource:
         assert data["data"]["amount"] == pytest.approx(15000.0)
         assert data["message"] == "RAE updated successfully"
 
-        refreshed = db.session.get(Milestone, milestone.id)
-        assert refreshed is not None
-        assert refreshed.current_rae == Decimal("15000.00")
+        with app.app_context():
+            refreshed = db.session.get(Milestone, milestone.id)
+            assert refreshed is not None
+            assert refreshed.current_rae == Decimal("15000.00")
 
     @patch("app.services.guardian_service.requests.post")
     def test_create_rae_negative_amount(

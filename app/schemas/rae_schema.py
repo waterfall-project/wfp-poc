@@ -26,7 +26,7 @@ class RAECreateTaskEstimateSchema(Schema):
 
     task_id = fields.UUID(required=True)
     task_name = fields.String(required=True, validate=Length(min=1, max=255))
-    remaining_cost = fields.Decimal(required=True, as_string=True, places=2)
+    remaining_cost = fields.Float(required=True, validate=Range(min=0))
     comment = fields.String(allow_none=True, validate=Length(max=500))
 
 
@@ -40,9 +40,7 @@ class RAECreateSchema(Schema):
     """Schema for creating a milestone RAE entry."""
 
     date = fields.DateTime(required=True)
-    amount = fields.Decimal(
-        required=True, as_string=True, places=2, validate=Range(min=0)
-    )
+    amount = fields.Float(required=True, validate=Range(min=0))
     comment = fields.String(allow_none=True, validate=Length(max=500))
     details = fields.Nested(RAECreateDetailsSchema, allow_none=True)
 

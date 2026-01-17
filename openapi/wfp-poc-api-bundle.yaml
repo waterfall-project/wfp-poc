@@ -491,7 +491,7 @@ paths:
             enum:
               - asc
               - desc
-            default: asc
+            default: desc
       responses:
         '200':
           description: Successful response with task list

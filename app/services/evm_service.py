@@ -97,29 +97,79 @@ class EVMService:
             ev_milestone = self._calculate_ev_milestone(bac, milestones, as_of_date)
 
         cv_physical = self._safe_subtract(ev_physical, ac)
+        cv_milestone = self._safe_subtract(ev_milestone, ac)
         sv_physical = self._safe_subtract(ev_physical, pv)
+        sv_milestone = self._safe_subtract(ev_milestone, pv)
         cpi_physical = self._safe_divide(ev_physical, ac)
+        cpi_milestone = self._safe_divide(ev_milestone, ac)
         spi_physical = self._safe_divide(ev_physical, pv)
+        spi_milestone = self._safe_divide(ev_milestone, pv)
 
         eac_cpi_physical = self._calculate_eac_cpi(bac, cpi_physical)
-        etc_physical = self._safe_subtract(eac_cpi_physical, ac)
-        vac_physical = self._safe_subtract(bac, eac_cpi_physical)
+        eac_cpi_milestone = self._calculate_eac_cpi(bac, cpi_milestone)
+        eac_cpi_spi_physical = self._calculate_eac_cpi_spi(
+            bac, ac, ev_physical, cpi_physical, spi_physical
+        )
+        eac_cpi_spi_milestone = self._calculate_eac_cpi_spi(
+            bac, ac, ev_milestone, cpi_milestone, spi_milestone
+        )
+        eac_plan_based = self._calculate_eac_plan(ac, pv, bac)
+
+        etc_cpi_physical = self._safe_subtract(eac_cpi_physical, ac)
+        etc_cpi_milestone = self._safe_subtract(eac_cpi_milestone, ac)
+        etc_cpi_spi_physical = self._safe_subtract(eac_cpi_spi_physical, ac)
+        etc_cpi_spi_milestone = self._safe_subtract(eac_cpi_spi_milestone, ac)
+        etc_plan_based = self._safe_subtract(eac_plan_based, ac)
+
+        vac_cpi_physical = self._safe_subtract(bac, eac_cpi_physical)
+        vac_cpi_milestone = self._safe_subtract(bac, eac_cpi_milestone)
+        vac_cpi_spi_physical = self._safe_subtract(bac, eac_cpi_spi_physical)
+        vac_cpi_spi_milestone = self._safe_subtract(bac, eac_cpi_spi_milestone)
+        vac_plan_based = self._safe_subtract(bac, eac_plan_based)
+
+        percent_complete_physical = self._calculate_percent_complete_physical(
+            ac, rae_total
+        )
+        percent_complete_milestone = self._calculate_percent_complete_milestone(
+            milestones, as_of_date
+        )
 
         return {
             "project_id": project.id,
             "as_of_date": as_of_date,
+            "calculation_timestamp": self._normalize_datetime(datetime.now(UTC)),
             "bac": bac,
             "pv": pv,
             "ac": ac,
             "ev_physical": ev_physical,
             "ev_milestone": ev_milestone,
             "cv_physical": cv_physical,
+            "cv_milestone": cv_milestone,
             "sv_physical": sv_physical,
+            "sv_milestone": sv_milestone,
             "cpi_physical": cpi_physical,
+            "cpi_milestone": cpi_milestone,
             "spi_physical": spi_physical,
+            "spi_milestone": spi_milestone,
             "eac_cpi_physical": eac_cpi_physical,
-            "etc_physical": etc_physical,
-            "vac_physical": vac_physical,
+            "eac_cpi_milestone": eac_cpi_milestone,
+            "eac_cpi_spi_physical": eac_cpi_spi_physical,
+            "eac_cpi_spi_milestone": eac_cpi_spi_milestone,
+            "eac_plan_based": eac_plan_based,
+            "etc_cpi_physical": etc_cpi_physical,
+            "etc_cpi_milestone": etc_cpi_milestone,
+            "etc_cpi_spi_physical": etc_cpi_spi_physical,
+            "etc_cpi_spi_milestone": etc_cpi_spi_milestone,
+            "etc_plan_based": etc_plan_based,
+            "vac_cpi_physical": vac_cpi_physical,
+            "vac_cpi_milestone": vac_cpi_milestone,
+            "vac_cpi_spi_physical": vac_cpi_spi_physical,
+            "vac_cpi_spi_milestone": vac_cpi_spi_milestone,
+            "vac_plan_based": vac_plan_based,
+            "etc_physical": etc_cpi_physical,
+            "vac_physical": vac_cpi_physical,
+            "percent_complete_physical": percent_complete_physical,
+            "percent_complete_milestone": percent_complete_milestone,
         }
 
     def get_time_series(
@@ -182,17 +232,59 @@ class EVMService:
             ac_series = self._to_period_series(ac_series)
             ev_series = self._to_period_series(ev_series)
 
+        series_points: list[dict[str, Any]] = []
+        for date_point, pv, ac, ev in zip(
+            dates, pv_series, ac_series, ev_series, strict=False
+        ):
+            cv = self._safe_subtract(ev, ac)
+            sv = self._safe_subtract(ev, pv)
+            cpi = self._safe_divide(ev, ac)
+            spi = self._safe_divide(ev, pv)
+            series_points.append(
+                {
+                    "date": date_point,
+                    "pv": pv,
+                    "ac": ac,
+                    "ev": ev,
+                    "cv": cv,
+                    "sv": sv,
+                    "cpi": cpi,
+                    "spi": spi,
+                }
+            )
+
+        x_axis_labels = [date_point.strftime("%Y-%m") for date_point in dates]
+
+        echarts_format = {
+            "xAxis": {"type": "category", "data": x_axis_labels},
+            "series": [
+                {
+                    "name": "PV",
+                    "type": "line",
+                    "data": [float(v) for v in pv_series],
+                },
+                {
+                    "name": "AC",
+                    "type": "line",
+                    "data": [float(v) for v in ac_series],
+                },
+                {
+                    "name": "EV",
+                    "type": "line",
+                    "data": [float(v) for v in ev_series],
+                },
+            ],
+        }
+
         return {
             "project_id": project.id,
             "start_date": start_date,
             "end_date": end_date,
-            "granularity": "monthly",
-            "data": {
-                "dates": [date_point.date() for date_point in dates],
-                "pv": pv_series,
-                "ac": ac_series,
-                "ev": ev_series,
-            },
+            "granularity": "month",
+            "ev_method": ev_method,
+            "cumulative": cumulative,
+            "series": series_points,
+            "echarts_format": echarts_format,
         }
 
     def get_forecasts(
@@ -235,28 +327,58 @@ class EVMService:
         eac_cpi_spi = self._calculate_eac_cpi_spi(bac, ac, ev, cpi, spi)
         eac_plan = self._calculate_eac_plan(ac, pv, bac)
 
+        remaining_pv = self._safe_subtract(bac, pv)
+
+        forecasts = [
+            {
+                "method": "cpi",
+                "description": "Assumes current cost efficiency (CPI) continues",
+                "formula": "EAC = BAC / CPI",
+                "eac": eac_cpi,
+                "etc": self._safe_subtract(eac_cpi, ac),
+                "vac": self._safe_subtract(bac, eac_cpi),
+                "confidence": "medium",
+                "use_case": "Stable cost performance",
+            },
+            {
+                "method": "cpi_spi",
+                "description": "Considers both cost and schedule efficiency",
+                "formula": "EAC = AC + (BAC - EV) / (CPI × SPI)",
+                "eac": eac_cpi_spi,
+                "etc": self._safe_subtract(eac_cpi_spi, ac),
+                "vac": self._safe_subtract(bac, eac_cpi_spi),
+                "confidence": "high" if cpi and spi else "low",
+                "use_case": "Cost and schedule deviations",
+            },
+            {
+                "method": "plan_based",
+                "description": "Assumes future work follows original plan",
+                "formula": "EAC = AC + Remaining_PV",
+                "eac": eac_plan,
+                "etc": self._safe_subtract(eac_plan, ac),
+                "vac": self._safe_subtract(bac, eac_plan),
+                "confidence": "low",
+                "use_case": "Early-stage or limited performance data",
+            },
+        ]
+
+        recommended_method, recommendation_reason = self._recommend_forecast_method(
+            cpi, spi
+        )
+
         return {
             "project_id": project.id,
             "as_of_date": as_of_date,
             "bac": bac,
-            "ac": ac,
-            "forecasts": {
-                "cpi_method": {
-                    "eac": eac_cpi,
-                    "etc": self._safe_subtract(eac_cpi, ac),
-                    "vac": self._safe_subtract(bac, eac_cpi),
-                },
-                "cpi_spi_method": {
-                    "eac": eac_cpi_spi,
-                    "etc": self._safe_subtract(eac_cpi_spi, ac),
-                    "vac": self._safe_subtract(bac, eac_cpi_spi),
-                },
-                "plan_based": {
-                    "eac": eac_plan,
-                    "etc": self._safe_subtract(eac_plan, ac),
-                    "vac": self._safe_subtract(bac, eac_plan),
-                },
-            },
+            "current_ac": ac,
+            "current_ev": ev,
+            "current_pv": pv,
+            "remaining_pv": remaining_pv,
+            "cpi": cpi,
+            "spi": spi,
+            "forecasts": forecasts,
+            "recommended_method": recommended_method,
+            "recommendation_reason": recommendation_reason,
         }
 
     def _get_tasks(self, project_id: Any) -> list[Task]:
@@ -419,6 +541,51 @@ class EVMService:
             return None
         remaining_pv = bac - pv
         return ac + remaining_pv
+
+    def _calculate_percent_complete_physical(
+        self, ac: Decimal | None, rae: Decimal | None
+    ) -> Decimal | None:
+        if rae is None and ac is None:
+            return None
+        if ac is None:
+            ac = Decimal("0")
+        if rae is None:
+            return None
+        denominator = ac + rae
+        if denominator <= 0:
+            return Decimal("0")
+        return ac / denominator
+
+    def _calculate_percent_complete_milestone(
+        self, milestones: list[Milestone], as_of_date: datetime
+    ) -> Decimal | None:
+        total_weight = Decimal("0")
+        for milestone in milestones:
+            if not milestone.is_achieved:
+                continue
+            achieved_date = self._normalize_datetime(milestone.achieved_date)
+            if achieved_date and achieved_date > as_of_date:
+                continue
+            total_weight += self._to_decimal(milestone.budget_weight)
+        return total_weight
+
+    def _recommend_forecast_method(
+        self, cpi: Decimal | None, spi: Decimal | None
+    ) -> tuple[str, str]:
+        if cpi is not None and spi is not None:
+            return (
+                "cpi_spi",
+                "CPI and SPI are available, providing the most balanced forecast.",
+            )
+        if cpi is not None:
+            return (
+                "cpi",
+                "SPI is unavailable; CPI provides the most reliable estimate.",
+            )
+        return (
+            "plan_based",
+            "Performance indices unavailable; defaulting to plan-based forecast.",
+        )
 
     def _build_month_end_dates(
         self, start_date: datetime, end_date: datetime

@@ -27,11 +27,11 @@ from app.models.db import db
 from app.models.project import Project
 from app.schemas.evm_schema import (
     EVMForecastsQuerySchema,
-    EVMForecastsSchema,
+    EVMForecastsResponseSchema,
     EVMIndicatorsQuerySchema,
-    EVMIndicatorsSchema,
+    EVMIndicatorsResponseSchema,
     EVMTimeSeriesQuerySchema,
-    EVMTimeSeriesSchema,
+    EVMTimeSeriesResponseSchema,
 )
 from app.services.evm_service import EVMService
 from app.services.guardian_service import Operation
@@ -45,6 +45,7 @@ from app.utils.jwt_decorators import (
 from app.utils.rate_limit import rate_limit_user_key
 
 ResponseTuple = tuple[dict[str, Any], int] | tuple[dict[str, Any], int, dict[str, str]]
+DictStrAny = dict[str, Any]
 
 # Error Types
 BAD_REQUEST_ERROR = "Bad Request"
@@ -98,7 +99,7 @@ class ProjectEVMResource(Resource):
     def __init__(self) -> None:
         """Initialize resource with schema dependencies."""
         self.query_schema = EVMIndicatorsQuerySchema()
-        self.response_schema = EVMIndicatorsSchema()
+        self.response_schema = EVMIndicatorsResponseSchema()
         self.evm_service = EVMService(db.session)
 
     @require_jwt_auth
@@ -121,7 +122,7 @@ class ProjectEVMResource(Resource):
         assert project is not None
 
         try:
-            query_params = cast("dict[str, Any]", self.query_schema.load(request.args))
+            query_params = cast("DictStrAny", self.query_schema.load(request.args))
         except ValidationError as exc:
             return error_response(
                 VALIDATION_FAILED_MSG,
@@ -147,7 +148,7 @@ class ProjectEVMResource(Resource):
                 error=UNPROCESSABLE_ENTITY_ERROR,
             )
 
-        response = self.response_schema.dump(indicators)
+        response = self.response_schema.dump({"data": indicators})
         return response, 200
 
 
@@ -157,7 +158,7 @@ class ProjectEVMTimeSeriesResource(Resource):
     def __init__(self) -> None:
         """Initialize resource with schema dependencies."""
         self.query_schema = EVMTimeSeriesQuerySchema()
-        self.response_schema = EVMTimeSeriesSchema()
+        self.response_schema = EVMTimeSeriesResponseSchema()
         self.evm_service = EVMService(db.session)
 
     @require_jwt_auth
@@ -180,7 +181,7 @@ class ProjectEVMTimeSeriesResource(Resource):
         assert project is not None
 
         try:
-            query_params = cast("dict[str, Any]", self.query_schema.load(request.args))
+            query_params = cast("DictStrAny", self.query_schema.load(request.args))
         except ValidationError as exc:
             return error_response(
                 VALIDATION_FAILED_MSG,
@@ -227,7 +228,7 @@ class ProjectEVMTimeSeriesResource(Resource):
         except ValueError as exc:
             return error_response(str(exc), 400, error=BAD_REQUEST_ERROR)
 
-        response = self.response_schema.dump(series)
+        response = self.response_schema.dump({"data": series})
         return response, 200
 
 
@@ -237,7 +238,7 @@ class ProjectEVMForecastsResource(Resource):
     def __init__(self) -> None:
         """Initialize resource with schema dependencies."""
         self.query_schema = EVMForecastsQuerySchema()
-        self.response_schema = EVMForecastsSchema()
+        self.response_schema = EVMForecastsResponseSchema()
         self.evm_service = EVMService(db.session)
 
     @require_jwt_auth
@@ -260,7 +261,7 @@ class ProjectEVMForecastsResource(Resource):
         assert project is not None
 
         try:
-            query_params = cast("dict[str, Any]", self.query_schema.load(request.args))
+            query_params = cast("DictStrAny", self.query_schema.load(request.args))
         except ValidationError as exc:
             return error_response(
                 VALIDATION_FAILED_MSG,
@@ -284,5 +285,5 @@ class ProjectEVMForecastsResource(Resource):
                 error=UNPROCESSABLE_ENTITY_ERROR,
             )
 
-        response = self.response_schema.dump(forecasts)
+        response = self.response_schema.dump({"data": forecasts})
         return response, 200

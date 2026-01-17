@@ -94,8 +94,9 @@ class TestEVMIndicatorsAPI:
 
         assert response.status_code == 200
         payload = response.get_json()
-        assert payload["bac"] == pytest.approx(100000.0)
-        assert payload["ac"] == pytest.approx(40000.0)
+        data = payload["data"]
+        assert data["bac"] == pytest.approx(100000.0)
+        assert data["ac"] == pytest.approx(40000.0)
 
 
 class TestEVMTimeSeriesAPI:
@@ -115,7 +116,7 @@ class TestEVMTimeSeriesAPI:
 
         assert response.status_code == 200
         payload = response.get_json()
-        assert payload["data"]["dates"]
+        assert payload["data"]["series"]
 
 
 class TestEVMForecastsAPI:
@@ -134,5 +135,6 @@ class TestEVMForecastsAPI:
 
         assert response.status_code == 200
         payload = response.get_json()
-        assert "forecasts" in payload
-        assert "cpi_method" in payload["forecasts"]
+        forecasts = payload["data"]["forecasts"]
+        methods = {item["method"] for item in forecasts}
+        assert "cpi" in methods

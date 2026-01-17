@@ -109,11 +109,12 @@ class TestProjectEVMResource:
 
         assert response.status_code == 200
         payload = response.get_json()
-        assert payload["bac"] == 100000.0
-        assert payload["pv"] == 100000.0
-        assert payload["ac"] == 40000.0
-        assert payload["ev_physical"] == pytest.approx(44444.44, rel=1e-2)
-        assert payload["ev_milestone"] == 50000.0
+        data = payload["data"]
+        assert data["bac"] == pytest.approx(100000.0)
+        assert data["pv"] == pytest.approx(100000.0)
+        assert data["ac"] == pytest.approx(40000.0)
+        assert data["ev_physical"] == pytest.approx(44444.44, rel=1e-2)
+        assert data["ev_milestone"] == pytest.approx(50000.0)
 
 
 class TestProjectEVMTimeSeriesResource:
@@ -145,10 +146,9 @@ class TestProjectEVMTimeSeriesResource:
 
         assert response.status_code == 200
         payload = response.get_json()
-        data = payload["data"]
-        assert (
-            len(data["dates"]) == len(data["pv"]) == len(data["ac"]) == len(data["ev"])
-        )
+        series = payload["data"]["series"]
+        assert series
+        assert all("date" in point for point in series)
 
 
 class TestProjectEVMForecastsResource:
@@ -179,7 +179,8 @@ class TestProjectEVMForecastsResource:
 
         assert response.status_code == 200
         payload = response.get_json()
-        assert "forecasts" in payload
-        assert "cpi_method" in payload["forecasts"]
-        assert "cpi_spi_method" in payload["forecasts"]
-        assert "plan_based" in payload["forecasts"]
+        forecasts = payload["data"]["forecasts"]
+        methods = {item["method"] for item in forecasts}
+        assert "cpi" in methods
+        assert "cpi_spi" in methods
+        assert "plan_based" in methods
