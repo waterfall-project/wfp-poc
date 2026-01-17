@@ -6,6 +6,7 @@
     tags: [RAE]
     security:
       - bearerAuth: []
+      - cookieAuth: []
     parameters:
       - $ref: '../components/parameters.yaml#/VersionParam'
       - name: milestone_id
@@ -49,6 +50,7 @@
     tags: [RAE]
     security:
       - bearerAuth: []
+      - cookieAuth: []
     parameters:
       - $ref: '../components/parameters.yaml#/VersionParam'
       - name: milestone_id
@@ -99,6 +101,7 @@
     tags: [RAE]
     security:
       - bearerAuth: []
+      - cookieAuth: []
     parameters:
       - $ref: '../components/parameters.yaml#/VersionParam'
       - $ref: '../components/parameters.yaml#/ProjectIdPathParam'

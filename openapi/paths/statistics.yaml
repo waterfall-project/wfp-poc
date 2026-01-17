@@ -6,6 +6,7 @@
     tags: [Statistics]
     security:
       - bearerAuth: []
+      - cookieAuth: []
     parameters:
       - $ref: '../components/parameters.yaml#/VersionParam'
       - $ref: '../components/parameters.yaml#/ProjectIdPathParam'
@@ -93,6 +94,7 @@
     tags: [Statistics]
     security:
       - bearerAuth: []
+      - cookieAuth: []
     parameters:
       - $ref: '../components/parameters.yaml#/VersionParam'
       - $ref: '../components/parameters.yaml#/ProjectIdPathParam'
@@ -174,6 +176,7 @@
     tags: [Statistics]
     security:
       - bearerAuth: []
+      - cookieAuth: []
     parameters:
       - $ref: '../components/parameters.yaml#/VersionParam'
       - $ref: '../components/parameters.yaml#/ProjectIdPathParam'

@@ -60,6 +60,7 @@ tags:
 
 security:
   - bearerAuth: []
+  - cookieAuth: []
 
 x-ratelimit-limit: 100
 x-correlation-id: true
@@ -157,6 +158,8 @@ components:
   securitySchemes:
     bearerAuth:
       $ref: './components/security.yaml#/bearerAuth'
+    cookieAuth:
+      $ref: './components/security.yaml#/cookieAuth'
     metricsAuth:
       $ref: './components/security.yaml#/metricsAuth'
 

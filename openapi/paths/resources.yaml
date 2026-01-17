@@ -6,6 +6,7 @@
     tags: [Resources]
     security:
       - bearerAuth: []
+      - cookieAuth: []
     parameters:
       - $ref: '../components/parameters.yaml#/VersionParam'
     requestBody:
@@ -70,6 +71,7 @@
     tags: [Resources]
     security:
       - bearerAuth: []
+      - cookieAuth: []
     parameters:
       - $ref: '../components/parameters.yaml#/VersionParam'
       - $ref: '../components/parameters.yaml#/PageParam'
@@ -132,6 +134,7 @@
     tags: [Resources]
     security:
       - bearerAuth: []
+      - cookieAuth: []
     parameters:
       - $ref: '../components/parameters.yaml#/VersionParam'
       - $ref: '../components/parameters.yaml#/ResourceIdParam'
@@ -175,6 +178,7 @@
     tags: [Resources]
     security:
       - bearerAuth: []
+      - cookieAuth: []
     parameters:
       - $ref: '../components/parameters.yaml#/VersionParam'
       - $ref: '../components/parameters.yaml#/ResourceIdParam'
@@ -223,6 +227,7 @@
     tags: [Resources]
     security:
       - bearerAuth: []
+      - cookieAuth: []
     parameters:
       - $ref: '../components/parameters.yaml#/VersionParam'
       - $ref: '../components/parameters.yaml#/ResourceIdParam'

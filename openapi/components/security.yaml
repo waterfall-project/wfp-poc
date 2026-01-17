@@ -4,9 +4,22 @@ bearerAuth:
   bearerFormat: JWT
   description: |
     JWT token obtained from Identity service authentication endpoint.
-    Provide either:
-    - Authorization header: Bearer <token>
-    - access_token cookie
+    Provide via Authorization header: Bearer <token>
+
+    Required claims: user_id, company_id, email
+
+    Guardian permissions required:
+    - Service: wfp-poc
+    - Operations: READ, CREATE, UPDATE, DELETE
+    - Context: {company_id: <uuid>, project_id: <uuid>}
+
+cookieAuth:
+  type: apiKey
+  in: cookie
+  name: access_token
+  description: |
+    JWT token obtained from Identity service authentication endpoint.
+    Provide via cookie: access_token=<token>
 
     Required claims: user_id, company_id, email
 

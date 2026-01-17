@@ -30,6 +30,7 @@ servers:
     description: Local development
 security:
   - bearerAuth: []
+  - cookieAuth: []
 tags:
   - name: Health
     description: Health check endpoints
@@ -690,6 +691,7 @@ paths:
         - Milestones
       security:
         - bearerAuth: []
+        - cookieAuth: []
       parameters:
         - $ref: '#/components/parameters/VersionParam'
         - $ref: '#/components/parameters/ProjectIdPathParam'
@@ -753,6 +755,7 @@ paths:
         - Milestones
       security:
         - bearerAuth: []
+        - cookieAuth: []
       parameters:
         - $ref: '#/components/parameters/VersionParam'
         - $ref: '#/components/parameters/ProjectIdPathParam'
@@ -822,6 +825,7 @@ paths:
         - Milestones
       security:
         - bearerAuth: []
+        - cookieAuth: []
       parameters:
         - $ref: '#/components/parameters/VersionParam'
         - $ref: '#/components/parameters/ProjectIdPathParam'
@@ -867,6 +871,7 @@ paths:
         - Milestones
       security:
         - bearerAuth: []
+        - cookieAuth: []
       parameters:
         - $ref: '#/components/parameters/VersionParam'
         - $ref: '#/components/parameters/ProjectIdPathParam'
@@ -915,6 +920,7 @@ paths:
         - Milestones
       security:
         - bearerAuth: []
+        - cookieAuth: []
       parameters:
         - $ref: '#/components/parameters/VersionParam'
         - $ref: '#/components/parameters/ProjectIdPathParam'
@@ -945,6 +951,7 @@ paths:
         - Milestones
       security:
         - bearerAuth: []
+        - cookieAuth: []
       parameters:
         - $ref: '#/components/parameters/VersionParam'
         - $ref: '#/components/parameters/MilestoneIdPathParam'
@@ -1003,6 +1010,7 @@ paths:
         - Milestones
       security:
         - bearerAuth: []
+        - cookieAuth: []
       parameters:
         - $ref: '#/components/parameters/VersionParam'
         - $ref: '#/components/parameters/MilestoneIdPathParam'
@@ -1046,6 +1054,7 @@ paths:
         - Milestones
       security:
         - bearerAuth: []
+        - cookieAuth: []
       parameters:
         - $ref: '#/components/parameters/VersionParam'
         - $ref: '#/components/parameters/MilestoneIdPathParam'
@@ -1089,6 +1098,7 @@ paths:
         - Resources
       security:
         - bearerAuth: []
+        - cookieAuth: []
       parameters:
         - $ref: '#/components/parameters/VersionParam'
       requestBody:
@@ -1153,6 +1163,7 @@ paths:
         - Resources
       security:
         - bearerAuth: []
+        - cookieAuth: []
       parameters:
         - $ref: '#/components/parameters/VersionParam'
         - $ref: '#/components/parameters/PageParam'
@@ -1218,6 +1229,7 @@ paths:
         - Resources
       security:
         - bearerAuth: []
+        - cookieAuth: []
       parameters:
         - $ref: '#/components/parameters/VersionParam'
         - $ref: '#/components/parameters/ResourceIdParam'
@@ -1261,6 +1273,7 @@ paths:
         - Resources
       security:
         - bearerAuth: []
+        - cookieAuth: []
       parameters:
         - $ref: '#/components/parameters/VersionParam'
         - $ref: '#/components/parameters/ResourceIdParam'
@@ -1309,6 +1322,7 @@ paths:
         - Resources
       security:
         - bearerAuth: []
+        - cookieAuth: []
       parameters:
         - $ref: '#/components/parameters/VersionParam'
         - $ref: '#/components/parameters/ResourceIdParam'
@@ -1338,6 +1352,7 @@ paths:
         - Assignments
       security:
         - bearerAuth: []
+        - cookieAuth: []
       parameters:
         - $ref: '#/components/parameters/VersionParam'
         - $ref: '#/components/parameters/ProjectIdPathParam'
@@ -1407,6 +1422,7 @@ paths:
         - Assignments
       security:
         - bearerAuth: []
+        - cookieAuth: []
       parameters:
         - $ref: '#/components/parameters/VersionParam'
         - $ref: '#/components/parameters/ProjectIdPathParam'
@@ -1464,6 +1480,7 @@ paths:
         - Assignments
       security:
         - bearerAuth: []
+        - cookieAuth: []
       parameters:
         - $ref: '#/components/parameters/VersionParam'
         - $ref: '#/components/parameters/ProjectIdPathParam'
@@ -1508,6 +1525,7 @@ paths:
         - Assignments
       security:
         - bearerAuth: []
+        - cookieAuth: []
       parameters:
         - $ref: '#/components/parameters/VersionParam'
         - $ref: '#/components/parameters/ProjectIdPathParam'
@@ -1555,6 +1573,7 @@ paths:
         - Assignments
       security:
         - bearerAuth: []
+        - cookieAuth: []
       parameters:
         - $ref: '#/components/parameters/VersionParam'
         - $ref: '#/components/parameters/ProjectIdPathParam'
@@ -1583,6 +1602,7 @@ paths:
         - Expenses
       security:
         - bearerAuth: []
+        - cookieAuth: []
       parameters:
         - $ref: '#/components/parameters/VersionParam'
         - $ref: '#/components/parameters/ProjectIdPathParam'
@@ -1663,6 +1683,7 @@ paths:
         - Expenses
       security:
         - bearerAuth: []
+        - cookieAuth: []
       parameters:
         - $ref: '#/components/parameters/VersionParam'
         - $ref: '#/components/parameters/ProjectIdPathParam'
@@ -1745,6 +1766,7 @@ paths:
         - Expenses
       security:
         - bearerAuth: []
+        - cookieAuth: []
       parameters:
         - $ref: '#/components/parameters/VersionParam'
         - $ref: '#/components/parameters/ProjectIdPathParam'
@@ -1818,6 +1840,7 @@ paths:
         - Expenses
       security:
         - bearerAuth: []
+        - cookieAuth: []
       parameters:
         - $ref: '#/components/parameters/VersionParam'
         - $ref: '#/components/parameters/ProjectIdPathParam'
@@ -1869,6 +1892,7 @@ paths:
         - Expenses
       security:
         - bearerAuth: []
+        - cookieAuth: []
       parameters:
         - $ref: '#/components/parameters/VersionParam'
         - $ref: '#/components/parameters/ProjectIdPathParam'
@@ -1917,6 +1941,7 @@ paths:
         - Expenses
       security:
         - bearerAuth: []
+        - cookieAuth: []
       parameters:
         - $ref: '#/components/parameters/VersionParam'
         - $ref: '#/components/parameters/ProjectIdPathParam'
@@ -1948,6 +1973,7 @@ paths:
         - Progress
       security:
         - bearerAuth: []
+        - cookieAuth: []
       parameters:
         - $ref: '#/components/parameters/VersionParam'
         - $ref: '#/components/parameters/ProjectIdPathParam'
@@ -2019,6 +2045,7 @@ paths:
         - Progress
       security:
         - bearerAuth: []
+        - cookieAuth: []
       parameters:
         - $ref: '#/components/parameters/VersionParam'
         - $ref: '#/components/parameters/ProjectIdPathParam'
@@ -2102,6 +2129,7 @@ paths:
         - RAE
       security:
         - bearerAuth: []
+        - cookieAuth: []
       parameters:
         - $ref: '#/components/parameters/VersionParam'
         - name: milestone_id
@@ -2145,6 +2173,7 @@ paths:
         - RAE
       security:
         - bearerAuth: []
+        - cookieAuth: []
       parameters:
         - $ref: '#/components/parameters/VersionParam'
         - name: milestone_id
@@ -2195,6 +2224,7 @@ paths:
         - RAE
       security:
         - bearerAuth: []
+        - cookieAuth: []
       parameters:
         - $ref: '#/components/parameters/VersionParam'
         - $ref: '#/components/parameters/ProjectIdPathParam'
@@ -2230,6 +2260,7 @@ paths:
         - EVM
       security:
         - bearerAuth: []
+        - cookieAuth: []
       parameters:
         - $ref: '#/components/parameters/VersionParam'
         - $ref: '#/components/parameters/ProjectIdPathParam'
@@ -2279,6 +2310,7 @@ paths:
         - EVM
       security:
         - bearerAuth: []
+        - cookieAuth: []
       parameters:
         - $ref: '#/components/parameters/VersionParam'
         - $ref: '#/components/parameters/ProjectIdPathParam'
@@ -2347,6 +2379,7 @@ paths:
         - EVM
       security:
         - bearerAuth: []
+        - cookieAuth: []
       parameters:
         - $ref: '#/components/parameters/VersionParam'
         - $ref: '#/components/parameters/ProjectIdPathParam'
@@ -2396,6 +2429,7 @@ paths:
         - Statistics
       security:
         - bearerAuth: []
+        - cookieAuth: []
       parameters:
         - $ref: '#/components/parameters/VersionParam'
         - $ref: '#/components/parameters/ProjectIdPathParam'
@@ -2427,6 +2461,45 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ExpenseBreakdown'
+              example:
+                data:
+                  project_id: a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d
+                  total_expenses: 820000
+                  breakdown:
+                    - category: labor
+                      amount: 450000
+                      percentage: 54.88
+                      count: 156
+                    - category: subcontracting
+                      amount: 220000
+                      percentage: 26.83
+                      count: 42
+                    - category: procurement
+                      amount: 120000
+                      percentage: 14.63
+                      count: 68
+                    - category: overhead
+                      amount: 30000
+                      percentage: 3.66
+                      count: 24
+                  echarts_format:
+                    series:
+                      - name: Expenses by Category
+                        type: pie
+                        radius:
+                          - 40%
+                          - 70%
+                        data:
+                          - value: 450000
+                            name: Labor (54.88%)
+                          - value: 220000
+                            name: Subcontracting (26.83%)
+                          - value: 120000
+                            name: Procurement (14.63%)
+                          - value: 30000
+                            name: Overhead (3.66%)
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -2446,6 +2519,7 @@ paths:
         - Statistics
       security:
         - bearerAuth: []
+        - cookieAuth: []
       parameters:
         - $ref: '#/components/parameters/VersionParam'
         - $ref: '#/components/parameters/ProjectIdPathParam'
@@ -2512,6 +2586,8 @@ paths:
                           - 85000
                           - 72000
                           - 65000
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -2531,6 +2607,7 @@ paths:
         - Statistics
       security:
         - bearerAuth: []
+        - cookieAuth: []
       parameters:
         - $ref: '#/components/parameters/VersionParam'
         - $ref: '#/components/parameters/ProjectIdPathParam'
@@ -2627,6 +2704,8 @@ paths:
                           - 2000
                           - 3000
                           - 4000
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -2645,9 +2724,21 @@ components:
       bearerFormat: JWT
       description: |
         JWT token obtained from Identity service authentication endpoint.
-        Provide either:
-        - Authorization header: Bearer <token>
-        - access_token cookie
+        Provide via Authorization header: Bearer <token>
+
+        Required claims: user_id, company_id, email
+
+        Guardian permissions required:
+        - Service: wfp-poc
+        - Operations: READ, CREATE, UPDATE, DELETE
+        - Context: {company_id: <uuid>, project_id: <uuid>}
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: access_token
+      description: |
+        JWT token obtained from Identity service authentication endpoint.
+        Provide via cookie: access_token=<token>
 
         Required claims: user_id, company_id, email
 
@@ -5309,6 +5400,43 @@ components:
                   count:
                     type: integer
                     description: Number of expense records
+            echarts_format:
+              type: object
+              description: ECharts-compatible pie/donut chart configuration
+              properties:
+                series:
+                  type: array
+                  items:
+                    type: object
+                    required:
+                      - name
+                      - type
+                      - data
+                    properties:
+                      name:
+                        type: string
+                      type:
+                        type: string
+                        enum:
+                          - pie
+                      radius:
+                        type: array
+                        items:
+                          type: string
+                        description: Pie/donut radius (e.g. ["40%", "70%"])
+                      data:
+                        type: array
+                        items:
+                          type: object
+                          required:
+                            - value
+                            - name
+                          properties:
+                            value:
+                              type: number
+                              format: double
+                            name:
+                              type: string
     LaborByResource:
       type: object
       required:
