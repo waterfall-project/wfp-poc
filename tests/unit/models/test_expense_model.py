@@ -14,7 +14,7 @@ and business logic for the Expense entity.
 """
 
 import uuid
-from datetime import UTC, date, datetime
+from datetime import UTC, datetime
 from decimal import Decimal
 
 import pytest
@@ -23,6 +23,7 @@ from app.models import Expense, Project, Resource, db
 
 DEFAULT_START_DATE = datetime(2026, 1, 1, 9, 0, tzinfo=UTC)
 DEFAULT_FINISH_DATE = datetime(2026, 1, 31, 18, 0, tzinfo=UTC)
+DEFAULT_EXPENSE_DATE = datetime(2026, 2, 15, 12, 0, tzinfo=UTC)
 
 
 class TestExpenseModel:
@@ -48,7 +49,7 @@ class TestExpenseModel:
         resource = Resource(
             company_id=uuid.UUID(company_id),
             name="Test Resource",
-            type="material",
+            type="labor",
         )
         db.session.add(resource)
         db.session.commit()
@@ -58,13 +59,14 @@ class TestExpenseModel:
     def test_create_expense_minimal(self, app, project):
         """Test creating an expense with minimal required fields.
 
-        Given: Required fields only (project_id, description)
+        Given: Required fields only (project_id, date, amount)
         When: Creating an Expense instance
         Then: Expense is created with correct defaults
         """
         expense = Expense(
             project_id=project.id,
-            description="Test Expense",
+            date=DEFAULT_EXPENSE_DATE,
+            amount=Decimal("1000.00"),
         )
         db.session.add(expense)
         db.session.commit()
@@ -72,12 +74,11 @@ class TestExpenseModel:
         assert expense.id is not None
         assert isinstance(expense.id, uuid.UUID)
         assert expense.project_id == project.id
-        assert expense.description == "Test Expense"
-        assert expense.category == "other"  # Default value
+        assert expense.date == DEFAULT_EXPENSE_DATE
+        assert expense.amount == Decimal("1000.00")
+        assert expense.category == "procurement"
         assert expense.resource_id is None
-        assert expense.planned_cost is None
-        assert expense.actual_cost is None
-        assert expense.expense_date is None
+        assert expense.description is None
         assert expense.created_at is not None
         assert expense.updated_at is not None
 
@@ -91,11 +92,18 @@ class TestExpenseModel:
         expense = Expense(
             project_id=project.id,
             resource_id=resource.id,
-            category="material",
+            category="labor",
             description="Full Test Expense",
-            planned_cost=Decimal("5000.00"),
-            actual_cost=Decimal("5250.50"),
-            expense_date=date(2026, 3, 15),
+            date=DEFAULT_EXPENSE_DATE,
+            amount=Decimal("5250.50"),
+            reference_number="5129412025",
+            purchase_document="24337010",
+            fiscal_year=2026,
+            period=2,
+            otp_element="G.PRJ.12345/13984",
+            accounting_nature="60510000",
+            vendor_name="ARELIS",
+            origin_group="STOR",
         )
         db.session.add(expense)
         db.session.commit()
@@ -103,25 +111,33 @@ class TestExpenseModel:
         assert expense.id is not None
         assert expense.project_id == project.id
         assert expense.resource_id == resource.id
-        assert expense.category == "material"
+        assert expense.category == "labor"
         assert expense.description == "Full Test Expense"
-        assert expense.planned_cost == pytest.approx(5000.00)
-        assert expense.actual_cost == pytest.approx(5250.50)
-        assert expense.expense_date == date(2026, 3, 15)
+        assert expense.amount == Decimal("5250.50")
+        assert expense.date == DEFAULT_EXPENSE_DATE
+        assert expense.reference_number == "5129412025"
+        assert expense.purchase_document == "24337010"
+        assert expense.fiscal_year == 2026
+        assert expense.period == 2
+        assert expense.otp_element == "G.PRJ.12345/13984"
+        assert expense.accounting_nature == "60510000"
+        assert expense.vendor_name == "ARELIS"
+        assert expense.origin_group == "STOR"
 
     def test_expense_category_values(self, app, project):
         """Test valid category values.
 
-        Given: Valid category values (material, fixed, other)
+        Given: Valid category values (labor, procurement, subcontracting, overhead)
         When: Creating expenses with each category
         Then: Expenses are created successfully
         """
-        categories = ["material", "fixed", "other"]
+        categories = ["labor", "procurement", "subcontracting", "overhead"]
 
         for category in categories:
             expense = Expense(
                 project_id=project.id,
-                description=f"Expense {category}",
+                date=DEFAULT_EXPENSE_DATE,
+                amount=Decimal("100.00"),
                 category=category,
             )
             db.session.add(expense)
@@ -139,7 +155,8 @@ class TestExpenseModel:
         expense = Expense(
             project_id=project.id,
             resource_id=resource.id,
-            description="Resource-linked Expense",
+            date=DEFAULT_EXPENSE_DATE,
+            amount=Decimal("250.00"),
         )
         db.session.add(expense)
         db.session.commit()
@@ -147,77 +164,35 @@ class TestExpenseModel:
         assert expense.resource_id == resource.id
         assert expense.resource == resource
 
-    def test_expense_without_resource(self, app, project):
-        """Test expense without resource association.
+    def test_expense_amount_precision(self, app, project):
+        """Test amount field with decimal precision.
 
-        Given: An expense without resource_id
-        When: Creating the expense
-        Then: Expense is created with null resource_id
-        """
-        expense = Expense(
-            project_id=project.id,
-            description="Standalone Expense",
-        )
-        db.session.add(expense)
-        db.session.commit()
-
-        assert expense.resource_id is None
-
-    def test_expense_planned_vs_actual_cost(self, app, project):
-        """Test planned vs actual cost tracking.
-
-        Given: An expense with planned cost
-        When: Setting actual cost
-        Then: Both costs are tracked independently
-        """
-        expense = Expense(
-            project_id=project.id,
-            description="Cost Tracking Expense",
-            planned_cost=Decimal("1000.00"),
-        )
-        db.session.add(expense)
-        db.session.commit()
-
-        assert expense.planned_cost == pytest.approx(1000.00)
-        assert expense.actual_cost is None
-
-        # Update actual cost
-        expense.actual_cost = 1100.00
-        db.session.commit()
-
-        assert expense.actual_cost == pytest.approx(1100.00)
-        assert expense.planned_cost == pytest.approx(1000.00)
-
-    def test_expense_cost_precision(self, app, project):
-        """Test cost fields with decimal precision.
-
-        Given: An expense with costs
-        When: Setting cost values with decimals
+        Given: An expense with a decimal amount
+        When: Setting amount with decimals
         Then: Precision is maintained (2 decimal places)
         """
         expense = Expense(
             project_id=project.id,
-            description="Precision Test",
-            planned_cost=Decimal("12345.67"),
-            actual_cost=Decimal("12399.99"),
+            date=DEFAULT_EXPENSE_DATE,
+            amount=Decimal("12345.67"),
         )
         db.session.add(expense)
         db.session.commit()
 
-        assert expense.planned_cost == pytest.approx(12345.67)
-        assert expense.actual_cost == pytest.approx(12399.99)
+        assert expense.amount == Decimal("12345.67")
 
     def test_expense_repr(self, app, project):
         """Test string representation of Expense.
 
         Given: An expense instance
         When: Converting to string
-        Then: Repr shows id, category, and description
+        Then: Repr shows id and category
         """
         expense = Expense(
             project_id=project.id,
-            category="material",
-            description="Test Expense",
+            date=DEFAULT_EXPENSE_DATE,
+            amount=Decimal("100.00"),
+            category="procurement",
         )
         db.session.add(expense)
         db.session.commit()
@@ -237,12 +212,12 @@ class TestExpenseModel:
         expense = Expense(
             project_id=project.id,
             resource_id=resource.id,
-            description="Test Expense",
+            date=DEFAULT_EXPENSE_DATE,
+            amount=Decimal("100.00"),
         )
         db.session.add(expense)
         db.session.commit()
 
-        # Check relationship attributes exist
         assert hasattr(expense, "project")
         assert hasattr(expense, "resource")
         assert expense.project == project
@@ -257,18 +232,17 @@ class TestExpenseModel:
         """
         expense = Expense(
             project_id=project.id,
-            description="Test Expense",
+            date=DEFAULT_EXPENSE_DATE,
+            amount=Decimal("100.00"),
         )
         db.session.add(expense)
         db.session.commit()
 
         expense_id = expense.id
 
-        # Delete project
         db.session.delete(project)
         db.session.commit()
 
-        # Verify expense was deleted
         deleted_expense = db.session.get(Expense, expense_id)
         assert deleted_expense is None
 
@@ -282,18 +256,17 @@ class TestExpenseModel:
         expense = Expense(
             project_id=project.id,
             resource_id=resource.id,
-            description="Test Expense",
+            date=DEFAULT_EXPENSE_DATE,
+            amount=Decimal("100.00"),
         )
         db.session.add(expense)
         db.session.commit()
 
         expense_id = expense.id
 
-        # Delete resource
         db.session.delete(resource)
         db.session.commit()
 
-        # Verify expense still exists but resource_id is NULL
         remaining_expense = db.session.get(Expense, expense_id)
         assert remaining_expense is not None
         assert remaining_expense.resource_id is None

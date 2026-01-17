@@ -12,6 +12,11 @@
 from flask_restful import Api
 
 from app.resources.assignment_res import AssignmentListResource, AssignmentResource
+from app.resources.expense_res import (
+    ExpenseBulkResource,
+    ExpenseListResource,
+    ExpenseResource,
+)
 from app.resources.health import HealthResource, ReadyResource, VersionResource
 from app.resources.milestone_res import MilestoneListResource, MilestoneResource
 from app.resources.milestone_task_res import (
@@ -86,6 +91,23 @@ def register_routes(app):
         AssignmentResource,
         "/v0/projects/<string:project_id>/assignments/<string:id>",
         "/<string:version>/projects/<string:project_id>/assignments/<string:id>",
+    )
+
+    # Expenses
+    api.add_resource(
+        ExpenseListResource,
+        "/v0/projects/<string:project_id>/expenses",
+        "/<string:version>/projects/<string:project_id>/expenses",
+    )
+    api.add_resource(
+        ExpenseBulkResource,
+        "/v0/projects/<string:project_id>/expenses/bulk",
+        "/<string:version>/projects/<string:project_id>/expenses/bulk",
+    )
+    api.add_resource(
+        ExpenseResource,
+        "/v0/projects/<string:project_id>/expenses/<string:id>",
+        "/<string:version>/projects/<string:project_id>/expenses/<string:id>",
     )
 
     # Milestones

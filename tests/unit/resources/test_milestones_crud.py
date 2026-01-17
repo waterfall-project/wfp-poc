@@ -16,7 +16,7 @@ authorization checks and validation.
 # mypy: disable-error-code="call-arg"
 
 import uuid
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from unittest.mock import MagicMock, patch
 
@@ -571,11 +571,10 @@ class TestMilestoneResourceDelete:
             expense = Expense(
                 project_id=project_data.id,
                 milestone_id=milestone_data.id,
-                category="material",
+                category="procurement",
                 description="Test expense allocated to milestone",
-                planned_cost=Decimal("1000.00"),
-                actual_cost=Decimal("950.00"),
-                expense_date=date.today(),
+                date=datetime.now(tz=UTC),
+                amount=Decimal("1000.00"),
             )
             db.session.add(expense)
             db.session.commit()

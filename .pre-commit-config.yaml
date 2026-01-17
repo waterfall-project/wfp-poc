@@ -39,7 +39,7 @@ repos:
           - prometheus-flask-exporter
           - pytest
         args: [--config-file=pyproject.toml]
-        exclude: ^migrations/
+        exclude: ^(migrations/|tools/guardian_mock/)
 
   # Interrogate - Docstring coverage checker
   - repo: https://github.com/econchick/interrogate
