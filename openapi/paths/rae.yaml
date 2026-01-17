@@ -101,7 +101,7 @@
       - bearerAuth: []
     parameters:
       - $ref: '../components/parameters.yaml#/VersionParam'
-      - $ref: '../components/parameters.yaml#/ProjectIdQueryParam'
+      - $ref: '../components/parameters.yaml#/ProjectIdPathParam'
       - name: as_of_date
         in: query
         schema:

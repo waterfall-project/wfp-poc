@@ -11,7 +11,7 @@
       - bearerAuth: []
     parameters:
       - $ref: '../components/parameters.yaml#/VersionParam'
-      - $ref: '../components/parameters.yaml#/ProjectIdQueryParam'
+      - $ref: '../components/parameters.yaml#/ProjectIdPathParam'
     requestBody:
       required: true
       content:
@@ -80,7 +80,7 @@
       - bearerAuth: []
     parameters:
       - $ref: '../components/parameters.yaml#/VersionParam'
-      - $ref: '../components/parameters.yaml#/ProjectIdQueryParam'
+      - $ref: '../components/parameters.yaml#/ProjectIdPathParam'
       - name: task_id
         in: query
         required: false

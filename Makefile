@@ -7,7 +7,7 @@
 # See LICENSE and LICENSE.md files in the root directory for full license text.
 # For commercial licensing inquiries, contact: contact@waterfall-project.pro
 
-.PHONY: help install install-dev format lint type-check test test-cov test-cov-badge clean run compose-build compose-up compose-down docker-build-dev docker-build-test docker-build-prod docker-test monitoring-up monitoring-down monitoring-logs pre-commit-install pre-commit-run docstring-check docstring-coverage test-integration test-unit test-all
+.PHONY: help install install-dev format lint type-check test test-cov test-cov-badge clean run compose-build compose-up compose-down docker-build-dev docker-build-test docker-build-prod docker-test monitoring-up monitoring-down monitoring-logs pre-commit-install pre-commit-run docstring-check docstring-coverage test-integration test-unit test-all openapi-lint openapi-bundle openapi-check
 
 # Default target
 help:
@@ -36,6 +36,9 @@ help:
 	@echo "  make docker-build-prod - Build production Docker image"
 	@echo "  make docker-test       - Run tests in Docker container"
 	@echo "  make check             - Run all quality checks (format, lint, type-check, docstring-check, test)"
+	@echo "  make openapi-lint       - Lint OpenAPI spec with Redocly"
+	@echo "  make openapi-bundle     - Generate OpenAPI bundle with Redocly"
+	@echo "  make openapi-check      - Lint + bundle OpenAPI (recommended)"
 
 # Install production dependencies
 install:
@@ -83,7 +86,7 @@ test:
 	pytest tests/unit/ -v
 	@echo ""
 	@echo "Running integration tests..."
-	pytest tests/integration/ -v --maxfail=0 || [ $$? -eq 5 ] && echo "⚠️  No integration tests yet"
+	pytest tests/integration/ -v
 	@echo ""
 	@echo "✓ Tests completed"
 
@@ -186,5 +189,20 @@ docker-test: docker-build-test
 	@echo "✓ Docker tests completed"
 
 # Quality check (all checks)
-check: format lint type-check docstring-check test
+check: format lint type-check docstring-check openapi-check test
 	@echo "✓ All quality checks passed"
+
+# OpenAPI (Redocly)
+# Note: uses npx to avoid requiring a global install.
+openapi-lint:
+	@echo "Linting OpenAPI spec with Redocly..."
+	npx @redocly/cli lint openapi/wfp-poc-api-modular.yaml --config .redocly.yaml
+	@echo "✓ OpenAPI lint complete"
+
+openapi-bundle:
+	@echo "Generating OpenAPI bundle with Redocly..."
+	npx @redocly/cli bundle openapi/wfp-poc-api-modular.yaml -o openapi/wfp-poc-api-bundle.yaml
+	@echo "✓ Bundle generated: openapi/wfp-poc-api-bundle.yaml"
+
+openapi-check: openapi-lint openapi-bundle
+	@echo "✓ OpenAPI checks complete"

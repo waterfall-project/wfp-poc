@@ -8,7 +8,7 @@
       - bearerAuth: []
     parameters:
       - $ref: '../components/parameters.yaml#/VersionParam'
-      - $ref: '../components/parameters.yaml#/ProjectIdQueryParam'
+      - $ref: '../components/parameters.yaml#/ProjectIdPathParam'
       - name: start_date
         in: query
         required: false
@@ -58,7 +58,7 @@
       - bearerAuth: []
     parameters:
       - $ref: '../components/parameters.yaml#/VersionParam'
-      - $ref: '../components/parameters.yaml#/ProjectIdQueryParam'
+      - $ref: '../components/parameters.yaml#/ProjectIdPathParam'
       - name: start_date
         in: query
         schema:
@@ -137,7 +137,7 @@
       - bearerAuth: []
     parameters:
       - $ref: '../components/parameters.yaml#/VersionParam'
-      - $ref: '../components/parameters.yaml#/ProjectIdQueryParam'
+      - $ref: '../components/parameters.yaml#/ProjectIdPathParam'
       - name: start_date
         in: query
         schema:

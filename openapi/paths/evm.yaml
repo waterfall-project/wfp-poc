@@ -6,7 +6,7 @@
     tags: [EVM]
     parameters:
       - $ref: '../components/parameters.yaml#/VersionParam'
-      - $ref: '../components/parameters.yaml#/ProjectIdQueryParam'
+      - $ref: '../components/parameters.yaml#/ProjectIdPathParam'
       - name: as_of_date
         in: query
         schema:
@@ -42,7 +42,7 @@
     tags: [EVM]
     parameters:
       - $ref: '../components/parameters.yaml#/VersionParam'
-      - $ref: '../components/parameters.yaml#/ProjectIdQueryParam'
+      - $ref: '../components/parameters.yaml#/ProjectIdPathParam'
       - name: start_date
         in: query
         schema:
@@ -97,7 +97,7 @@
     tags: [EVM]
     parameters:
       - $ref: '../components/parameters.yaml#/VersionParam'
-      - $ref: '../components/parameters.yaml#/ProjectIdQueryParam'
+      - $ref: '../components/parameters.yaml#/ProjectIdPathParam'
     responses:
       '200':
         description: Forecasts calculated

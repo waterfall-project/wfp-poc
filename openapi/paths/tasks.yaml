@@ -7,7 +7,7 @@
       - Tasks
     parameters:
       - $ref: '../components/parameters.yaml#/VersionParam'
-      - $ref: '../components/parameters.yaml#/ProjectIdQueryParam'
+      - $ref: '../components/parameters.yaml#/ProjectIdPathParam'
     requestBody:
       required: true
       content:
@@ -55,7 +55,7 @@
       - Tasks
     parameters:
       - $ref: '../components/parameters.yaml#/VersionParam'
-      - $ref: '../components/parameters.yaml#/ProjectIdQueryParam'
+      - $ref: '../components/parameters.yaml#/ProjectIdPathParam'
       - $ref: '../components/parameters.yaml#/PageParam'
       - $ref: '../components/parameters.yaml#/PerPageParam'
       - name: parent_id
@@ -133,7 +133,7 @@
       - Tasks
     parameters:
       - $ref: '../components/parameters.yaml#/VersionParam'
-      - $ref: '../components/parameters.yaml#/ProjectIdQueryParam'
+      - $ref: '../components/parameters.yaml#/ProjectIdPathParam'
     requestBody:
       required: true
       content:
@@ -174,7 +174,7 @@
       - Tasks
     parameters:
       - $ref: '../components/parameters.yaml#/VersionParam'
-      - $ref: '../components/parameters.yaml#/ProjectIdQueryParam'
+      - $ref: '../components/parameters.yaml#/ProjectIdPathParam'
     requestBody:
       required: true
       content:
@@ -212,7 +212,7 @@
       - Tasks
     parameters:
       - $ref: '../components/parameters.yaml#/VersionParam'
-      - $ref: '../components/parameters.yaml#/ProjectIdQueryParam'
+      - $ref: '../components/parameters.yaml#/ProjectIdPathParam'
       - $ref: '../components/parameters.yaml#/TaskIdParam'
     responses:
       '200':
@@ -240,7 +240,7 @@
       - Tasks
     parameters:
       - $ref: '../components/parameters.yaml#/VersionParam'
-      - $ref: '../components/parameters.yaml#/ProjectIdQueryParam'
+      - $ref: '../components/parameters.yaml#/ProjectIdPathParam'
       - $ref: '../components/parameters.yaml#/TaskIdParam'
     requestBody:
       required: true
@@ -287,7 +287,7 @@
       - Tasks
     parameters:
       - $ref: '../components/parameters.yaml#/VersionParam'
-      - $ref: '../components/parameters.yaml#/ProjectIdQueryParam'
+      - $ref: '../components/parameters.yaml#/ProjectIdPathParam'
       - $ref: '../components/parameters.yaml#/TaskIdParam'
     responses:
       '204':

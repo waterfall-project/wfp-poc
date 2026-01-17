@@ -169,6 +169,8 @@ components:
       $ref: './components/parameters.yaml#/PerPageParam'
     ProjectIdParam:
       $ref: './components/parameters.yaml#/ProjectIdParam'
+    ProjectIdPathParam:
+      $ref: './components/parameters.yaml#/ProjectIdPathParam'
     ProjectIdQueryParam:
       $ref: './components/parameters.yaml#/ProjectIdQueryParam'
     TaskIdParam:
