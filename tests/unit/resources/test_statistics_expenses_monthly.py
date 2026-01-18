@@ -8,6 +8,7 @@ Copyright (c) 2025 Waterfall Project. All rights reserved.
 
 from datetime import UTC, datetime
 from decimal import Decimal
+from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
 import pytest
@@ -142,8 +143,10 @@ class TestMonthlyExpensesEndpoint:
                 db.session.refresh(exp)
             return expenses
 
+    @patch("app.services.guardian_service.requests.post")
     def test_get_monthly_expenses_success(
         self,
+        mock_guardian: MagicMock,
         authenticated_client: FlaskClient,
         project: Project,
         expenses: list[Expense],
@@ -154,6 +157,11 @@ class TestMonthlyExpensesEndpoint:
         When: GET /projects/{id}/statistics/expenses/monthly is called
         Then: Status is 200 and monthly data is correct
         """
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"access_granted": True, "reason": "granted"}
+        mock_guardian.return_value = mock_response
+
         response = authenticated_client.get(
             f"/v0/projects/{project.id}/statistics/expenses/monthly"
         )
@@ -203,8 +211,10 @@ class TestMonthlyExpensesEndpoint:
         assert series[0]["stack"] == "total"
         assert series[0]["data"] == [25000.0, 42000.0, 45000.0]
 
+    @patch("app.services.guardian_service.requests.post")
     def test_get_monthly_expenses_cumulative(
         self,
+        mock_guardian: MagicMock,
         authenticated_client: FlaskClient,
         project: Project,
         expenses: list[Expense],
@@ -215,6 +225,11 @@ class TestMonthlyExpensesEndpoint:
         When: GET with cumulative=true is called
         Then: Values are cumulative
         """
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"access_granted": True, "reason": "granted"}
+        mock_guardian.return_value = mock_response
+
         response = authenticated_client.get(
             f"/v0/projects/{project.id}/statistics/expenses/monthly",
             query_string={"cumulative": "true"},
@@ -239,8 +254,10 @@ class TestMonthlyExpensesEndpoint:
         assert monthly_data[2]["total"] == 195000.0
         assert monthly_data[2]["labor"] == 112000.0  # 67000 + 45000
 
+    @patch("app.services.guardian_service.requests.post")
     def test_get_monthly_expenses_with_category_filter(
         self,
+        mock_guardian: MagicMock,
         authenticated_client: FlaskClient,
         project: Project,
         expenses: list[Expense],
@@ -251,6 +268,11 @@ class TestMonthlyExpensesEndpoint:
         When: GET with category=labor is called
         Then: Only labor expenses are included
         """
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"access_granted": True, "reason": "granted"}
+        mock_guardian.return_value = mock_response
+
         response = authenticated_client.get(
             f"/v0/projects/{project.id}/statistics/expenses/monthly",
             query_string={"category": "labor"},
@@ -269,8 +291,10 @@ class TestMonthlyExpensesEndpoint:
         # December labor only
         assert monthly_data[1]["total"] == 42000.0
 
+    @patch("app.services.guardian_service.requests.post")
     def test_get_monthly_expenses_with_date_range(
         self,
+        mock_guardian: MagicMock,
         authenticated_client: FlaskClient,
         project: Project,
         expenses: list[Expense],
@@ -281,6 +305,11 @@ class TestMonthlyExpensesEndpoint:
         When: GET with start_date is called
         Then: Only expenses after start_date are included
         """
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"access_granted": True, "reason": "granted"}
+        mock_guardian.return_value = mock_response
+
         response = authenticated_client.get(
             f"/v0/projects/{project.id}/statistics/expenses/monthly",
             query_string={"start_date": "2024-12-01T00:00:00Z"},
@@ -295,8 +324,12 @@ class TestMonthlyExpensesEndpoint:
         assert monthly_data[0]["month"] == "2024-12"
         assert monthly_data[1]["month"] == "2025-01"
 
+    @patch("app.services.guardian_service.requests.post")
     def test_get_monthly_expenses_invalid_category(
-        self, authenticated_client: FlaskClient, project: Project
+        self,
+        mock_guardian: MagicMock,
+        authenticated_client: FlaskClient,
+        project: Project,
     ) -> None:
         """Test monthly expenses with invalid category.
 
@@ -304,6 +337,11 @@ class TestMonthlyExpensesEndpoint:
         When: GET with invalid category is called
         Then: Status is 400
         """
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"access_granted": True, "reason": "granted"}
+        mock_guardian.return_value = mock_response
+
         response = authenticated_client.get(
             f"/v0/projects/{project.id}/statistics/expenses/monthly",
             query_string={"category": "invalid"},
@@ -311,8 +349,9 @@ class TestMonthlyExpensesEndpoint:
 
         assert response.status_code == 400
 
+    @patch("app.services.guardian_service.requests.post")
     def test_get_monthly_expenses_project_not_found(
-        self, authenticated_client: FlaskClient
+        self, mock_guardian: MagicMock, authenticated_client: FlaskClient
     ) -> None:
         """Test monthly expenses for non-existent project.
 
@@ -320,6 +359,11 @@ class TestMonthlyExpensesEndpoint:
         When: GET is called
         Then: Status is 404
         """
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"access_granted": True, "reason": "granted"}
+        mock_guardian.return_value = mock_response
+
         fake_id = uuid4()
         response = authenticated_client.get(
             f"/v0/projects/{fake_id}/statistics/expenses/monthly"
@@ -327,8 +371,12 @@ class TestMonthlyExpensesEndpoint:
 
         assert response.status_code == 404
 
+    @patch("app.services.guardian_service.requests.post")
     def test_get_monthly_expenses_no_expenses(
-        self, authenticated_client: FlaskClient, project: Project
+        self,
+        mock_guardian: MagicMock,
+        authenticated_client: FlaskClient,
+        project: Project,
     ) -> None:
         """Test monthly expenses with no expenses.
 
@@ -336,6 +384,11 @@ class TestMonthlyExpensesEndpoint:
         When: GET is called
         Then: Status is 200 with empty monthly_data
         """
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"access_granted": True, "reason": "granted"}
+        mock_guardian.return_value = mock_response
+
         response = authenticated_client.get(
             f"/v0/projects/{project.id}/statistics/expenses/monthly"
         )

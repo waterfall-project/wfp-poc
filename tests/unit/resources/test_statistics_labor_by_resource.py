@@ -8,6 +8,7 @@ Copyright (c) 2025 Waterfall Project. All rights reserved.
 
 from datetime import UTC, datetime
 from decimal import Decimal
+from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
 import pytest
@@ -184,8 +185,10 @@ class TestLaborByResourceEndpoint:
                 db.session.refresh(assignment)
             return assignments
 
+    @patch("app.services.guardian_service.requests.post")
     def test_get_labor_by_resource_success(
         self,
+        mock_guardian: MagicMock,
         authenticated_client: FlaskClient,
         project: Project,
         assignments: list[Assignment],
@@ -196,6 +199,11 @@ class TestLaborByResourceEndpoint:
         When: GET /projects/{id}/statistics/labor/by-resource is called
         Then: Status is 200 and breakdown is correct
         """
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"access_granted": True, "reason": "granted"}
+        mock_guardian.return_value = mock_response
+
         response = authenticated_client.get(
             f"/v0/projects/{project.id}/statistics/labor/by-resource"
         )
@@ -236,8 +244,10 @@ class TestLaborByResourceEndpoint:
         assert echarts["series"][0]["type"] == "bar"
         assert echarts["series"][0]["data"] == [85000.0, 72000.0, 65000.0]
 
+    @patch("app.services.guardian_service.requests.post")
     def test_get_labor_by_resource_with_limit(
         self,
+        mock_guardian: MagicMock,
         authenticated_client: FlaskClient,
         project: Project,
         assignments: list[Assignment],
@@ -248,6 +258,11 @@ class TestLaborByResourceEndpoint:
         When: GET with limit=2 is called
         Then: Only top 2 resources are returned
         """
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"access_granted": True, "reason": "granted"}
+        mock_guardian.return_value = mock_response
+
         response = authenticated_client.get(
             f"/v0/projects/{project.id}/statistics/labor/by-resource",
             query_string={"limit": 2},
@@ -259,8 +274,12 @@ class TestLaborByResourceEndpoint:
         assert data["resource_count"] == 3
         assert len(data["breakdown"]) == 2
 
+    @patch("app.services.guardian_service.requests.post")
     def test_get_labor_by_resource_invalid_limit(
-        self, authenticated_client: FlaskClient, project: Project
+        self,
+        mock_guardian: MagicMock,
+        authenticated_client: FlaskClient,
+        project: Project,
     ) -> None:
         """Test labor by resource with invalid limit.
 
@@ -268,6 +287,11 @@ class TestLaborByResourceEndpoint:
         When: GET with limit > 100 is called
         Then: Status is 400
         """
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"access_granted": True, "reason": "granted"}
+        mock_guardian.return_value = mock_response
+
         response = authenticated_client.get(
             f"/v0/projects/{project.id}/statistics/labor/by-resource",
             query_string={"limit": 150},
@@ -275,8 +299,9 @@ class TestLaborByResourceEndpoint:
 
         assert response.status_code == 400
 
+    @patch("app.services.guardian_service.requests.post")
     def test_get_labor_by_resource_project_not_found(
-        self, authenticated_client: FlaskClient
+        self, mock_guardian: MagicMock, authenticated_client: FlaskClient
     ) -> None:
         """Test labor by resource for non-existent project.
 
@@ -284,6 +309,11 @@ class TestLaborByResourceEndpoint:
         When: GET is called
         Then: Status is 404
         """
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"access_granted": True, "reason": "granted"}
+        mock_guardian.return_value = mock_response
+
         fake_id = uuid4()
         response = authenticated_client.get(
             f"/v0/projects/{fake_id}/statistics/labor/by-resource"
@@ -291,8 +321,12 @@ class TestLaborByResourceEndpoint:
 
         assert response.status_code == 404
 
+    @patch("app.services.guardian_service.requests.post")
     def test_get_labor_by_resource_no_assignments(
-        self, authenticated_client: FlaskClient, project: Project
+        self,
+        mock_guardian: MagicMock,
+        authenticated_client: FlaskClient,
+        project: Project,
     ) -> None:
         """Test labor by resource with no assignments.
 
@@ -300,6 +334,11 @@ class TestLaborByResourceEndpoint:
         When: GET is called
         Then: Status is 200 with empty breakdown
         """
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"access_granted": True, "reason": "granted"}
+        mock_guardian.return_value = mock_response
+
         response = authenticated_client.get(
             f"/v0/projects/{project.id}/statistics/labor/by-resource"
         )
@@ -311,8 +350,10 @@ class TestLaborByResourceEndpoint:
         assert data["resource_count"] == 0
         assert data["breakdown"] == []
 
+    @patch("app.services.guardian_service.requests.post")
     def test_get_labor_by_resource_ascending_order(
         self,
+        mock_guardian: MagicMock,
         authenticated_client: FlaskClient,
         project: Project,
         assignments: list[Assignment],
@@ -323,6 +364,11 @@ class TestLaborByResourceEndpoint:
         When: GET with sort_order=asc is called
         Then: Resources are sorted by cost ascending
         """
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"access_granted": True, "reason": "granted"}
+        mock_guardian.return_value = mock_response
+
         response = authenticated_client.get(
             f"/v0/projects/{project.id}/statistics/labor/by-resource",
             query_string={"sort_order": "asc"},

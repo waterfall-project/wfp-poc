@@ -148,7 +148,7 @@ class ProjectEVMResource(Resource):
                 error=UNPROCESSABLE_ENTITY_ERROR,
             )
 
-        response = self.response_schema.dump({"data": indicators})
+        response = cast("DictStrAny", self.response_schema.dump({"data": indicators}))
         return response, 200
 
 
@@ -228,7 +228,7 @@ class ProjectEVMTimeSeriesResource(Resource):
         except ValueError as exc:
             return error_response(str(exc), 400, error=BAD_REQUEST_ERROR)
 
-        response = self.response_schema.dump({"data": series})
+        response = cast("DictStrAny", self.response_schema.dump({"data": series}))
         return response, 200
 
 
@@ -285,5 +285,5 @@ class ProjectEVMForecastsResource(Resource):
                 error=UNPROCESSABLE_ENTITY_ERROR,
             )
 
-        response = self.response_schema.dump({"data": forecasts})
+        response = cast("DictStrAny", self.response_schema.dump({"data": forecasts}))
         return response, 200

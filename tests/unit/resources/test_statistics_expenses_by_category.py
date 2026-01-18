@@ -8,6 +8,7 @@ Copyright (c) 2025 Waterfall Project. All rights reserved.
 
 from datetime import UTC, datetime
 from decimal import Decimal
+from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
 import pytest
@@ -104,8 +105,10 @@ class TestExpenseByCategoryEndpoint:
                 db.session.refresh(exp)
             return expenses
 
+    @patch("app.services.guardian_service.requests.post")
     def test_get_expense_breakdown_success(
         self,
+        mock_guardian: MagicMock,
         authenticated_client: FlaskClient,
         project: Project,
         expenses: list[Expense],
@@ -116,6 +119,11 @@ class TestExpenseByCategoryEndpoint:
         When: GET /projects/{id}/statistics/expenses/by-category is called
         Then: Status is 200 and breakdown is correct
         """
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"access_granted": True, "reason": "granted"}
+        mock_guardian.return_value = mock_response
+
         response = authenticated_client.get(
             f"/v0/projects/{project.id}/statistics/expenses/by-category"
         )
@@ -149,8 +157,10 @@ class TestExpenseByCategoryEndpoint:
         assert echarts["series"][0]["type"] == "pie"
         assert len(echarts["series"][0]["data"]) == 4
 
+    @patch("app.services.guardian_service.requests.post")
     def test_get_expense_breakdown_with_date_filter(
         self,
+        mock_guardian: MagicMock,
         authenticated_client: FlaskClient,
         project: Project,
         expenses: list[Expense],
@@ -161,6 +171,11 @@ class TestExpenseByCategoryEndpoint:
         When: GET with start_date filter is called
         Then: Only expenses after start_date are included
         """
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"access_granted": True, "reason": "granted"}
+        mock_guardian.return_value = mock_response
+
         response = authenticated_client.get(
             f"/v0/projects/{project.id}/statistics/expenses/by-category",
             query_string={"start_date": "2024-12-01T00:00:00Z"},
@@ -173,8 +188,9 @@ class TestExpenseByCategoryEndpoint:
         assert data["total_expenses"] == 23000.0
         assert len(data["breakdown"]) == 3  # subcontracting, procurement, overhead
 
+    @patch("app.services.guardian_service.requests.post")
     def test_get_expense_breakdown_project_not_found(
-        self, authenticated_client: FlaskClient
+        self, mock_guardian: MagicMock, authenticated_client: FlaskClient
     ) -> None:
         """Test expense breakdown for non-existent project.
 
@@ -182,6 +198,11 @@ class TestExpenseByCategoryEndpoint:
         When: GET is called
         Then: Status is 404
         """
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"access_granted": True, "reason": "granted"}
+        mock_guardian.return_value = mock_response
+
         fake_id = uuid4()
         response = authenticated_client.get(
             f"/v0/projects/{fake_id}/statistics/expenses/by-category"
@@ -189,8 +210,12 @@ class TestExpenseByCategoryEndpoint:
 
         assert response.status_code == 404
 
+    @patch("app.services.guardian_service.requests.post")
     def test_get_expense_breakdown_no_expenses(
-        self, authenticated_client: FlaskClient, project: Project
+        self,
+        mock_guardian: MagicMock,
+        authenticated_client: FlaskClient,
+        project: Project,
     ) -> None:
         """Test expense breakdown with no expenses.
 
@@ -198,6 +223,11 @@ class TestExpenseByCategoryEndpoint:
         When: GET is called
         Then: Status is 200 with empty breakdown
         """
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"access_granted": True, "reason": "granted"}
+        mock_guardian.return_value = mock_response
+
         response = authenticated_client.get(
             f"/v0/projects/{project.id}/statistics/expenses/by-category"
         )
