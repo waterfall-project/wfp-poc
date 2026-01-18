@@ -3,10 +3,25 @@
 
 """Configuration management for poc-import."""
 
-import os
-from typing import Optional
+from __future__ import annotations
 
+import os
+import time
+from pathlib import Path
+
+import jwt
+from dotenv import load_dotenv
 from pydantic import BaseModel, Field
+
+
+def _load_env_file() -> None:
+    """Load poc-import environment file if present."""
+    env_path = Path(os.getenv("WFP_ENV_FILE", "tools/poc-import/.env"))
+    if env_path.exists():
+        load_dotenv(env_path)
+
+
+_load_env_file()
 
 
 class Config(BaseModel):
@@ -16,9 +31,33 @@ class Config(BaseModel):
         default_factory=lambda: os.getenv("WFP_API_URL", "http://localhost:5000"),
         description="wfp-poc API base URL",
     )
-    jwt_token: Optional[str] = Field(
+    jwt_token: str | None = Field(
         default_factory=lambda: os.getenv("WFP_JWT_TOKEN"),
         description="JWT authentication token",
+    )
+    user_id: str | None = Field(
+        default_factory=lambda: os.getenv("WFP_USER_ID"),
+        description="User UUID for local token generation",
+    )
+    company_id: str | None = Field(
+        default_factory=lambda: os.getenv("WFP_COMPANY_ID"),
+        description="Company UUID for local token generation",
+    )
+    jwt_secret_key: str | None = Field(
+        default_factory=lambda: os.getenv("JWT_SECRET_KEY"),
+        description="JWT secret key for local token generation",
+    )
+    jwt_algorithm: str = Field(
+        default_factory=lambda: os.getenv("JWT_ALGORITHM", "HS256"),
+        description="JWT signing algorithm",
+    )
+    jwt_expires_in: int = Field(
+        default_factory=lambda: int(os.getenv("JWT_ACCESS_TOKEN_EXPIRES", "3600")),
+        description="JWT expiration in seconds",
+    )
+    jwt_email: str = Field(
+        default_factory=lambda: os.getenv("WFP_JWT_EMAIL", "user@example.com"),
+        description="Email claim for locally generated JWTs",
     )
     api_timeout: int = Field(default=30, description="API request timeout in seconds")
     retry_attempts: int = Field(default=3, description="Number of retry attempts")
@@ -29,6 +68,24 @@ class Config(BaseModel):
         default=200, description="Batch size for expense bulk import"
     )
     verbose: bool = Field(default=False, description="Enable verbose logging")
+
+    def build_jwt_token(self) -> str | None:
+        """Generate a JWT token from local config values.
+
+        Returns:
+            JWT token string if required inputs are available, otherwise None.
+        """
+        if not self.jwt_secret_key or not self.user_id or not self.company_id:
+            return None
+
+        payload = {
+            "user_id": self.user_id,
+            "company_id": self.company_id,
+            "email": self.jwt_email,
+            "exp": int(time.time()) + self.jwt_expires_in,
+        }
+        token = jwt.encode(payload, self.jwt_secret_key, algorithm=self.jwt_algorithm)
+        return token if isinstance(token, str) else token.decode("utf-8")
 
     class Config:
         """Pydantic config."""

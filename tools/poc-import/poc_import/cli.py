@@ -15,6 +15,7 @@ from rich.logging import RichHandler
 from rich.progress import Progress, SpinnerColumn, TextColumn
 
 from poc_import.api.client import WfpApiClient, WfpApiError
+from poc_import.config import Config
 from poc_import.models import ImportMode, ImportReport
 from poc_import.parsers.msproject import MSProjectParser, MSProjectParserError
 from poc_import.validators import (
@@ -125,6 +126,10 @@ def msproject(
     """
     setup_logging(verbose)
     logger = logging.getLogger(__name__)
+    config = Config()
+
+    api_url = api_url or config.api_url
+    company_id = company_id or config.company_id
 
     # Generate correlation ID for tracing
     correlation_id = str(uuid.uuid4())
@@ -135,9 +140,17 @@ def msproject(
         console.print("[red]Error:[/red] --project-id is required for sync mode")
         sys.exit(1)
 
+    if not token:
+        token = config.jwt_token
+    if not token and not dry_run:
+        token = config.build_jwt_token()
     if not dry_run and not token:
         console.print(
             "[red]Error:[/red] --token is required (or set WFP_JWT_TOKEN env var)"
+        )
+        console.print(
+            "[yellow]Tip:[/yellow] Set JWT_SECRET_KEY + WFP_USER_ID/WFP_COMPANY_ID "
+            "in tools/poc-import/.env to auto-generate a token."
         )
         sys.exit(1)
 
