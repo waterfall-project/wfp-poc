@@ -33,7 +33,7 @@ from app.schemas.milestone_schema import (
     MilestoneTaskLinkSchema,
 )
 from app.services.guardian_service import Operation
-from app.utils.api_version import validate_api_version
+from app.utils.api_version import validate_api_version_or_error_response
 from app.utils.jwt_decorators import (
     access_required,
     get_current_company_id,
@@ -261,7 +261,7 @@ class MilestoneTasksResource(Resource):
     @limiter.limit("100 per minute", key_func=rate_limit_user_key)
     def post(
         self, milestone_id: str, version: str | None = None
-    ) -> tuple[dict[str, Any], int]:
+    ) -> tuple[Any, int] | tuple[Any, int, dict[str, str]]:
         """Link tasks to milestone as predecessors.
 
         Automatically recalculates milestone target_date as MAX(tasks.planned_finish_date).
@@ -278,7 +278,7 @@ class MilestoneTasksResource(Resource):
             400: If validation fails.
             422: If tasks belong to different project/company.
         """
-        version_error = validate_api_version(version)
+        version_error = validate_api_version_or_error_response(version)
         if version_error:
             return version_error
 
@@ -347,7 +347,7 @@ class MilestoneTasksResource(Resource):
     @limiter.limit("100 per minute", key_func=rate_limit_user_key)
     def get(
         self, milestone_id: str, version: str | None = None
-    ) -> tuple[dict[str, Any], int]:
+    ) -> tuple[Any, int] | tuple[Any, int, dict[str, str]]:
         """Get all predecessor tasks linked to a milestone.
 
         Args:
@@ -360,7 +360,7 @@ class MilestoneTasksResource(Resource):
         Raises:
             404: If milestone not found or wrong company.
         """
-        version_error = validate_api_version(version)
+        version_error = validate_api_version_or_error_response(version)
         if version_error:
             return version_error
 
@@ -419,7 +419,7 @@ class MilestoneTasksSyncResource(Resource):
     @limiter.limit("100 per minute", key_func=rate_limit_user_key)
     def put(
         self, milestone_id: str, version: str | None = None
-    ) -> tuple[dict[str, Any], int]:
+    ) -> tuple[Any, int] | tuple[Any, int, dict[str, str]]:
         """Sync milestone-task links (upsert operation).
 
         Removes links not in task_ids, adds new links, preserves existing.
@@ -437,7 +437,7 @@ class MilestoneTasksSyncResource(Resource):
             400: If validation fails.
             422: If tasks belong to different project/company.
         """
-        version_error = validate_api_version(version)
+        version_error = validate_api_version_or_error_response(version)
         if version_error:
             return version_error
 

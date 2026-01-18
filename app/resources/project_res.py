@@ -36,7 +36,7 @@ from app.schemas.project_schema import (
     ProjectUpdateSchema,
 )
 from app.services.guardian_service import Operation
-from app.utils.api_version import validate_api_version
+from app.utils.api_version import validate_api_version_or_error_response
 from app.utils.correlation import ResponseTuple
 from app.utils.correlation import error_response as _error_response
 from app.utils.jwt_decorators import (
@@ -187,7 +187,7 @@ class ProjectListResource(Resource):
                 "total_pages": 8
             }
         """
-        version_error = validate_api_version(version)
+        version_error = validate_api_version_or_error_response(version)
         if version_error:
             return version_error
 
@@ -348,7 +348,7 @@ class ProjectListResource(Resource):
                 "message": "Project created successfully"
             }
         """
-        version_error = validate_api_version(version)
+        version_error = validate_api_version_or_error_response(version)
         if version_error:
             return version_error
 
@@ -454,7 +454,7 @@ class ProjectResource(Resource):
                 }
             }
         """
-        version_error = validate_api_version(version)
+        version_error = validate_api_version_or_error_response(version)
         if version_error:
             return version_error
 
@@ -522,7 +522,7 @@ class ProjectResource(Resource):
                 "message": "Project updated successfully"
             }
         """
-        version_error = validate_api_version(version)
+        version_error = validate_api_version_or_error_response(version)
         if version_error:
             return version_error
 
@@ -625,7 +625,7 @@ class ProjectResource(Resource):
                 - 404: Project not found or not accessible (wrong company)
                 - 409: Conflict (project has related tasks, assignments, milestones, or EVM snapshots)
         """
-        version_error = validate_api_version(version)
+        version_error = validate_api_version_or_error_response(version)
         if version_error:
             return version_error
 
@@ -658,7 +658,7 @@ class ProjectResource(Resource):
         db.session.delete(project)
         db.session.commit()
 
-        return {}, 204
+        return "", 204
 
     @staticmethod
     def _get_project(project_id: str) -> Project | None:

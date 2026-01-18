@@ -35,7 +35,7 @@ from app.schemas.milestone_schema import (
     MilestoneUpdateSchema,
 )
 from app.services.guardian_service import Operation
-from app.utils.api_version import validate_api_version
+from app.utils.api_version import validate_api_version_or_error_response
 from app.utils.jwt_decorators import (
     access_required,
     get_current_company_id,
@@ -500,7 +500,7 @@ class MilestoneListResource(Resource):
     @limiter.limit("100 per minute", key_func=rate_limit_user_key)
     def get(
         self, project_id: str, version: str | None = None
-    ) -> tuple[dict[str, Any], int]:
+    ) -> tuple[Any, int] | tuple[Any, int, dict[str, str]]:
         """Retrieve paginated list of milestones for a project.
 
         Supports filtering by status, target_date range, and text search.
@@ -517,7 +517,7 @@ class MilestoneListResource(Resource):
             404: If project not found or wrong company.
             400: If pagination/filter parameters are invalid.
         """
-        version_error = validate_api_version(version)
+        version_error = validate_api_version_or_error_response(version)
         if version_error:
             return version_error
 
@@ -588,7 +588,7 @@ class MilestoneListResource(Resource):
     @limiter.limit("100 per minute", key_func=rate_limit_user_key)
     def post(
         self, project_id: str, version: str | None = None
-    ) -> tuple[dict[str, Any], int]:
+    ) -> tuple[Any, int] | tuple[Any, int, dict[str, str]]:
         """Create a new milestone for a project.
 
         Validates budget_weight sum doesn't exceed 1.0.
@@ -605,7 +605,7 @@ class MilestoneListResource(Resource):
             400: If validation fails.
             409: If budget_weight sum would exceed 1.0.
         """
-        version_error = validate_api_version(version)
+        version_error = validate_api_version_or_error_response(version)
         if version_error:
             return version_error
 
@@ -705,7 +705,7 @@ class MilestoneResource(Resource):
     @limiter.limit("100 per minute", key_func=rate_limit_user_key)
     def get(
         self, project_id: str, id: str, version: str | None = None
-    ) -> tuple[dict[str, Any], int]:
+    ) -> tuple[Any, int] | tuple[Any, int, dict[str, str]]:
         """Retrieve a single milestone by ID.
 
         Args:
@@ -720,7 +720,7 @@ class MilestoneResource(Resource):
             404: If milestone not found or wrong company/project.
             400: If ID format is invalid.
         """
-        version_error = validate_api_version(version)
+        version_error = validate_api_version_or_error_response(version)
         if version_error:
             return version_error
 
@@ -748,7 +748,7 @@ class MilestoneResource(Resource):
     @limiter.limit("100 per minute", key_func=rate_limit_user_key)
     def patch(
         self, project_id: str, id: str, version: str | None = None
-    ) -> tuple[dict[str, Any], int]:
+    ) -> tuple[Any, int] | tuple[Any, int, dict[str, str]]:
         """Update a milestone (partial update).
 
         Validates budget_weight sum if budget_weight is updated.
@@ -766,7 +766,7 @@ class MilestoneResource(Resource):
             400: If validation fails.
             409: If budget_weight sum would exceed 1.0.
         """
-        version_error = validate_api_version(version)
+        version_error = validate_api_version_or_error_response(version)
         if version_error:
             return version_error
 
@@ -859,7 +859,7 @@ class MilestoneResource(Resource):
     @limiter.limit("100 per minute", key_func=rate_limit_user_key)
     def delete(
         self, project_id: str, id: str, version: str | None = None
-    ) -> tuple[dict[str, Any], int]:
+    ) -> tuple[Any, int] | tuple[Any, int, dict[str, str]]:
         """Delete a milestone.
 
         Blocks deletion if milestone has associated expenses or deliverables.
@@ -876,7 +876,7 @@ class MilestoneResource(Resource):
             404: If milestone not found or wrong company/project.
             409: If milestone has associated expenses.
         """
-        version_error = validate_api_version(version)
+        version_error = validate_api_version_or_error_response(version)
         if version_error:
             return version_error
 
@@ -907,4 +907,4 @@ class MilestoneResource(Resource):
         db.session.delete(milestone)
         db.session.commit()
 
-        return {}, 204
+        return "", 204

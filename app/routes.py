@@ -39,6 +39,11 @@ from app.resources.rae_res import (
     ProjectRAESummaryResource,
 )
 from app.resources.resource_res import ResourceListResource, ResourceResource
+from app.resources.statistics_res import (
+    ExpenseByCategoryResource,
+    LaborByResourceResource,
+    MonthlyExpensesResource,
+)
 from app.resources.task_res import (
     TaskBulkResource,
     TaskListResource,
@@ -204,4 +209,21 @@ def register_routes(app):
         ResourceResource,
         "/v0/resources/<string:id>",
         "/<string:version>/resources/<string:id>",
+    )
+
+    # Statistics
+    api.add_resource(
+        ExpenseByCategoryResource,
+        "/v0/projects/<string:project_id>/statistics/expenses/by-category",
+        "/<string:version>/projects/<string:project_id>/statistics/expenses/by-category",
+    )
+    api.add_resource(
+        LaborByResourceResource,
+        "/v0/projects/<string:project_id>/statistics/labor/by-resource",
+        "/<string:version>/projects/<string:project_id>/statistics/labor/by-resource",
+    )
+    api.add_resource(
+        MonthlyExpensesResource,
+        "/v0/projects/<string:project_id>/statistics/expenses/monthly",
+        "/<string:version>/projects/<string:project_id>/statistics/expenses/monthly",
     )
