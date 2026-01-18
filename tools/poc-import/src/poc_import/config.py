@@ -16,9 +16,26 @@ from pydantic import BaseModel, Field
 
 def _load_env_file() -> None:
     """Load poc-import environment file if present."""
-    env_path = Path(os.getenv("WFP_ENV_FILE", "tools/poc-import/.env"))
-    if env_path.exists():
-        load_dotenv(env_path)
+    repo_root = Path(__file__).resolve().parents[4]
+    env_value = os.getenv("WFP_ENV_FILE")
+    if env_value:
+        env_path = Path(env_value)
+        if not env_path.is_absolute():
+            cwd_path = (Path.cwd() / env_path).resolve()
+            if cwd_path.exists():
+                load_dotenv(cwd_path)
+                return
+            repo_path = (repo_root / env_path).resolve()
+            if repo_path.exists():
+                load_dotenv(repo_path)
+                return
+        if env_path.exists():
+            load_dotenv(env_path)
+        return
+
+    default_path = repo_root / "tools" / "poc-import" / ".env"
+    if default_path.exists():
+        load_dotenv(default_path)
 
 
 _load_env_file()

@@ -50,8 +50,10 @@ class MSProjectParser:
 
             project = self._parse_project_metadata()
             tasks = self._parse_tasks()
-            resources = self._parse_resources()
-            assignments = self._parse_assignments()
+            # resources = self._parse_resources()
+            # assignments = self._parse_assignments()
+            resources: list[Resource] = []
+            assignments: list[Assignment] = []
 
             logger.info(
                 f"Parsed MS Project: {len(tasks)} tasks, "

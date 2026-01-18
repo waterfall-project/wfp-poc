@@ -167,6 +167,19 @@ class WfpApiClient:
             minutes = 0
         return f"PT{hours}H{minutes}M0S"
 
+    def _build_project_code(self, project: ProjectMetadata) -> str:
+        """Build a project code for API requirements.
+
+        Args:
+            project: Project metadata from MS Project
+
+        Returns:
+            Project code string (max 50 chars).
+        """
+        if project.guid:
+            return project.guid[:50]
+        return (project.name or "MSPROJECT")[:50]
+
     def validate_token(self) -> dict[str, Any]:
         """Validate JWT token by calling health endpoint.
 
@@ -196,6 +209,8 @@ class WfpApiClient:
 
         payload = {
             "name": project.name,
+            "code": self._build_project_code(project),
+            "title": project.title,
             "start_date": project.start_date.isoformat(),
             "finish_date": project.finish_date.isoformat(),
         }
@@ -251,8 +266,72 @@ class WfpApiClient:
             timeout=self.timeout,
         )
         data = self._handle_response(response)
-        milestones: list[dict[str, Any]] = data.get("milestones", [])
+        milestones: list[dict[str, Any]] = data.get("data", [])
         return milestones
+
+    def list_projects(
+        self,
+        page: Optional[int] = None,
+        per_page: Optional[int] = None,
+    ) -> dict[str, Any]:
+        """List projects.
+
+        Args:
+            page: Optional page number
+            per_page: Optional items per page
+
+        Returns:
+            API response data
+
+        Raises:
+            WfpApiError: On API error
+        """
+        logger.debug("Listing projects")
+        params: dict[str, Any] = {}
+        if page is not None:
+            params["page"] = page
+        if per_page is not None:
+            params["per_page"] = per_page
+
+        response = self.session.get(
+            f"{self.base_url}/v0/projects",
+            params=params,
+            timeout=self.timeout,
+        )
+        return self._handle_response(response)
+
+    def list_project_tasks(
+        self,
+        project_id: str,
+        page: Optional[int] = None,
+        per_page: Optional[int] = None,
+    ) -> dict[str, Any]:
+        """List tasks for a project.
+
+        Args:
+            project_id: Project UUID
+            page: Optional page number
+            per_page: Optional items per page
+
+        Returns:
+            API response data
+
+        Raises:
+            WfpApiError: On API error
+        """
+        logger.debug("Listing tasks for project: %s", project_id)
+        params: dict[str, Any] = {}
+        if page is not None:
+            params["page"] = page
+        if per_page is not None:
+            params["per_page"] = per_page
+
+        response = self.session.get(
+            f"{self.base_url}/v0/projects/{project_id}/tasks",
+            params=params,
+            timeout=self.timeout,
+        )
+        return self._handle_response(response)
 
     def create_tasks_bulk(self, project_id: str, tasks: list[Task]) -> dict[str, Any]:
         """Create tasks in bulk (initial import).
@@ -302,15 +381,9 @@ class WfpApiClient:
 
             # Add predecessors if present
             if task.predecessors:
-                predecessors_list: list[dict[str, Any]] = [
-                    {
-                        "predecessor_task_uid": pred.predecessor_task_uid,
-                        "type": pred.type.value,
-                        "lag": pred.lag,  # Keep in minutes as per spec
-                    }
-                    for pred in task.predecessors
-                ]
-                payload["predecessors"] = predecessors_list
+                # TaskCreate requires predecessor_task_id (UUID) which we don't have
+                # at initial creation time. Predecessors are applied during sync.
+                pass
 
             task_payloads.append(payload)
 
@@ -321,10 +394,26 @@ class WfpApiClient:
         )
 
         data = self._handle_response(response)
+        task_map: dict[int, str] = {}
+        tasks_data = data.get("data", {}).get("tasks", [])
+        if isinstance(tasks_data, list):
+            for task_data in tasks_data:
+                if not isinstance(task_data, dict):
+                    continue
+                ms_uid = task_data.get("ms_project_uid")
+                task_id = task_data.get("id")
+                if isinstance(ms_uid, int) and isinstance(task_id, str):
+                    task_map[ms_uid] = task_id
+                elif isinstance(ms_uid, str) and isinstance(task_id, str):
+                    try:
+                        task_map[int(ms_uid)] = task_id
+                    except ValueError:
+                        continue
         logger.info(
             f"Created {data.get('created_count', 0)} tasks, "
             f"failed {data.get('failed_count', 0)}"
         )
+        data["task_map"] = task_map
         return data
 
     def sync_tasks(self, project_id: str, tasks: list[Task]) -> dict[str, Any]:
@@ -410,6 +499,7 @@ class WfpApiClient:
         created_count = 0
         failed_count = 0
         resource_ids = []
+        resource_map: dict[int, str] = {}
         errors = []
 
         # Transform resources to API payload and create individually
@@ -433,7 +523,11 @@ class WfpApiClient:
                 )
 
                 result = self._handle_response(response)
-                resource_ids.append(result.get("data", {}).get("id"))
+                resource_data = result.get("data", {})
+                resource_id = resource_data.get("id")
+                resource_ids.append(resource_id)
+                if resource_id and resource.uid is not None:
+                    resource_map[resource.uid] = resource_id
                 created_count += 1
             except WfpApiError as e:
                 logger.warning(
@@ -447,6 +541,7 @@ class WfpApiClient:
             "created_count": created_count,
             "failed_count": failed_count,
             "resource_ids": resource_ids,
+            "resource_map": resource_map,
             "errors": errors,
         }
 
@@ -466,28 +561,78 @@ class WfpApiClient:
             WfpApiError: On API error
         """
         logger.info(f"Creating {len(assignments)} assignments for project {project_id}")
-
-        # Transform assignments to API payload and create individually
-        # Note: assignments need task_id/resource_id which we don't have yet
-        # This is a limitation - we'd need to resolve UIDs to UUIDs first
-        logger.warning(
-            "Assignment creation requires task_id/resource_id mapping "
-            "which is not implemented yet"
+        raise WfpApiError(
+            "Assignment creation requires UID->UUID mapping. "
+            "Use create_assignments_with_mapping instead.",
+            status_code=400,
         )
 
-        # For now, return empty result
-        # TODO: Implement UID to UUID resolution after tasks/resources
+    def create_assignments_with_mapping(
+        self,
+        project_id: str,
+        assignments: list[Assignment],
+        task_map: dict[int, str],
+        resource_map: dict[int, str],
+    ) -> dict[str, Any]:
+        """Create assignments with UID-to-UUID mapping.
+
+        Args:
+            project_id: Project UUID
+            assignments: Parsed assignments
+            task_map: Map of MS Project task UID -> task UUID
+            resource_map: Map of MS Project resource UID -> resource UUID
+
+        Returns:
+            Bulk creation response
+        """
+        created_count = 0
+        failed_count = 0
+        assignment_ids: list[str] = []
+        errors: list[dict[str, Any]] = []
+
+        for idx, assignment in enumerate(assignments):
+            task_id = task_map.get(assignment.task_uid)
+            resource_id = resource_map.get(assignment.resource_uid)
+            if not task_id or not resource_id:
+                failed_count += 1
+                errors.append(
+                    {
+                        "index": idx,
+                        "error": "Missing task/resource mapping for assignment",
+                    }
+                )
+                continue
+
+            payload: dict[str, Any] = {
+                "task_id": task_id,
+                "resource_id": resource_id,
+                "work_hours": self._convert_hours_to_iso8601_duration(
+                    assignment.work_hours
+                ),
+                "percent_allocation": int(round(assignment.units * 100)),
+            }
+
+            response = self.session.post(
+                f"{self.base_url}/v0/projects/{project_id}/assignments",
+                json=payload,
+                timeout=self.timeout,
+            )
+
+            try:
+                result = self._handle_response(response)
+                assignment_id = result.get("data", {}).get("id")
+                if assignment_id:
+                    assignment_ids.append(assignment_id)
+                created_count += 1
+            except WfpApiError as e:
+                failed_count += 1
+                errors.append({"index": idx, "error": str(e)})
+
         return {
-            "created_count": 0,
-            "failed_count": len(assignments),
-            "assignment_ids": [],
-            "errors": [
-                {
-                    "index": idx,
-                    "error": "UID to UUID mapping not implemented - skipped",
-                }
-                for idx in range(len(assignments))
-            ],
+            "created_count": created_count,
+            "failed_count": failed_count,
+            "assignment_ids": assignment_ids,
+            "errors": errors,
         }
 
     def import_msproject_data(
@@ -532,6 +677,9 @@ class WfpApiClient:
             "failed_batches": [],
         }
 
+        task_map: dict[int, str] = {}
+        resource_map: dict[int, str] = {}
+
         try:
             # Import tasks in batches (REQ-005: Batch processing)
             for i in range(0, len(data.tasks), batch_size):
@@ -546,6 +694,7 @@ class WfpApiClient:
                     if mode == "initial":
                         result = self.create_tasks_bulk(project_id, batch_tasks)
                         summary["tasks_created"] += result.get("created_count", 0)
+                        task_map.update(result.get("task_map", {}))
                     else:  # sync mode
                         result = self.sync_tasks(project_id, batch_tasks)
                         summary["tasks_created"] += result.get("created_count", 0)
@@ -567,12 +716,41 @@ class WfpApiClient:
                     )
                     # Continue with next batch (partial failure)
 
+            # Apply predecessors after initial creation using sync endpoint
+            if mode == "initial" and any(task.predecessors for task in data.tasks):
+                logger.info("Applying task predecessors via sync...")
+                for i in range(0, len(data.tasks), batch_size):
+                    batch_num = i // batch_size + 1
+                    batch_tasks = data.tasks[i : i + batch_size]
+
+                    try:
+                        result = self.sync_tasks(project_id, batch_tasks)
+                        summary["tasks_updated"] += result.get("updated_count", 0)
+                        summary["tasks_failed"] += result.get("failed_count", 0)
+                    except WfpApiError as e:
+                        logger.error(
+                            "Predecessor sync batch %s failed: %s",
+                            batch_num,
+                            e,
+                            exc_info=True,
+                        )
+                        from typing import cast
+
+                        cast(list[dict[str, Any]], summary["failed_batches"]).append(
+                            {
+                                "batch_type": "tasks_sync",
+                                "batch_num": batch_num,
+                                "error": str(e),
+                            }
+                        )
+
             # Import resources (only for initial mode)
             if mode == "initial" and data.resources:
                 try:
                     result = self.create_resources_bulk(project_id, data.resources)
                     summary["resources_created"] = result.get("created_count", 0)
                     summary["resources_failed"] = result.get("failed_count", 0)
+                    resource_map = result.get("resource_map", {})
                 except WfpApiError as e:
                     logger.error(f"Resource import failed: {e}", exc_info=True)
                     from typing import cast
@@ -587,7 +765,12 @@ class WfpApiClient:
             # Import assignments (only for initial mode)
             if mode == "initial" and data.assignments:
                 try:
-                    result = self.create_assignments_bulk(project_id, data.assignments)
+                    result = self.create_assignments_with_mapping(
+                        project_id,
+                        data.assignments,
+                        task_map,
+                        resource_map,
+                    )
                     summary["assignments_created"] = result.get("created_count", 0)
                     summary["assignments_failed"] = result.get("failed_count", 0)
                 except WfpApiError as e:

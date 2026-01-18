@@ -19,6 +19,12 @@ pip install -e ".[dev]"
 
 ## Usage
 
+You can run via the installed CLI or the local wrapper:
+
+```bash
+./tools/poc-import/poc-import.py --help
+```
+
 ### Import MS Project XML (Initial)
 
 ```bash
@@ -53,6 +59,10 @@ poc-import msproject path/to/your/project.xml \
 
 - `WFP_JWT_TOKEN` - JWT authentication token
 - `WFP_API_URL` - wfp-poc API base URL (default: http://localhost:5000)
+- `WFP_USER_ID` / `WFP_COMPANY_ID` - IDs used for local JWT generation
+- `JWT_SECRET_KEY` / `JWT_ALGORITHM` / `JWT_ACCESS_TOKEN_EXPIRES` - JWT settings
+
+Local defaults are provided in `.env.example`.
 
 ## Development
 
@@ -79,17 +89,18 @@ mypy poc_import
 ## Architecture
 
 ```
-poc_import/
-  cli.py                 # Click CLI entry point
-  config.py              # Configuration management
-  models.py              # Pydantic data models
-  validators.py          # Business rule validators
-  parsers/
-    msproject.py         # MS Project XML parser
-    excel.py             # Excel parser
-  api/
-    client.py            # wfp-poc API client with retry logic
-    schemas.py           # API request/response schemas
+src/
+  poc_import/
+    cli.py                 # Click CLI entry point
+    config.py              # Configuration management
+    models.py              # Pydantic data models
+    validators.py          # Business rule validators
+    parsers/
+      msproject.py         # MS Project XML parser
+      excel.py             # Excel parser
+    api/
+      client.py            # wfp-poc API client with retry logic
+      schemas.py           # API request/response schemas
 tests/
   test_msproject_parser.py
   test_cli.py
