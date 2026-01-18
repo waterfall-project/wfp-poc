@@ -24,8 +24,11 @@ classifiers = [
 
 dependencies = [
     "click>=8.1.0",          # CLI framework
+    "click-shell>=2.1",      # Interactive shell support
     "lxml>=5.0.0",           # MS Project XML parsing
     "openpyxl>=3.1.0",       # Excel file parsing
+    "PyJWT>=2.8.0",           # JWT generation for local imports
+    "python-dotenv>=1.0.0",   # Load local .env for poc-import
     "requests>=2.31.0",      # HTTP client for wfp-poc API
     "pydantic>=2.5.0",       # Data validation
     "python-dateutil>=2.8.0", # Date parsing
@@ -38,9 +41,11 @@ dev = [
     "pytest>=7.4.0",
     "pytest-cov>=4.1.0",
     "pytest-mock>=3.12.0",
+    "types-pytest>=7.4.0",
     "requests-mock>=1.11.0",
     "ruff>=0.1.0",
     "mypy>=1.7.0",
+    "types-click-shell>=2.1.0",
     "types-requests>=2.31.0",
     "types-python-dateutil>=2.8.0",
     "pre-commit>=3.5.0",
@@ -59,7 +64,7 @@ requires = ["setuptools>=68.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
-where = ["."]
+where = ["src"]
 include = ["poc_import*"]
 exclude = ["tests*"]
 
@@ -113,8 +118,10 @@ ignore_missing_imports = false
 strict = true
 exclude = [
     "^\\.venv/",
+    ".*\\.venv/",
     "^build/",
     "^dist/",
+    "^tests/",
 ]
 
 [[tool.mypy.overrides]]
@@ -124,3 +131,8 @@ ignore_missing_imports = true
 [[tool.mypy.overrides]]
 module = "openpyxl.*"
 ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "_pytest.*"
+ignore_missing_imports = true
+follow_imports = "skip"

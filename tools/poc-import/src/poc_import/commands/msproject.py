@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Waterfall Project
 # SPDX-License-Identifier: Commercial
 
-"""CLI entry point for poc-import."""
+"""MS Project XML import command."""
 
 import logging
 import sys
@@ -10,11 +10,11 @@ from pathlib import Path
 from typing import Optional
 
 import click
-from rich.console import Console
-from rich.logging import RichHandler
 from rich.progress import Progress, SpinnerColumn, TextColumn
 
 from poc_import.api.client import WfpApiClient, WfpApiError
+from poc_import.cli_support import console, setup_logging
+from poc_import.config import Config
 from poc_import.models import ImportMode, ImportReport
 from poc_import.parsers.msproject import MSProjectParser, MSProjectParserError
 from poc_import.validators import (
@@ -23,33 +23,8 @@ from poc_import.validators import (
     validate_for_sync_import,
 )
 
-# Setup rich console for pretty output
-console = Console()
 
-
-def setup_logging(verbose: bool) -> None:
-    """Setup logging configuration."""
-    level = logging.DEBUG if verbose else logging.INFO
-    logging.basicConfig(
-        level=level,
-        format="%(message)s",
-        datefmt="[%X]",
-        handlers=[RichHandler(rich_tracebacks=True, console=console)],
-    )
-
-
-@click.group()
-@click.version_option(version="1.0.0", prog_name="poc-import")
-def cli() -> None:
-    """poc-import - MS Project and Excel Import Service.
-
-    Import project data from MS Project XML files and Excel spreadsheets
-    into the wfp-poc REST API.
-    """
-    pass
-
-
-@cli.command()
+@click.command(help="Import MS Project XML into the API.")
 @click.argument("xml_file", type=click.Path(exists=True, path_type=Path))
 @click.option(
     "--mode",
@@ -125,6 +100,10 @@ def msproject(
     """
     setup_logging(verbose)
     logger = logging.getLogger(__name__)
+    config = Config()
+
+    api_url = api_url or config.api_url
+    company_id = company_id or config.company_id
 
     # Generate correlation ID for tracing
     correlation_id = str(uuid.uuid4())
@@ -135,9 +114,17 @@ def msproject(
         console.print("[red]Error:[/red] --project-id is required for sync mode")
         sys.exit(1)
 
+    if not token:
+        token = config.jwt_token
+    if not token and not dry_run:
+        token = config.build_jwt_token()
     if not dry_run and not token:
         console.print(
             "[red]Error:[/red] --token is required (or set WFP_JWT_TOKEN env var)"
+        )
+        console.print(
+            "[yellow]Tip:[/yellow] Set JWT_SECRET_KEY + WFP_USER_ID/WFP_COMPANY_ID "
+            "in tools/poc-import/.env to auto-generate a token."
         )
         sys.exit(1)
 
@@ -380,122 +367,3 @@ def msproject(
         logger.exception("Unexpected error")
         console.print(f"\n[red]✗ Unexpected error:[/red] {e}")
         sys.exit(3)
-
-
-@cli.command()
-@click.argument("excel_file", type=click.Path(exists=True, path_type=Path))
-@click.option(
-    "--project-id",
-    type=str,
-    required=True,
-    help="Project UUID",
-)
-@click.option(
-    "--token",
-    type=str,
-    envvar="WFP_JWT_TOKEN",
-    required=True,
-    help="JWT authentication token",
-)
-@click.option(
-    "--api-url",
-    type=str,
-    envvar="WFP_API_URL",
-    default="http://localhost:5000",
-    help="wfp-poc API base URL",
-)
-@click.option(
-    "--dry-run",
-    is_flag=True,
-    help="Validate only, do not call API",
-)
-@click.option(
-    "--verbose",
-    "-v",
-    is_flag=True,
-    help="Enable verbose logging",
-)
-def expenses(
-    excel_file: Path,
-    project_id: str,
-    token: str,
-    api_url: str,
-    dry_run: bool,
-    verbose: bool,
-) -> None:
-    """Import expenses from Excel file.
-
-    Example usage:
-
-        \b
-        poc-import expenses expenses.xlsx --project-id=<uuid> --token=$TOKEN
-    """
-    setup_logging(verbose)
-    console.print("[yellow]⚠ Excel expenses import not yet implemented[/yellow]")
-    console.print(f"  File: {excel_file}")
-    console.print(f"  Project ID: {project_id}")
-    sys.exit(0)
-
-
-@cli.command()
-@click.argument("excel_file", type=click.Path(exists=True, path_type=Path))
-@click.option(
-    "--project-id",
-    type=str,
-    required=True,
-    help="Project UUID",
-)
-@click.option(
-    "--token",
-    type=str,
-    envvar="WFP_JWT_TOKEN",
-    required=True,
-    help="JWT authentication token",
-)
-@click.option(
-    "--api-url",
-    type=str,
-    envvar="WFP_API_URL",
-    default="http://localhost:5000",
-    help="wfp-poc API base URL",
-)
-@click.option(
-    "--dry-run",
-    is_flag=True,
-    help="Validate only, do not call API",
-)
-@click.option(
-    "--verbose",
-    "-v",
-    is_flag=True,
-    help="Enable verbose logging",
-)
-def rae(
-    excel_file: Path,
-    project_id: str,
-    token: str,
-    api_url: str,
-    dry_run: bool,
-    verbose: bool,
-) -> None:
-    """Import RAE (Reste À Engager) from Excel file.
-
-    Example usage:
-
-        \b
-        poc-import rae rae.xlsx --project-id=<uuid> --token=$TOKEN
-    """
-    setup_logging(verbose)
-    console.print("[yellow]⚠ Excel RAE import not yet implemented[/yellow]")
-    console.print(f"  File: {excel_file}")
-    console.print(f"  Project ID: {project_id}")
-    sys.exit(0)
-
-
-def main() -> None:
-    """Main entry point."""
-    cli()
-
-
-if __name__ == "__main__":
-    main()

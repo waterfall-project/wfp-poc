@@ -86,14 +86,17 @@ def main() -> None:
     env_file = Path(args.env_file)
     _load_env(env_file)
 
+    default_user_id = os.getenv("WFP_USER_ID")
+    default_company_id = os.getenv("WFP_COMPANY_ID")
+
     secret = os.getenv("JWT_SECRET_KEY")
     if not secret:
         raise SystemExit("JWT_SECRET_KEY is required in the env file")
 
     algorithm = os.getenv("JWT_ALGORITHM", "HS256")
 
-    user_id = args.user_id or str(uuid.uuid4())
-    company_id = args.company_id or str(uuid.uuid4())
+    user_id = args.user_id or default_user_id or str(uuid.uuid4())
+    company_id = args.company_id or default_company_id or str(uuid.uuid4())
 
     payload = _build_payload(user_id, company_id, args.email, args.expires_in)
     token = jwt.encode(payload, secret, algorithm=algorithm)
