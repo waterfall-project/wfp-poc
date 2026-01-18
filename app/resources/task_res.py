@@ -51,7 +51,7 @@ from app.schemas.task_schema import (
     TaskUpdateSchema,
 )
 from app.services.guardian_service import Operation
-from app.utils.api_version import validate_api_version
+from app.utils.api_version import validate_api_version_or_error_response
 from app.utils.correlation import ResponseTuple
 from app.utils.correlation import error_response as _error_response
 from app.utils.jwt_decorators import (
@@ -378,7 +378,7 @@ class TaskListResource(Resource):
                 "total_pages": 3
             }
         """
-        version_error = validate_api_version(version)
+        version_error = validate_api_version_or_error_response(version)
         if version_error:
             return version_error
 
@@ -461,7 +461,7 @@ class TaskListResource(Resource):
 
         # Apply sorting
         sort_by = request.args.get("sort_by", "wbs")
-        sort_order = request.args.get("sort_order", "asc")
+        sort_order = request.args.get("sort_order", "desc")
 
         if sort_by not in ["wbs", "name", "start", "finish"]:
             return _error_response(INVALID_SORT_BY_MSG.format(sort_by=sort_by), 400)
@@ -530,7 +530,7 @@ class TaskListResource(Resource):
                 "finish": "2026-02-15T18:00:00Z"
             }
         """
-        version_error = validate_api_version(version)
+        version_error = validate_api_version_or_error_response(version)
         if version_error:
             return version_error
 
@@ -682,7 +682,7 @@ class TaskResource(Resource):
                 "message": null
             }
         """
-        version_error = validate_api_version(version)
+        version_error = validate_api_version_or_error_response(version)
         if version_error:
             return version_error
 
@@ -748,7 +748,7 @@ class TaskResource(Resource):
                 "percent_complete": 25
             }
         """
-        version_error = validate_api_version(version)
+        version_error = validate_api_version_or_error_response(version)
         if version_error:
             return version_error
 
@@ -904,7 +904,7 @@ class TaskResource(Resource):
             >>> DELETE /v0/projects/{project_uuid}/tasks/{task_uuid}
             204 No Content
         """
-        version_error = validate_api_version(version)
+        version_error = validate_api_version_or_error_response(version)
         if version_error:
             return version_error
 
@@ -1007,7 +1007,7 @@ class TaskBulkResource(Resource):
                 ]
             }
         """
-        version_error = validate_api_version(version)
+        version_error = validate_api_version_or_error_response(version)
         if version_error:
             return version_error
 
@@ -1197,7 +1197,7 @@ class TaskSyncResource(Resource):
                 ]
             }
         """
-        version_error = validate_api_version(version)
+        version_error = validate_api_version_or_error_response(version)
         if version_error:
             return version_error
 

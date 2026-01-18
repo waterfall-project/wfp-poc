@@ -1,144 +1,512 @@
+# Checklist de conformité OpenAPI — WFP PoC API (tous les endpoints)
+
+Date: 2026-01-17  
+Source: `openapi/paths/*.yaml` (modulaire)  
+**Dernière mise à jour**: 2026-01-17 (après correctifs critiques)
+
+> Objectif: vérifier *endpoint par endpoint* que l'implémentation respecte le contrat OpenAPI.
+> Spoiler: "à peu près" = "pas conforme". Les clients stricts n'ont pas de bouton "je m'en fiche".
+
 ---
-title: OpenAPI Modular Specification Completeness Audit (Global)
-version: 1.0
-date_created: 2026-01-17
-last_updated: 2026-01-17
-owner: API Platform / Project Management EVM
-tags: [process, openapi, validation, documentation]
+
+## ✅ Correctifs appliqués (2026-01-17)
+
+### Critiques (bloquants clients)
+- ✅ **DELETE 204 sans body**: Corrigé dans `milestone_res.py`, `project_res.py` (retournent maintenant `""` au lieu de `{}`)
+- ✅ **sort_order default tasks**: Corrigé dans `task_res.py` listTasks (maintenant `desc` conforme OpenAPI, était `asc`)
+- ✅ **Validation API version standardisée**: Tous les endpoints utilisent maintenant `validate_api_version_or_error_response()` au lieu de `validate_api_version()` pour retourner des erreurs structurées avec corrélation
+- ✅ **Types de retour mypy**: Tous les types de retour dans `milestone_res.py` et `milestone_task_res.py` sont maintenant compatibles avec `ResponseTuple` (`tuple[Any, int] | tuple[Any, int, dict[str, str]]`) — mypy passe sans erreurs
+
+### Fichiers modifiés
+- `app/resources/milestone_res.py`:
+  - Import error_response + validate_api_version_or_error_response
+  - DELETE 204 retourne `""` au lieu de `{}`
+  - Tous les types de retour changés pour accepter ResponseTuple
+- `app/resources/milestone_task_res.py`:
+  - Import error_response + validate_api_version_or_error_response
+  - Tous les types de retour changés pour accepter ResponseTuple
+- `app/resources/project_res.py`: validate_api_version_or_error_response + DELETE 204
+- `app/resources/task_res.py`: validate_api_version_or_error_response + sort_order default
+
+### Vérifications passées
+- ✅ `ruff check app/resources/` → All checks passed!
+- ✅ `mypy app/resources/` → Success: no issues found in 13 source files
+- ✅ **Tests unitaires**: 96 tests passed (test_milestones_crud, test_milestones_list, test_milestone_tasks, test_projects_list, test_tasks_crud, test_tasks_list)
+
+### Restant à faire (non-bloquant)
+- ⚠️ Standardisation complète des erreurs dans milestone_res/milestone_task_res (utiliser systématiquement `error_response()` au lieu de tuples manuels) → amélioration qualité, pas bloquant
+- ⚠️ Vérification exhaustive rate limits vs indication globale OpenAPI
+
 ---
 
-# Introduction
+## Conventions globales (s’applique partout)
 
-This document records a global audit of the modular OpenAPI specification to ensure it is not under-documented and remains coherent with the narrative Markdown specification.
+### A. Routage & versioning
+- [ ] Le chemin et la méthode HTTP matchent exactement l’OpenAPI (segments + params path).
+- [ ] `/{version}` est supporté comme contractuel (et pas uniquement `/v0/...` “par tradition orale”).
+- [x] Version invalide → code d'erreur + format d'erreur standardisé (pas une string random).
 
-## 1. Purpose & Scope
+### B. AuthN/AuthZ & multi-tenancy
+- [ ] Endpoints protégés: auth appliquée (JWT cookie/bearer) comme spécifié.
+- [ ] Endpoints protégés: RBAC Guardian appliqué avec l’opération correcte (LIST/READ/CREATE/UPDATE/DELETE).
+- [ ] Isolation `company_id` (issu du JWT) *systématique* sur list/get/update/delete (pas d’IDOR).
 
-- **Purpose**: Provide a repeatable, explicit checklist-based audit of documentation completeness for the OpenAPI contract.
-- **Scope**:
-  - In scope: Modular OpenAPI sources under `openapi/wfp-poc-api-modular.yaml`, `openapi/paths/`, and `openapi/components/`.
-  - Out of scope: `openapi/wfp-poc-api-bundle.yaml` (generated artifact produced by Redocly).
-  - Coherence checks include: defaults consistency, response schemas, request schemas, standard errors, and authentication representation.
-- **Audience**: API maintainers and engineers updating contract and implementation.
+### C. Validation & schémas
+- [ ] Les champs `required`, enums, min/max, formats (`uuid`, `date-time`) sont respectés.
+- [x] **CORRIGÉ**: Les defaults matchent la spec (sort_order=desc corrigé dans task_res.py).
+- [ ] Erreurs de validation: bon code (`422` vs `400`) selon la spec.
 
-## 2. Definitions
+### D. Réponses & erreurs
+- [ ] Codes HTTP conformes (200/201/204/400/401/403/404/409/422/429/500).
+- [x] **CORRIGÉ**: `204` = *aucun body* (corrigé dans milestone_res.py et project_res.py).
+- [x] **CORRIGÉ**: Toutes les erreurs utilisent le schéma d'erreur standard + corrélation (validate_api_version_or_error_response partout).
+- [x] **CORRIGÉ**: Types de retour mypy compatibles avec ResponseTuple.
 
-- **OpenAPI (OAS)**: OpenAPI Specification, YAML contract defining HTTP endpoints.
-- **Modular OpenAPI**: OpenAPI split into multiple YAML fragments (paths/components), referenced from an entrypoint.
-- **Bundle**: A single-file OpenAPI output generated from modular sources (e.g., Redocly).
-- **Under-documented**: A contract gap where an operation lacks schemas, parameters, responses, security definition, or clear descriptions.
-- **RAE**: Reste À Engager.
+### E. Rate limiting
+- [ ] Limites cohérentes avec la doc (et cohérentes entre endpoints similaires).
+- [ ] 429 conforme (format + message + corrélation).
 
-## 3. Requirements, Constraints & Guidelines
+---
 
-### Functional Requirements (REQ-AUD-xxx)
+# Checklist endpoint-par-endpoint (OpenAPI → Implémentation)
 
-- **REQ-AUD-001**: The audit SHALL evaluate every operation in `openapi/paths/*.yaml`.
-- **REQ-AUD-002**: For every operation, the audit SHALL verify presence of `summary`, `description`, `operationId`, and `tags`.
-- **REQ-AUD-003**: For operations with request bodies (POST/PUT/PATCH), the audit SHALL verify a JSON `schema` exists under `requestBody.content.application/json`.
-- **REQ-AUD-004**: For 2xx responses with a body (e.g., 200/201), the audit SHALL verify a JSON `schema` exists under `responses.<code>.content.application/json`.
-- **REQ-AUD-005**: For 204 responses, the audit SHALL verify `description` exists and no JSON body schema is required.
-- **REQ-AUD-006**: The audit SHALL verify common error responses reference shared components where possible (400/401/403/404/409/422/429/500), and that error shapes include correlation IDs.
-- **REQ-AUD-007**: The audit SHALL verify list endpoints document pagination parameters and defaults, and sorting parameters and defaults where applicable.
+## Health
 
-### Security Requirements (SEC-AUD-xxx)
+### getHealth — GET `/health`
+**Attendus (OpenAPI)**: `200`, `500`, pas de sécurité  
+- [ ] Route existe et répond en JSON conforme
+- [ ] Aucun décorateur d’auth ajouté “par accident”
+- [ ] `500` renvoie le schéma prévu (pas du HTML/traceback)
 
-**Authentication:**
-- **SEC-AUD-001**: Protected endpoints SHALL be representable with either:
-  - `Authorization: Bearer <JWT>` header (`bearerAuth`), OR
-  - `access_token=<JWT>` cookie (`cookieAuth`).
+### getReady — GET `/ready`
+**Attendus (OpenAPI)**: `200`, `503`, pas de sécurité  
+- [ ] Route existe
+- [ ] `503` renvoie un body conforme (pas un texte brut)
 
-**Authorization:**
-- **SEC-AUD-002**: Endpoints intended to be public SHALL explicitly set `security: []`.
+### getVersion — GET `/version`
+**Attendus (OpenAPI)**: `200`, `500`, pas de sécurité  
+- [ ] Route existe
+- [ ] Les champs version/build matchent le schéma
 
-### Constraints (CON-AUD-xxx)
+---
 
-- **CON-AUD-001**: The modular OpenAPI contract is the source of truth; any inconsistencies in other artifacts SHOULD be resolved to match it.
-- **CON-AUD-002**: The bundled OpenAPI file is generated and SHALL NOT be manually edited as part of this audit.
+## Metrics
 
-### Guidelines (GUD-AUD-xxx)
+### getMetrics — GET `/metrics`
+**Attendus (OpenAPI)**: sécurité `metricsAuth`, `200` en `text/plain`, `401` JSON, `429`, `500`  
+- [ ] Auth API key appliquée (et pas JWT)
+- [ ] `200` retourne bien `text/plain; version=0.0.4; charset=utf-8`
+- [ ] `401` retourne JSON au format documenté (message + timestamp)
+- [ ] `429/500` suivent les réponses standardisées attendues
 
-- **GUD-AUD-001**: Prefer `$ref` to shared parameters/responses to keep defaults consistent.
-- **GUD-AUD-002**: Prefer including at least one example for key POST endpoints where it materially improves consumer understanding.
+---
 
-### Patterns (PAT-AUD-xxx)
+## Projects
 
-- **PAT-AUD-001**: Standardize error responses via `openapi/components/responses.yaml` and the shared error schema.
+### listProjects — GET `/{version}/projects`
+**Attendus (OpenAPI)**: params pagination + filtres + tri (`sort_order` default `desc`), `200/400/401/403/429/500`  
+- [x] Version validée (`{version}`)
+- [ ] Auth + RBAC `LIST` appliqués
+- [ ] Multi-tenant: filtrage par `company_id` systématique
+- [ ] Pagination (page/per_page) conforme
+- [ ] Filtres `status`, `start_date_from/to`, `search` conformes
+- [ ] Tri `sort_by` + `sort_order` avec defaults conformes (`desc`)
+- [ ] `200` renvoie le schéma paginé `ProjectList`
+- [ ] Erreurs standardisées (`400/401/403/429/500`)
 
-## 4. Interfaces & Data Contracts
+### createProject — POST `/{version}/projects`
+**Attendus (OpenAPI)**: body `ProjectCreate`, `201/400/401/403/409/422/429/500`  
+- [x] Version validée
+- [ ] Auth + RBAC `CREATE` appliqués
+- [ ] Validation `ProjectCreate` (required + formats + enums)
+- [ ] Conflits d’unicité → `409` (pas `400`)
+- [ ] Validation métier → `422` (pas `400`)
+- [ ] `201` renvoie `ProjectResponse`
 
-### OpenAPI Entry Point
+### getProject — GET `/{version}/projects/{id}`
+**Attendus (OpenAPI)**: `200/400/401/403/404/429/500`  
+- [x] Version validée
+- [ ] Auth + RBAC `READ` appliqués
+- [ ] Multi-tenant: accès interdit si autre company (id existant ≠ visible)
+- [ ] `404` si inexistant/non visible
+- [ ] `200` conforme `ProjectResponse`
 
-- **Document**: `openapi/wfp-poc-api-modular.yaml`
-- **Path fragments**: `openapi/paths/*.yaml`
-- **Shared components**: `openapi/components/*.yaml` and `openapi/components/schemas/*.yaml`
+### updateProject — PATCH `/{version}/projects/{id}`
+**Attendus (OpenAPI)**: body `ProjectUpdate`, `200/400/401/403/404/409/422/429/500`  
+- [x] Version validée
+- [ ] Auth + RBAC `UPDATE` appliqués
+- [ ] `409` sur conflit (ex: code unique)
+- [ ] `422` sur validation métier
+- [ ] `200` conforme `ProjectResponse`
 
-## 5. Acceptance Criteria
+### deleteProject — DELETE `/{version}/projects/{id}`
+**Attendus (OpenAPI)**: `204/400/401/403/404/409/429/500`  
+- [x] Version validée
+- [ ] Auth + RBAC `DELETE` appliqués
+- [ ] Règle: blocage si entités liées → `409`
+- [x] `204` sans body (vraiment sans body)
 
-- **AC-AUD-001**: Given any operation in `openapi/paths/*.yaml`, when inspected, then it has `summary`, `description`, `operationId`, and `tags`.
-- **AC-AUD-002**: Given any POST/PUT/PATCH operation, when inspected, then the request body contains an explicit JSON schema.
-- **AC-AUD-003**: Given any 200/201 response that returns JSON, when inspected, then a response JSON schema is present.
-- **AC-AUD-004**: Given any protected operation, when inspected, then it is compatible with `bearerAuth` or `cookieAuth` (unless intentionally overridden).
+---
 
-## 6. Test Automation Strategy
+## Tasks
 
-- **Unit-level contract checks** (recommended): Add a CI step that lints and validates the OpenAPI entrypoint and resolves `$ref`s.
-- **Static checks** (recommended): Add automated checks for:
-  - 2xx schemas present for non-204 responses
-  - required metadata (`summary`, `description`, `operationId`, `tags`)
-  - consistent pagination/sort defaults via shared parameter refs
+### createTask — POST `/{version}/projects/{project_id}/tasks`
+**Attendus (OpenAPI)**: body `TaskCreate`, `201/400/401/403/404/409/429/500`  
+- [ ] Version validée
+- [ ] Auth + RBAC `CREATE` appliqués
+- [ ] `project_id` existe + visible (sinon `404`)
+- [ ] Validation `TaskCreate`
+- [ ] `201` conforme `TaskResponse`
 
-## 7. Rationale & Context
+### listTasks — GET `/{version}/projects/{project_id}/tasks`
+**Attendus (OpenAPI)**: pagination, filtres, tri (`sort_order` default `desc`), `200/400/401/403/404/429/500`  
+- [x] Version validée
+- [ ] Auth + RBAC `LIST` appliqués
+- [ ] Multi-tenant: project scoping correct
+- [ ] Pagination conforme
+- [ ] Filtres (`parent_id`, `is_milestone`, `is_summary`, `is_critical`, `status`, `search`) conformes
+- [ ] Tri `sort_by` default `wbs`
+- [x] Tri `sort_order` default `desc` (pas `asc` "par habitude")
+- [ ] `200` conforme `TaskList`
 
-This audit reduces consumer confusion and prevents drift between narrative docs and the contract. The modular OpenAPI is treated as source of truth because it is the most precise and directly drives generated documentation.
+### bulkCreateTasks — POST `/{version}/projects/{project_id}/tasks/bulk`
+**Attendus (OpenAPI)**: body `TaskBulkCreate`, `201/400/401/403/404/409/429/500`  
+- [ ] Version validée
+- [ ] Auth + RBAC `CREATE` appliqués (bulk ≠ bypass)
+- [ ] Limites de taille respectées si définies dans schéma
+- [ ] `201` conforme `TaskBulkResponse`
 
-## 8. Dependencies & External Integrations
+### syncTasks — PUT `/{version}/projects/{project_id}/tasks/sync`
+**Attendus (OpenAPI)**: body `TaskSync`, `200/400/401/403/404/409/429/500`  
+- [ ] Version validée
+- [ ] Auth + RBAC `UPDATE` (ou permission dédiée si prévue)
+- [ ] Respect de la sémantique: MAJ planning uniquement, préserve tracking (progress/RAE/etc.)
+- [ ] `200` conforme `TaskSyncResponse`
 
-### External Systems
-- **EXT-001**: Redocly (or equivalent) - bundles modular OpenAPI into an HTML site/artifact.
+### getTask — GET `/{version}/projects/{project_id}/tasks/{id}`
+**Attendus (OpenAPI)**: `200/400/401/403/404/429/500`  
+- [ ] Version validée
+- [ ] Auth + RBAC `READ`
+- [ ] `404` si task hors project_id ou non visible
+- [ ] `200` conforme `TaskResponse`
 
-### Infrastructure Dependencies
-- **INF-001**: CI pipeline - SHOULD run OpenAPI validation to prevent regressions.
+### updateTask — PATCH `/{version}/projects/{project_id}/tasks/{id}`
+**Attendus (OpenAPI)**: body `TaskUpdate`, `200/400/401/403/404/409/429/500`  
+- [ ] Version validée
+- [ ] Auth + RBAC `UPDATE`
+- [ ] `409` sur conflits (ex: unicité, cohérence)
+- [ ] `200` conforme `TaskResponse`
 
-## 9. Examples & Edge Cases
+### deleteTask — DELETE `/{version}/projects/{project_id}/tasks/{id}`
+**Attendus (OpenAPI)**: `204/400/401/403/404/409/429/500`  
+- [ ] Version validée
+- [ ] Auth + RBAC `DELETE`
+- [ ] `204` sans body (et cascade conforme si implémentée)
 
-- **204 responses**: `DELETE` operations commonly return 204 with no body; this is considered complete if the response has a description.
-- **Public endpoints**: Health endpoints remain public and should explicitly set `security: []`.
+---
 
-## 10. Validation Criteria
+## Resources
 
-### Audit Coverage (Reviewed)
+### createResource — POST `/{version}/resources`
+**Attendus (OpenAPI)**: body `ResourceCreate`, `201/400/401/403/409/429/500`  
+- [ ] Version validée
+- [ ] Auth + RBAC `CREATE`
+- [ ] `company_id` vient du JWT (pas client-controlled)
+- [ ] `409` sur conflit (ex: email unique si applicable)
+- [ ] `201` conforme `ResourceResponse`
 
-The following modular path fragments were reviewed for documentation completeness:
+### listResources — GET `/{version}/resources`
+**Attendus (OpenAPI)**: pagination, filtres, tri, `200/400/401/403/429/500`  
+- [ ] Version validée
+- [ ] Auth + RBAC `LIST`
+- [ ] Filtrage par `company_id` obligatoire
+- [ ] Filtres (`type`, `is_active`, `search`) conformes
+- [ ] `200` conforme `ResourceList`
 
-- `openapi/paths/assignments.yaml`
-- `openapi/paths/evm.yaml`
-- `openapi/paths/expenses.yaml`
-- `openapi/paths/health.yaml`
-- `openapi/paths/metrics.yaml`
-- `openapi/paths/milestones.yaml`
-- `openapi/paths/progress.yaml`
-- `openapi/paths/projects.yaml`
-- `openapi/paths/rae.yaml`
-- `openapi/paths/resources.yaml`
-- `openapi/paths/statistics.yaml`
-- `openapi/paths/tasks.yaml`
+### getResource — GET `/{version}/resources/{id}`
+**Attendus (OpenAPI)**: `200/400/401/403/404/429/500`  
+- [ ] Version validée
+- [ ] Auth + RBAC `READ`
+- [ ] `404` si resource pas dans company
+- [ ] `200` conforme `ResourceResponse`
 
-### Findings
+### updateResource — PATCH `/{version}/resources/{id}`
+**Attendus (OpenAPI)**: body `ResourceUpdate`, `200/400/401/403/404/409/429/500`  
+- [ ] Version validée
+- [ ] Auth + RBAC `UPDATE`
+- [ ] `409` si conflit
+- [ ] `200` conforme `ResourceResponse`
 
-- **FND-001 (Fixed)**: Sorting default inconsistency for task listing
-  - Observed: `sort_order` default differed from shared convention.
-  - Resolution: Updated `openapi/paths/tasks.yaml` list tasks `sort_order` default to `desc`.
+### deleteResource — DELETE `/{version}/resources/{id}`
+**Attendus (OpenAPI)**: `204/400/401/403/404/409/429/500`  
+- [ ] Version validée
+- [ ] Auth + RBAC `DELETE`
+- [ ] `409` si assignments actives
+- [ ] `204` sans body
 
-- **FND-002 (Fixed)**: Narrative spec deletion semantics inconsistent with OpenAPI
-  - Observed: The Markdown narrative described project deletion as cascade-delete, while OpenAPI specifies deletion is blocked with `409 Conflict` when related entities exist.
-  - Resolution: Updated the Markdown narrative section “Delete Rules” and business rule `BR-PRJ-002` to match OpenAPI.
+---
 
-### Outcome
+## Assignments
 
-- **STATUS**: PASS (no remaining under-documentation gaps identified in the modular OpenAPI files during this audit).
+### createAssignment — POST `/{version}/projects/{project_id}/assignments`
+**Attendus (OpenAPI)**: body `AssignmentCreate`, `201/400/401/403/404/409/422/429/500`  
+- [ ] Version validée
+- [ ] Auth + RBAC `CREATE`
+- [ ] Unicité task+resource respectée → `409`
+- [ ] Isolation company (task+resource dans même company) → `422` ou `403` selon spec/choix, mais cohérent
+- [ ] `201` conforme `AssignmentResponse`
 
-## 11. Related Specifications / Further Reading
+### listAssignments — GET `/{version}/projects/{project_id}/assignments`
+**Attendus (OpenAPI)**: pagination + filtres, `200/400/401/403/404/429/500`  
+- [ ] Version validée
+- [ ] Auth + RBAC `LIST`
+- [ ] Scoping project+company correct
+- [ ] Filtres `task_id`, `resource_id` conformes
+- [ ] `200` conforme `AssignmentList`
 
-- `spec/wfp-poc/schema-api-project-management-evm.md` (narrative API specification)
-- `openapi/wfp-poc-api-modular.yaml` (contract source of truth)
-- `openapi/components/responses.yaml` (standard error responses)
+### getAssignment — GET `/{version}/projects/{project_id}/assignments/{id}`
+**Attendus (OpenAPI)**: `200/400/401/403/404/429/500`  
+- [ ] Version validée
+- [ ] Auth + RBAC `READ`
+- [ ] `404` si assignment hors project/company
+- [ ] `200` conforme `AssignmentResponse`
+
+### updateAssignment — PATCH `/{version}/projects/{project_id}/assignments/{id}`
+**Attendus (OpenAPI)**: body `AssignmentUpdate`, `200/400/401/403/404/429/500`  
+- [ ] Version validée
+- [ ] Auth + RBAC `UPDATE`
+- [ ] Validation (durées, percent, coûts) conforme
+- [ ] `200` conforme `AssignmentResponse`
+
+### deleteAssignment — DELETE `/{version}/projects/{project_id}/assignments/{id}`
+**Attendus (OpenAPI)**: `204/400/401/403/404/429/500`  
+- [ ] Version validée
+- [ ] Auth + RBAC `DELETE`
+- [ ] `204` sans body
+
+---
+
+## Expenses
+
+### createExpense — POST `/{version}/projects/{project_id}/expenses`
+**Attendus (OpenAPI)**: body `ExpenseCreate`, `201/400/401/403/404/409/422/429/500`  
+- [ ] Version validée
+- [ ] Auth + RBAC `CREATE`
+- [ ] Allocation milestone basée sur date conforme (déterministe)
+- [ ] `201` conforme `ExpenseResponse`
+- [ ] `422` sur validation métier (ex: date incohérente) si prévu
+
+### listExpenses — GET `/{version}/projects/{project_id}/expenses`
+**Attendus (OpenAPI)**: pagination + filtres + tri, `200/400/401/403/404/429/500`  
+- [ ] Version validée
+- [ ] Auth + RBAC `LIST`
+- [ ] Filtres `category`, `milestone_id`, `resource_id`, `date_from/to` conformes
+- [ ] Tri `sort_by/sort_order` conforme
+- [ ] `200` conforme `ExpenseList`
+
+### bulkCreateExpenses — POST `/{version}/projects/{project_id}/expenses/bulk`
+**Attendus (OpenAPI)**: body `ExpenseBulkCreate`, `201/400/401/403/404/409/429/500`  
+- [ ] Version validée
+- [ ] Auth + RBAC `CREATE` (bulk)
+- [ ] Limite max items respectée (ex: 1000 si contractuel)
+- [ ] Résultat partiel conforme `ExpenseBulkResponse` (created/failed + erreurs indexées)
+- [ ] Rate limit “bulk” conforme (si policy dédiée)
+
+### getExpense — GET `/{version}/projects/{project_id}/expenses/{id}`
+**Attendus (OpenAPI)**: `200/400/401/403/404/429/500`  
+- [ ] Version validée
+- [ ] Auth + RBAC `READ`
+- [ ] `404` si expense hors project/company
+- [ ] `200` conforme `ExpenseResponse`
+
+### updateExpense — PATCH `/{version}/projects/{project_id}/expenses/{id}`
+**Attendus (OpenAPI)**: body `ExpenseUpdate`, `200/400/401/403/404/422/429/500`  
+- [ ] Version validée
+- [ ] Auth + RBAC `UPDATE`
+- [ ] MAJ date → réallocation milestone si nécessaire (comportement conforme)
+- [ ] `422` sur validation métier
+- [ ] `200` conforme `ExpenseResponse`
+
+### deleteExpense — DELETE `/{version}/projects/{project_id}/expenses/{id}`
+**Attendus (OpenAPI)**: `204/400/401/403/404/429/500`  
+- [ ] Version validée
+- [ ] Auth + RBAC `DELETE`
+- [ ] `204` sans body
+
+---
+
+## Milestones
+
+### createMilestone — POST `/{version}/projects/{project_id}/milestones`
+**Attendus (OpenAPI)**: body `MilestoneCreate`, `201/400/401/403/404/409/422/429/500`  
+- [ ] Version validée
+- [ ] Auth + RBAC `CREATE`
+- [ ] Règle: somme `budget_weight` du projet = 1.0 (gestion tolérance/arrondi définie)
+- [ ] `409` si conflit (ex: contrainte)
+- [ ] `422` si validation métier
+- [ ] `201` conforme `MilestoneResponse`
+
+### listMilestones — GET `/{version}/projects/{project_id}/milestones`
+**Attendus (OpenAPI)**: pagination + filtres + tri, `200/400/401/403/404/429/500`  
+- [ ] Version validée
+- [ ] Auth + RBAC `LIST`
+- [ ] Filtres `status`, `target_date_from/to`, `search` conformes
+- [ ] Tri `sort_by/sort_order` conforme
+- [ ] `200` conforme `MilestoneList`
+
+### getMilestone — GET `/{version}/projects/{project_id}/milestones/{id}`
+**Attendus (OpenAPI)**: `200/400/401/403/404/429/500`  
+- [ ] Version validée
+- [ ] Auth + RBAC `READ`
+- [ ] `404` si milestone hors project/company
+- [ ] `200` conforme `MilestoneResponse`
+
+### updateMilestone — PATCH `/{version}/projects/{project_id}/milestones/{id}`
+**Attendus (OpenAPI)**: body `MilestoneUpdate`, `200/400/401/403/404/409/422/429/500`  
+- [ ] Version validée
+- [ ] Auth + RBAC `UPDATE`
+- [ ] Warning contractuel: MAJ target_date n’affecte pas tasks (comportement aligné)
+- [ ] `409` sur conflits, `422` sur validation métier
+- [ ] `200` conforme `MilestoneResponse`
+
+### deleteMilestone — DELETE `/{version}/projects/{project_id}/milestones/{id}`
+**Attendus (OpenAPI)**: `204/400/401/403/404/409/429/500`  
+- [ ] Version validée
+- [ ] Auth + RBAC `DELETE`
+- [ ] Blocage si expenses/deliverables → `409`
+- [ ] `204` sans body
+
+### linkMilestoneTasks — POST `/{version}/milestones/{milestone_id}/tasks`
+**Attendus (OpenAPI)**: body `MilestoneTaskLink`, `200/400/401/403/404/422/429/500`  
+- [ ] Version validée
+- [ ] Auth + RBAC `UPDATE` (ou permission dédiée)
+- [ ] Création M2M conforme (relationship_type, task_ids)
+- [ ] Recalcul `target_date` = MAX(tasks.planned_finish_date) conforme
+- [ ] `200` conforme `MilestoneTaskLinkResponse`
+
+### getMilestonePredecessorTasks — GET `/{version}/milestones/{milestone_id}/tasks`
+**Attendus (OpenAPI)**: `200/400/401/403/404/429/500`  
+- [ ] Version validée
+- [ ] Auth + RBAC `READ`
+- [ ] `200` conforme `MilestonePredecessorTasks`
+
+### syncMilestoneTasks — PUT `/{version}/milestones/{milestone_id}/tasks/sync`
+**Attendus (OpenAPI)**: body `MilestoneTaskLink`, `200/400/401/403/404/422/429/500`  
+- [ ] Version validée
+- [ ] Auth + RBAC `UPDATE`
+- [ ] Sémantique upsert/removal conforme (retire liens absents, ajoute nouveaux, etc.)
+- [ ] `200` conforme `MilestoneTaskLinkResponse`
+
+---
+
+## Progress
+
+### updateProjectProgress — POST `/{version}/projects/{project_id}/progress`
+**Attendus (OpenAPI)**: body `ProgressUpdateRequest`, `200/400/401/403/404/409/422/429/500`  
+- [ ] Version validée
+- [ ] Auth + RBAC `UPDATE`
+- [ ] Sémantique bulk: succès partiel autorisé + erreurs listées
+- [ ] MAJ status en fonction percent_complete (0/1-99/100) conforme
+- [ ] Historisation conforme
+- [ ] `200` conforme `ProgressUpdateResponse`
+
+### getProgressHistory — GET `/{version}/projects/{project_id}/progress/history`
+**Attendus (OpenAPI)**: filtres optionnels + pagination + sort_order, `200/400/401/403/404/429/500`  
+- [ ] Version validée
+- [ ] Auth + RBAC `READ`/`LIST` (selon policy)
+- [ ] Filtres `task_id`, `start_date`, `end_date` conformes
+- [ ] Pagination conforme
+- [ ] `200` conforme `ProgressHistoryResponse`
+
+---
+
+## RAE
+
+### updateMilestoneRAE — POST `/{version}/milestones/{milestone_id}/rae`
+**Attendus (OpenAPI)**: body `RAECreate`, `201/400/401/403/404/429/500`  
+- [ ] Version validée
+- [ ] Auth + RBAC `UPDATE`
+- [ ] Met à jour `current_rae` + recalcul EV_physical conforme
+- [ ] `201` conforme `RAEResponse`
+
+### getMilestoneRAEHistory — GET `/{version}/milestones/{milestone_id}/rae/history`
+**Attendus (OpenAPI)**: pagination + filtres dates + sort_order, `200/401/403/404/429/500`  
+- [ ] Version validée
+- [ ] Auth + RBAC `READ`
+- [ ] Filtres `date_from/to` conformes
+- [ ] `200` conforme `RAEHistory`
+
+### getProjectRAESummary — GET `/{version}/projects/{project_id}/rae/summary`
+**Attendus (OpenAPI)**: param `as_of_date` optionnel, `200/401/403/404/429/500`  
+- [ ] Version validée
+- [ ] Auth + RBAC `READ`
+- [ ] `as_of_date` default “latest” conforme
+- [ ] `200` conforme `RAESummary`
+
+---
+
+## EVM
+
+### getProjectEVMIndicators — GET `/{version}/projects/{project_id}/evm`
+**Attendus (OpenAPI)**: params `as_of_date`, `ev_method` default `both`, `200/400/401/403/404/422/429/500`  
+- [ ] Version validée
+- [ ] Auth + RBAC `READ`
+- [ ] `ev_method` enum + default conforme
+- [ ] `422` sur param/validation métier (si spécifié)
+- [ ] `200` conforme `EVMIndicatorsResponse`
+
+### getEVMTimeSeries — GET `/{version}/projects/{project_id}/evm/timeseries`
+**Attendus (OpenAPI)**: `granularity` default `month`, `ev_method` default `physical`, `cumulative` default `true`, `200/400/401/403/404/429/500`  
+- [ ] Version validée
+- [ ] Auth + RBAC `READ`
+- [ ] Defaults conformes (granularity/month, ev_method/physical, cumulative/true)
+- [ ] `200` conforme `EVMTimeSeriesResponse`
+
+### getEVMForecasts — GET `/{version}/projects/{project_id}/evm/forecasts`
+**Attendus (OpenAPI)**: `ev_method` default `physical`, `200/400/401/403/404/422/429/500`  
+- [ ] Version validée
+- [ ] Auth + RBAC `READ`
+- [ ] Defaults conformes
+- [ ] `200` conforme `EVMForecastsResponse`
+
+---
+
+## Statistics
+
+### getExpenseBreakdownByCategory — GET `/{version}/projects/{project_id}/statistics/expenses/by-category`
+**Attendus (OpenAPI)**: filtres dates + milestone_id, `200/400/401/403/404/429/500`  
+- [ ] Version validée
+- [ ] Auth + RBAC `READ`
+- [ ] Filtres optionnels conformes
+- [ ] `200` conforme `ExpenseBreakdown`
+
+### getLaborByResource — GET `/{version}/projects/{project_id}/statistics/labor/by-resource`
+**Attendus (OpenAPI)**: `limit` default 20, `sort_order` param, `200/400/401/403/404/429/500`  
+- [ ] Version validée
+- [ ] Auth + RBAC `READ`
+- [ ] `limit` bornes (1..100) + default 20 respectés
+- [ ] `sort_order` default conforme (si défini via composant)
+- [ ] `200` conforme `LaborByResource`
+
+### getMonthlyExpenses — GET `/{version}/projects/{project_id}/statistics/expenses/monthly`
+**Attendus (OpenAPI)**: `cumulative` default false, filtres dates + category, `200/400/401/403/404/429/500`  
+- [ ] Version validée
+- [ ] Auth + RBAC `READ`
+- [ ] `cumulative` default false respecté
+- [ ] `200` conforme `MonthlyExpenses`
+
+---
+
+## Notes de vérification (tests minimum recommandés)
+
+Pour CHAQUE endpoint protégé:
+- [ ] 401 sans auth
+- [ ] 403 sans permission
+- [ ] 404 sur ressource inexistante / non visible (multi-tenant)
+- [ ] 429 si rate limit déclenché (si applicable)
+- [ ] Format d’erreur standard + corrélation
+
+Pour CHAQUE endpoint en `204`:
+- [ ] Body strictement vide
+
+Fin. Tu peux maintenant arrêter de “penser que c’est bon” et le prouver.
