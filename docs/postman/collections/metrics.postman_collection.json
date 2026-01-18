@@ -1,0 +1,87 @@
+{
+  "info": {
+    "name": "WFP-POC Metrics API",
+    "description": "Metrics endpoint generated from openapi/wfp-poc-api-modular.yaml",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_postman_id": "8c9a5a47-3b8c-4f6a-9a6f-2f1a9c0d3e6b",
+    "version": "1.0"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{metrics_api_key}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://127.0.0.1:5000",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Metrics",
+      "description": "Prometheus metrics endpoint",
+      "item": [
+        {
+          "name": "Get Metrics",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "text/plain; version=0.0.4; charset=utf-8"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/metrics",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "metrics"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "200 - Metrics",
+              "originalRequest": {
+                "method": "GET",
+                "url": "{{baseUrl}}/metrics"
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "text",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "text/plain; version=0.0.4; charset=utf-8"
+                }
+              ],
+              "body": "# HELP python_info Python platform information\n# TYPE python_info gauge\npython_info{implementation=\"CPython\",major=\"3\",minor=\"11\",patchlevel=\"7\",version=\"3.11.7\"} 1.0\n"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

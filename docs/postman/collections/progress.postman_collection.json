@@ -1,0 +1,202 @@
+{
+  "info": {
+    "name": "WFP-POC Progress API",
+    "description": "Progress endpoints generated from openapi/wfp-poc-api-modular.yaml",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_postman_id": "5f3d0a72-1e54-43d0-9b85-3a1c6f9e5c77",
+    "version": "1.0"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{access_token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://127.0.0.1:5000",
+      "type": "string"
+    },
+    {
+      "key": "version",
+      "value": "v0",
+      "type": "string"
+    },
+    {
+      "key": "project_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "task_id",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Progress",
+      "description": "Task progress updates and history",
+      "item": [
+        {
+          "name": "Update Project Progress",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"date\": \"2026-01-10T10:00:00Z\",\n  \"updates\": [\n    {\n      \"task_id\": \"{{task_id}}\",\n      \"percent_complete\": 75,\n      \"comment\": \"Design phase completed\"\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/{{version}}/projects/{{project_id}}/progress",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "{{version}}",
+                "projects",
+                "{{project_id}}",
+                "progress"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "200 - Progress Updated",
+              "originalRequest": {
+                "method": "POST",
+                "url": "{{baseUrl}}/{{version}}/projects/{{project_id}}/progress"
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"data\": {\n    \"project_id\": \"a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d\",\n    \"date\": \"2026-01-10T10:00:00Z\",\n    \"updated_count\": 1,\n    \"failed_count\": 0,\n    \"updates\": [\n      {\n        \"task_id\": \"8b0f5a1c-5b68-4b15-9b7c-1234567890ab\",\n        \"task_name\": \"Design Phase\",\n        \"previous_percent_complete\": 50,\n        \"new_percent_complete\": 75,\n        \"status_changed\": true,\n        \"new_status\": \"in_progress\"\n      }\n    ],\n    \"errors\": []\n  },\n  \"message\": \"Progress updated successfully\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Get Progress History",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/{{version}}/projects/{{project_id}}/progress/history?page=1&per_page=20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "{{version}}",
+                "projects",
+                "{{project_id}}",
+                "progress",
+                "history"
+              ],
+              "query": [
+                {
+                  "key": "task_id",
+                  "value": "",
+                  "description": "Filter by task identifier"
+                },
+                {
+                  "key": "start_date",
+                  "value": "",
+                  "description": "Start of date range filter (inclusive)"
+                },
+                {
+                  "key": "end_date",
+                  "value": "",
+                  "description": "End of date range filter (inclusive)"
+                },
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "Page number for pagination"
+                },
+                {
+                  "key": "per_page",
+                  "value": "20",
+                  "description": "Items per page"
+                },
+                {
+                  "key": "sort_order",
+                  "value": "desc",
+                  "description": "Sort direction"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "200 - Progress History",
+              "originalRequest": {
+                "method": "GET",
+                "url": "{{baseUrl}}/{{version}}/projects/{{project_id}}/progress/history?page=1&per_page=20"
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"data\": [\n    {\n      \"id\": \"11111111-2222-3333-4444-555555555555\",\n      \"project_id\": \"a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d\",\n      \"task_id\": \"8b0f5a1c-5b68-4b15-9b7c-1234567890ab\",\n      \"task_name\": \"Design Phase\",\n      \"date\": \"2026-01-10T10:00:00Z\",\n      \"previous_percent_complete\": 50,\n      \"new_percent_complete\": 75,\n      \"delta\": 25,\n      \"comment\": \"Design phase completed\",\n      \"updated_by\": \"77777777-8888-9999-aaaa-bbbbbbbbbbbb\",\n      \"created_at\": \"2026-01-10T10:05:00Z\"\n    }\n  ],\n  \"page\": 1,\n  \"per_page\": 20,\n  \"total\": 156,\n  \"total_pages\": 8\n}"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

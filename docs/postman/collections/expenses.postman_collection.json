@@ -1,0 +1,469 @@
+{
+  "info": {
+    "name": "WFP-POC Expenses API",
+    "description": "Expenses endpoints generated from openapi/wfp-poc-api-modular.yaml",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_postman_id": "9d4c1e9b-61f7-4fb3-8c9a-2c8b7d5a6f7f",
+    "version": "1.0"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{access_token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://127.0.0.1:5000",
+      "type": "string"
+    },
+    {
+      "key": "version",
+      "value": "v0",
+      "type": "string"
+    },
+    {
+      "key": "project_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "expense_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "resource_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "milestone_id",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Expenses",
+      "description": "Expense tracking endpoints",
+      "item": [
+        {
+          "name": "List Expenses",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/{{version}}/projects/{{project_id}}/expenses?page=1&per_page=20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "{{version}}",
+                "projects",
+                "{{project_id}}",
+                "expenses"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "Page number for pagination"
+                },
+                {
+                  "key": "per_page",
+                  "value": "20",
+                  "description": "Items per page"
+                },
+                {
+                  "key": "category",
+                  "value": "",
+                  "description": "Filter by expense category"
+                },
+                {
+                  "key": "milestone_id",
+                  "value": "",
+                  "description": "Filter by milestone"
+                },
+                {
+                  "key": "resource_id",
+                  "value": "",
+                  "description": "Filter by resource"
+                },
+                {
+                  "key": "date_from",
+                  "value": "",
+                  "description": "Start date for range filter"
+                },
+                {
+                  "key": "date_to",
+                  "value": "",
+                  "description": "End date for range filter"
+                },
+                {
+                  "key": "sort_by",
+                  "value": "",
+                  "description": "Field to sort by"
+                },
+                {
+                  "key": "sort_order",
+                  "value": "desc",
+                  "description": "Sort direction"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "200 - Expense List",
+              "originalRequest": {
+                "method": "GET",
+                "url": "{{baseUrl}}/{{version}}/projects/{{project_id}}/expenses?page=1&per_page=20"
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"data\": [\n    {\n      \"id\": \"b8c9d0e1-f2a3-4b5c-5d6e-7f8a9b0c1d2e\",\n      \"project_id\": \"a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d\",\n      \"milestone_id\": \"d4e5f6a7-b8c9-4d5e-1f2a-3b4c5d6e7f8a\",\n      \"date\": \"2025-04-25T00:00:00Z\",\n      \"amount\": 3820.0,\n      \"category\": \"subcontracting\",\n      \"vendor_name\": \"ARELIS\"\n    }\n  ],\n  \"page\": 1,\n  \"per_page\": 20,\n  \"total\": 458,\n  \"total_pages\": 23\n}"
+            }
+          ]
+        },
+        {
+          "name": "Create Expense",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"date\": \"2025-04-25T00:00:00Z\",\n  \"amount\": 3820.0,\n  \"category\": \"subcontracting\",\n  \"description\": \"REMISE EN ETAT ET RETOUR DES TIROIRS\",\n  \"reference_number\": \"5129412025\",\n  \"purchase_document\": \"24337010\",\n  \"fiscal_year\": 2025,\n  \"period\": 5,\n  \"otp_element\": \"G.PRJ.12345/13984\",\n  \"accounting_nature\": \"60510000\",\n  \"vendor_name\": \"ARELIS\",\n  \"origin_group\": \"STOR\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/{{version}}/projects/{{project_id}}/expenses",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "{{version}}",
+                "projects",
+                "{{project_id}}",
+                "expenses"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 201', function () {",
+                  "  pm.response.to.have.status(201);",
+                  "});",
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData && jsonData.data && jsonData.data.id) {",
+                  "  pm.collectionVariables.set('expense_id', jsonData.data.id);",
+                  "  pm.environment.set('expense_id', jsonData.data.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "201 - Expense Created",
+              "originalRequest": {
+                "method": "POST",
+                "url": "{{baseUrl}}/{{version}}/projects/{{project_id}}/expenses"
+              },
+              "status": "Created",
+              "code": 201,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"data\": {\n    \"id\": \"b8c9d0e1-f2a3-4b5c-5d6e-7f8a9b0c1d2e\",\n    \"project_id\": \"a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d\",\n    \"milestone_id\": \"d4e5f6a7-b8c9-4d5e-1f2a-3b4c5d6e7f8a\",\n    \"resource_id\": null,\n    \"date\": \"2025-04-25T00:00:00Z\",\n    \"amount\": 3820.0,\n    \"category\": \"subcontracting\",\n    \"description\": \"REMISE EN ETAT ET RETOUR DES TIROIRS\",\n    \"reference_number\": \"5129412025\",\n    \"purchase_document\": \"24337010\",\n    \"fiscal_year\": 2025,\n    \"period\": 5,\n    \"otp_element\": \"G.PRJ.12345/13984\",\n    \"accounting_nature\": \"60510000\",\n    \"vendor_name\": \"ARELIS\",\n    \"origin_group\": \"STOR\",\n    \"created_at\": \"2026-01-11T12:00:00Z\",\n    \"updated_at\": \"2026-01-11T12:00:00Z\"\n  },\n  \"message\": \"Expense created and allocated to milestone\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Bulk Create Expenses",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"expenses\": [\n    {\n      \"date\": \"2025-04-25T00:00:00Z\",\n      \"amount\": 3820.0,\n      \"category\": \"subcontracting\",\n      \"reference_number\": \"5129412025\",\n      \"vendor_name\": \"ARELIS\"\n    },\n    {\n      \"date\": \"2025-03-15T00:00:00Z\",\n      \"amount\": 2500.0,\n      \"category\": \"labor\",\n      \"description\": \"Development work\"\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/{{version}}/projects/{{project_id}}/expenses/bulk",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "{{version}}",
+                "projects",
+                "{{project_id}}",
+                "expenses",
+                "bulk"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 201', function () {",
+                  "  pm.response.to.have.status(201);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "201 - Expenses Bulk Created",
+              "originalRequest": {
+                "method": "POST",
+                "url": "{{baseUrl}}/{{version}}/projects/{{project_id}}/expenses/bulk"
+              },
+              "status": "Created",
+              "code": 201,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"data\": {\n    \"created_count\": 2,\n    \"failed_count\": 0,\n    \"expenses\": []\n  },\n  \"message\": \"2 expenses created, 0 failed\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Get Expense",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/{{version}}/projects/{{project_id}}/expenses/{{expense_id}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "{{version}}",
+                "projects",
+                "{{project_id}}",
+                "expenses",
+                "{{expense_id}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "200 - Expense",
+              "originalRequest": {
+                "method": "GET",
+                "url": "{{baseUrl}}/{{version}}/projects/{{project_id}}/expenses/{{expense_id}}"
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"data\": {\n    \"id\": \"b8c9d0e1-f2a3-4b5c-5d6e-7f8a9b0c1d2e\",\n    \"project_id\": \"a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d\",\n    \"milestone_id\": \"d4e5f6a7-b8c9-4d5e-1f2a-3b4c5d6e7f8a\",\n    \"resource_id\": null,\n    \"date\": \"2025-04-25T00:00:00Z\",\n    \"amount\": 3820.0,\n    \"category\": \"subcontracting\",\n    \"description\": \"REMISE EN ETAT ET RETOUR DES TIROIRS\",\n    \"reference_number\": \"5129412025\",\n    \"purchase_document\": \"24337010\",\n    \"fiscal_year\": 2025,\n    \"period\": 5,\n    \"otp_element\": \"G.PRJ.12345/13984\",\n    \"accounting_nature\": \"60510000\",\n    \"vendor_name\": \"ARELIS\",\n    \"origin_group\": \"STOR\",\n    \"created_at\": \"2026-01-11T12:00:00Z\",\n    \"updated_at\": \"2026-01-11T12:00:00Z\"\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "Update Expense",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 4000.0\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/{{version}}/projects/{{project_id}}/expenses/{{expense_id}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "{{version}}",
+                "projects",
+                "{{project_id}}",
+                "expenses",
+                "{{expense_id}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "200 - Expense Updated",
+              "originalRequest": {
+                "method": "PATCH",
+                "url": "{{baseUrl}}/{{version}}/projects/{{project_id}}/expenses/{{expense_id}}"
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"data\": {\n    \"id\": \"b8c9d0e1-f2a3-4b5c-5d6e-7f8a9b0c1d2e\",\n    \"project_id\": \"a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d\",\n    \"amount\": 4000.0,\n    \"category\": \"subcontracting\",\n    \"updated_at\": \"2026-01-11T12:05:00Z\"\n  },\n  \"message\": \"Expense updated successfully\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Delete Expense",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/{{version}}/projects/{{project_id}}/expenses/{{expense_id}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "{{version}}",
+                "projects",
+                "{{project_id}}",
+                "expenses",
+                "{{expense_id}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 204', function () {",
+                  "  pm.response.to.have.status(204);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "204 - Expense Deleted",
+              "originalRequest": {
+                "method": "DELETE",
+                "url": "{{baseUrl}}/{{version}}/projects/{{project_id}}/expenses/{{expense_id}}"
+              },
+              "status": "No Content",
+              "code": 204,
+              "_postman_previewlanguage": "text",
+              "header": []
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

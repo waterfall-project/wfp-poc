@@ -1,0 +1,265 @@
+{
+  "info": {
+    "name": "WFP-POC EVM API",
+    "description": "EVM endpoints generated from openapi/wfp-poc-api-modular.yaml",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_postman_id": "3f2f6b64-33c8-4c7c-8f85-2b2f9a7b4c1d",
+    "version": "1.0"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{access_token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://127.0.0.1:5000",
+      "type": "string"
+    },
+    {
+      "key": "version",
+      "value": "v0",
+      "type": "string"
+    },
+    {
+      "key": "project_id",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "EVM",
+      "description": "Earned Value Management indicators, time series, and forecasts",
+      "item": [
+        {
+          "name": "Get EVM Indicators",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/{{version}}/projects/{{project_id}}/evm?as_of_date=2026-01-31T00:00:00Z&ev_method=both",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "{{version}}",
+                "projects",
+                "{{project_id}}",
+                "evm"
+              ],
+              "query": [
+                {
+                  "key": "as_of_date",
+                  "value": "2026-01-31T00:00:00Z",
+                  "description": "Calculate EVM as of this date (default current date)"
+                },
+                {
+                  "key": "ev_method",
+                  "value": "both",
+                  "description": "EV calculation method"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "200 - EVM Indicators",
+              "originalRequest": {
+                "method": "GET",
+                "url": "{{baseUrl}}/{{version}}/projects/{{project_id}}/evm?as_of_date=2026-01-31T00:00:00Z&ev_method=both"
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"data\": {\n    \"project_id\": \"a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d\",\n    \"as_of_date\": \"2026-01-31T00:00:00Z\",\n    \"calculation_timestamp\": \"2026-01-31T00:05:00Z\",\n    \"bac\": 1250000.0,\n    \"pv\": 620000.0,\n    \"ac\": 640000.0,\n    \"ev_physical\": 585000.0,\n    \"ev_milestone\": 600000.0,\n    \"cv_physical\": -55000.0,\n    \"cv_milestone\": -40000.0,\n    \"sv_physical\": -35000.0,\n    \"sv_milestone\": -20000.0,\n    \"cpi_physical\": 0.91,\n    \"cpi_milestone\": 0.94,\n    \"spi_physical\": 0.94,\n    \"spi_milestone\": 0.97,\n    \"eac_cpi_physical\": 1373626.37,\n    \"eac_cpi_milestone\": 1329787.23,\n    \"eac_cpi_spi_physical\": 1461340.21,\n    \"eac_cpi_spi_milestone\": 1362560.50,\n    \"eac_plan_based\": 1285000.0,\n    \"etc_cpi_physical\": 733626.37,\n    \"etc_cpi_milestone\": 689787.23,\n    \"etc_cpi_spi_physical\": 821340.21,\n    \"etc_cpi_spi_milestone\": 722560.50,\n    \"etc_plan_based\": 645000.0,\n    \"vac_cpi_physical\": -123626.37,\n    \"vac_cpi_milestone\": -79787.23,\n    \"vac_cpi_spi_physical\": -211340.21,\n    \"vac_cpi_spi_milestone\": -112560.50,\n    \"vac_plan_based\": -35000.0,\n    \"percent_complete_physical\": 46.8,\n    \"percent_complete_milestone\": 48.0\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "Get EVM Time Series",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/{{version}}/projects/{{project_id}}/evm/timeseries?start_date=2025-01-01T00:00:00Z&end_date=2025-06-30T00:00:00Z&granularity=month&ev_method=physical&cumulative=true",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "{{version}}",
+                "projects",
+                "{{project_id}}",
+                "evm",
+                "timeseries"
+              ],
+              "query": [
+                {
+                  "key": "start_date",
+                  "value": "2025-01-01T00:00:00Z",
+                  "description": "Start date for time series"
+                },
+                {
+                  "key": "end_date",
+                  "value": "2025-06-30T00:00:00Z",
+                  "description": "End date for time series"
+                },
+                {
+                  "key": "granularity",
+                  "value": "month",
+                  "description": "Time series granularity"
+                },
+                {
+                  "key": "ev_method",
+                  "value": "physical",
+                  "description": "EV calculation method"
+                },
+                {
+                  "key": "cumulative",
+                  "value": "true",
+                  "description": "Return cumulative values (true) or period values (false)"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "200 - EVM Time Series",
+              "originalRequest": {
+                "method": "GET",
+                "url": "{{baseUrl}}/{{version}}/projects/{{project_id}}/evm/timeseries?start_date=2025-01-01T00:00:00Z&end_date=2025-06-30T00:00:00Z&granularity=month&ev_method=physical&cumulative=true"
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"data\": {\n    \"project_id\": \"a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d\",\n    \"start_date\": \"2025-01-01T00:00:00Z\",\n    \"end_date\": \"2025-06-30T00:00:00Z\",\n    \"granularity\": \"month\",\n    \"ev_method\": \"physical\",\n    \"cumulative\": true,\n    \"series\": [\n      {\n        \"date\": \"2025-01-31T00:00:00Z\",\n        \"pv\": 100000.0,\n        \"ac\": 120000.0,\n        \"ev\": 90000.0,\n        \"cv\": -30000.0,\n        \"sv\": -10000.0,\n        \"cpi\": 0.75,\n        \"spi\": 0.9\n      },\n      {\n        \"date\": \"2025-02-28T00:00:00Z\",\n        \"pv\": 200000.0,\n        \"ac\": 230000.0,\n        \"ev\": 190000.0,\n        \"cv\": -40000.0,\n        \"sv\": -10000.0,\n        \"cpi\": 0.83,\n        \"spi\": 0.95\n      },\n      {\n        \"date\": \"2025-03-31T00:00:00Z\",\n        \"pv\": 320000.0,\n        \"ac\": 360000.0,\n        \"ev\": 300000.0,\n        \"cv\": -60000.0,\n        \"sv\": -20000.0,\n        \"cpi\": 0.83,\n        \"spi\": 0.94\n      }\n    ],\n    \"echarts_format\": {\n      \"xAxis\": {\n        \"type\": \"category\",\n        \"data\": [\"2025-01\", \"2025-02\", \"2025-03\"]\n      },\n      \"series\": [\n        {\n          \"name\": \"PV\",\n          \"type\": \"line\",\n          \"data\": [100000.0, 200000.0, 320000.0]\n        },\n        {\n          \"name\": \"AC\",\n          \"type\": \"line\",\n          \"data\": [120000.0, 230000.0, 360000.0]\n        },\n        {\n          \"name\": \"EV\",\n          \"type\": \"line\",\n          \"data\": [90000.0, 190000.0, 300000.0]\n        }\n      ]\n    }\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "Get EVM Forecasts",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/{{version}}/projects/{{project_id}}/evm/forecasts?as_of_date=2026-01-31T00:00:00Z&ev_method=physical",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "{{version}}",
+                "projects",
+                "{{project_id}}",
+                "evm",
+                "forecasts"
+              ],
+              "query": [
+                {
+                  "key": "as_of_date",
+                  "value": "2026-01-31T00:00:00Z",
+                  "description": "Forecast baseline date (default current date)"
+                },
+                {
+                  "key": "ev_method",
+                  "value": "physical",
+                  "description": "EV calculation method"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "200 - EVM Forecasts",
+              "originalRequest": {
+                "method": "GET",
+                "url": "{{baseUrl}}/{{version}}/projects/{{project_id}}/evm/forecasts?as_of_date=2026-01-31T00:00:00Z&ev_method=physical"
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"data\": {\n    \"project_id\": \"a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d\",\n    \"as_of_date\": \"2026-01-31T00:00:00Z\",\n    \"bac\": 1250000.0,\n    \"current_ac\": 640000.0,\n    \"current_ev\": 585000.0,\n    \"current_pv\": 620000.0,\n    \"remaining_pv\": 630000.0,\n    \"cpi\": 0.91,\n    \"spi\": 0.94,\n    \"forecasts\": [\n      {\n        \"method\": \"cpi\",\n        \"description\": \"EAC based on CPI\",\n        \"formula\": \"BAC / CPI\",\n        \"eac\": 1373626.37,\n        \"etc\": 733626.37,\n        \"vac\": -123626.37,\n        \"confidence\": \"medium\",\n        \"use_case\": \"Stable cost performance\"\n      },\n      {\n        \"method\": \"cpi_spi\",\n        \"description\": \"EAC based on CPI and SPI\",\n        \"formula\": \"BAC / (CPI * SPI)\",\n        \"eac\": 1461340.21,\n        \"etc\": 821340.21,\n        \"vac\": -211340.21,\n        \"confidence\": \"medium\",\n        \"use_case\": \"Cost and schedule variance\"\n      },\n      {\n        \"method\": \"plan_based\",\n        \"description\": \"EAC based on remaining planned values\",\n        \"formula\": \"AC + remaining PV\",\n        \"eac\": 1270000.0,\n        \"etc\": 630000.0,\n        \"vac\": -20000.0,\n        \"confidence\": \"high\",\n        \"use_case\": \"Planning-focused forecast\"\n      }\n    ],\n    \"recommended_method\": \"cpi\",\n    \"recommendation_reason\": \"Cost performance is stable and CPI-based forecast is appropriate\"\n  }\n}"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

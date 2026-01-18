@@ -1,0 +1,125 @@
+# Copyright (c) 2025 Waterfall
+#
+# This source code is dual-licensed under:
+# - GNU Affero General Public License v3.0 (AGPLv3) for open source use
+# - Commercial License for proprietary use
+#
+# See LICENSE and LICENSE.md files in the root directory for full license text.
+# For commercial licensing inquiries, contact: contact@waterfall-project.pro
+
+services:
+  db_service:
+    image: postgres:18-alpine
+    container_name: wfp-poc-db
+    environment:
+      POSTGRES_USER: wfp
+      POSTGRES_PASSWORD: wfp
+      POSTGRES_DB: wfp
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U wfp -d wfp"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  guardian_mock:
+    build:
+      context: ./tools/guardian_mock
+      dockerfile: Dockerfile
+    container_name: wfp-poc-guardian-mock
+    environment:
+      GUARDIAN_MOCK_PORT: 5001
+      GUARDIAN_MOCK_DENY_ALL: "false"
+      GUARDIAN_MOCK_ECHO_REQUEST: "false"
+    ports:
+      - "5001:5001"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5001/health')"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  wfp_poc:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development
+    container_name: wfp-poc-api
+    environment:
+      FLASK_ENV: development
+      APP_MODE: development
+      IN_DOCKER_CONTAINER: "true"
+      FLASK_APP: wsgi.py
+      WAIT_FOR_DB: "true"
+      RUN_MIGRATIONS: "true"
+      DATABASE_URL: postgresql://wfp:wfp@db_service:5432/wfp
+      METRICS_API_KEY: dev-metrics-key-change-me
+      PROMETHEUS_METRICS_ENABLED: "true"
+      RATE_LIMIT_ENABLED: "true"
+      RATE_LIMIT_STORAGE_URL: memory://
+      GUARDIAN_SERVICE_URL: http://guardian_mock:5001
+      GUARDIAN_SERVICE_TIMEOUT: "5"
+      JWT_SECRET_KEY: dev-jwt-secret-change-me
+      SECRET_KEY: dev-secret-change-me
+      LOG_LEVEL: DEBUG
+      LOG_FORMAT: text
+      ENABLE_REQUEST_LOGGING: "true"
+      ENABLE_CORRELATION_ID: "true"
+    ports:
+      - "5000:5000"
+    volumes:
+      - .:/app
+    depends_on:
+      db_service:
+        condition: service_healthy
+      guardian_mock:
+        condition: service_healthy
+
+  superset:
+    build:
+      context: ./tools/superset
+      dockerfile: Dockerfile
+    container_name: wfp-poc-superset
+    environment:
+      SUPERSET_ENV: development
+      SUPERSET_SECRET_KEY: dev-superset-secret-change-me
+      SUPERSET_ADMIN_USERNAME: admin
+      SUPERSET_ADMIN_PASSWORD: admin
+      SUPERSET_ADMIN_EMAIL: admin@example.com
+      SUPERSET_LOAD_EXAMPLES: "no"
+    ports:
+      - "8088:8088"
+    volumes:
+      - superset_home:/app/superset_home
+    depends_on:
+      db_service:
+        condition: service_healthy
+    command:
+      - /bin/sh
+      - -c
+      - |
+        superset db upgrade && \
+        superset fab create-admin \
+          --username "$$SUPERSET_ADMIN_USERNAME" \
+          --firstname Admin \
+          --lastname User \
+          --email "$$SUPERSET_ADMIN_EMAIL" \
+          --password "$$SUPERSET_ADMIN_PASSWORD" || true && \
+        superset init && \
+        /usr/bin/run-server.sh
+
+  adminer:
+    image: adminer:latest
+    container_name: wfp-poc-adminer
+    ports:
+      - "8080:8080"
+    depends_on:
+      db_service:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+  superset_home:

@@ -1,0 +1,529 @@
+{
+  "info": {
+    "name": "WFP-POC Tasks API",
+    "description": "Tasks endpoints generated from openapi/wfp-poc-api-modular.yaml",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_postman_id": "f2a6b2d1-8f88-4b2c-b6d8-5716cda6e6c7",
+    "version": "1.0"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{access_token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://127.0.0.1:5000",
+      "type": "string"
+    },
+    {
+      "key": "version",
+      "value": "v0",
+      "type": "string"
+    },
+    {
+      "key": "project_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "task_id",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Tasks",
+      "description": "Task management operations",
+      "item": [
+        {
+          "name": "List Tasks",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/{{version}}/projects/{{project_id}}/tasks?page=1&per_page=20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "{{version}}",
+                "projects",
+                "{{project_id}}",
+                "tasks"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "Page number for pagination"
+                },
+                {
+                  "key": "per_page",
+                  "value": "20",
+                  "description": "Items per page"
+                },
+                {
+                  "key": "parent_id",
+                  "value": "",
+                  "description": "Filter by parent task (use \"null\" for top-level tasks)"
+                },
+                {
+                  "key": "is_milestone",
+                  "value": "",
+                  "description": "Filter milestones only"
+                },
+                {
+                  "key": "is_summary",
+                  "value": "",
+                  "description": "Filter summary tasks only"
+                },
+                {
+                  "key": "is_critical",
+                  "value": "",
+                  "description": "Filter critical path tasks only"
+                },
+                {
+                  "key": "status",
+                  "value": "",
+                  "description": "Filter by status"
+                },
+                {
+                  "key": "search",
+                  "value": "",
+                  "description": "Search in name field"
+                },
+                {
+                  "key": "sort_by",
+                  "value": "wbs",
+                  "description": "Sort field"
+                },
+                {
+                  "key": "sort_order",
+                  "value": "desc",
+                  "description": "Sort direction"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "200 - Task List",
+              "originalRequest": {
+                "method": "GET",
+                "url": "{{baseUrl}}/{{version}}/projects/{{project_id}}/tasks?page=1&per_page=20"
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"data\": [\n    {\n      \"id\": \"b2c3d4e5-f6a7-4b5c-9d0e-1f2a3b4c5d6e\",\n      \"project_id\": \"a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d\",\n      \"name\": \"RQF\",\n      \"wbs\": \"5.6\",\n      \"start\": \"2027-01-22T18:00:00Z\",\n      \"finish\": \"2027-01-22T18:00:00Z\",\n      \"is_milestone\": true,\n      \"is_critical\": true,\n      \"status\": \"not_started\",\n      \"percent_complete\": 0,\n      \"created_at\": \"2026-01-10T10:00:00Z\",\n      \"updated_at\": \"2026-01-10T10:00:00Z\"\n    }\n  ],\n  \"page\": 1,\n  \"per_page\": 20,\n  \"total\": 1,\n  \"total_pages\": 1\n}"
+            }
+          ]
+        },
+        {
+          "name": "Create Task",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Requirements Analysis\",\n  \"start\": \"2026-02-01T09:00:00Z\",\n  \"finish\": \"2026-02-15T18:00:00Z\",\n  \"wbs\": \"1.1\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/{{version}}/projects/{{project_id}}/tasks",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "{{version}}",
+                "projects",
+                "{{project_id}}",
+                "tasks"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 201', function () {",
+                  "  pm.response.to.have.status(201);",
+                  "});",
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData && jsonData.data && jsonData.data.id) {",
+                  "  pm.collectionVariables.set('task_id', jsonData.data.id);",
+                  "  pm.environment.set('task_id', jsonData.data.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "201 - Task Created",
+              "originalRequest": {
+                "method": "POST",
+                "url": "{{baseUrl}}/{{version}}/projects/{{project_id}}/tasks"
+              },
+              "status": "Created",
+              "code": 201,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"data\": {\n    \"id\": \"b2c3d4e5-f6a7-4b5c-9d0e-1f2a3b4c5d6e\",\n    \"project_id\": \"a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d\",\n    \"name\": \"Requirements Analysis\",\n    \"wbs\": \"1.1\",\n    \"start\": \"2026-02-01T09:00:00Z\",\n    \"finish\": \"2026-02-15T18:00:00Z\",\n    \"status\": \"not_started\",\n    \"created_at\": \"2026-01-10T10:00:00Z\",\n    \"updated_at\": \"2026-01-10T10:00:00Z\"\n  },\n  \"message\": \"Task created successfully\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Bulk Create Tasks",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tasks\": [\n    {\n      \"name\": \"Requirements Analysis\",\n      \"start\": \"2026-02-01T09:00:00Z\",\n      \"finish\": \"2026-02-15T18:00:00Z\",\n      \"wbs\": \"1.1\"\n    },\n    {\n      \"name\": \"Design Phase\",\n      \"start\": \"2026-02-16T09:00:00Z\",\n      \"finish\": \"2026-03-15T18:00:00Z\",\n      \"wbs\": \"1.2\"\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/{{version}}/projects/{{project_id}}/tasks/bulk",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "{{version}}",
+                "projects",
+                "{{project_id}}",
+                "tasks",
+                "bulk"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 201', function () {",
+                  "  pm.response.to.have.status(201);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "201 - Tasks Bulk Created",
+              "originalRequest": {
+                "method": "POST",
+                "url": "{{baseUrl}}/{{version}}/projects/{{project_id}}/tasks/bulk"
+              },
+              "status": "Created",
+              "code": 201,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"data\": {\n    \"created_count\": 2,\n    \"failed_count\": 0,\n    \"tasks\": []\n  },\n  \"message\": \"2 tasks created, 0 failed\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Sync Tasks",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tasks\": [\n    {\n      \"ms_project_uid\": 42,\n      \"planned_start_date\": \"2026-02-01T09:00:00Z\",\n      \"planned_finish_date\": \"2026-02-15T18:00:00Z\",\n      \"duration\": \"PT40H0M0S\"\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/{{version}}/projects/{{project_id}}/tasks/sync",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "{{version}}",
+                "projects",
+                "{{project_id}}",
+                "tasks",
+                "sync"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "200 - Tasks Synced",
+              "originalRequest": {
+                "method": "PUT",
+                "url": "{{baseUrl}}/{{version}}/projects/{{project_id}}/tasks/sync"
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"data\": {\n    \"updated_count\": 1,\n    \"not_found_count\": 0,\n    \"milestone_recalculated_count\": 0,\n    \"updated_tasks\": [],\n    \"not_found_guids\": [],\n    \"not_found_uids\": [],\n    \"recalculated_milestones\": []\n  },\n  \"message\": \"1 tasks updated, 0 not found, 0 milestones recalculated\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Get Task",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/{{version}}/projects/{{project_id}}/tasks/{{task_id}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "{{version}}",
+                "projects",
+                "{{project_id}}",
+                "tasks",
+                "{{task_id}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "200 - Task",
+              "originalRequest": {
+                "method": "GET",
+                "url": "{{baseUrl}}/{{version}}/projects/{{project_id}}/tasks/{{task_id}}"
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"data\": {\n    \"id\": \"b2c3d4e5-f6a7-4b5c-9d0e-1f2a3b4c5d6e\",\n    \"project_id\": \"a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d\",\n    \"name\": \"Requirements Analysis\",\n    \"wbs\": \"1.1\",\n    \"start\": \"2026-02-01T09:00:00Z\",\n    \"finish\": \"2026-02-15T18:00:00Z\",\n    \"status\": \"not_started\",\n    \"created_at\": \"2026-01-10T10:00:00Z\",\n    \"updated_at\": \"2026-01-10T10:00:00Z\"\n  },\n  \"message\": \"Task retrieved successfully\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Update Task",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"in_progress\",\n  \"percent_complete\": 25\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/{{version}}/projects/{{project_id}}/tasks/{{task_id}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "{{version}}",
+                "projects",
+                "{{project_id}}",
+                "tasks",
+                "{{task_id}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "200 - Task Updated",
+              "originalRequest": {
+                "method": "PATCH",
+                "url": "{{baseUrl}}/{{version}}/projects/{{project_id}}/tasks/{{task_id}}"
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"data\": {\n    \"id\": \"b2c3d4e5-f6a7-4b5c-9d0e-1f2a3b4c5d6e\",\n    \"project_id\": \"a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d\",\n    \"name\": \"Requirements Analysis\",\n    \"wbs\": \"1.1\",\n    \"start\": \"2026-02-01T09:00:00Z\",\n    \"finish\": \"2026-02-15T18:00:00Z\",\n    \"status\": \"in_progress\",\n    \"percent_complete\": 25,\n    \"created_at\": \"2026-01-10T10:00:00Z\",\n    \"updated_at\": \"2026-01-10T10:05:00Z\"\n  },\n  \"message\": \"Task updated successfully\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Delete Task",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/{{version}}/projects/{{project_id}}/tasks/{{task_id}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "{{version}}",
+                "projects",
+                "{{project_id}}",
+                "tasks",
+                "{{task_id}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 204', function () {",
+                  "  pm.response.to.have.status(204);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "204 - Task Deleted",
+              "originalRequest": {
+                "method": "DELETE",
+                "url": "{{baseUrl}}/{{version}}/projects/{{project_id}}/tasks/{{task_id}}"
+              },
+              "status": "No Content",
+              "code": 204,
+              "_postman_previewlanguage": "text",
+              "header": []
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

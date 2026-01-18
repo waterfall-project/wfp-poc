@@ -1,0 +1,369 @@
+{
+  "info": {
+    "name": "WFP-POC Resources API",
+    "description": "Resources endpoints generated from openapi/wfp-poc-api-modular.yaml",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_postman_id": "f0a3b9e8-1c5f-4f2d-8a0b-70c908af2c3d",
+    "version": "1.0"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{access_token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://127.0.0.1:5000",
+      "type": "string"
+    },
+    {
+      "key": "version",
+      "value": "v0",
+      "type": "string"
+    },
+    {
+      "key": "resource_id",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Resources",
+      "description": "Resource management endpoints",
+      "item": [
+        {
+          "name": "List Resources",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/{{version}}/resources?page=1&per_page=20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "{{version}}",
+                "resources"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "Page number for pagination"
+                },
+                {
+                  "key": "per_page",
+                  "value": "20",
+                  "description": "Items per page"
+                },
+                {
+                  "key": "type",
+                  "value": "",
+                  "description": "Filter by resource type"
+                },
+                {
+                  "key": "is_active",
+                  "value": "",
+                  "description": "Filter by active status"
+                },
+                {
+                  "key": "search",
+                  "value": "",
+                  "description": "Search term for filtering"
+                },
+                {
+                  "key": "sort_by",
+                  "value": "",
+                  "description": "Field to sort by"
+                },
+                {
+                  "key": "sort_order",
+                  "value": "desc",
+                  "description": "Sort direction"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "200 - Resource List",
+              "originalRequest": {
+                "method": "GET",
+                "url": "{{baseUrl}}/{{version}}/resources?page=1&per_page=20"
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"data\": [\n    {\n      \"id\": \"f6a7b8c9-d0e1-4f5a-3b4c-5d6e7f8a9b0c\",\n      \"company_id\": \"550e8400-e29b-41d4-a716-446655440000\",\n      \"name\": \"Jean Dupont\",\n      \"type\": \"labor\",\n      \"standard_rate\": 85.0,\n      \"is_active\": true\n    }\n  ],\n  \"page\": 1,\n  \"per_page\": 20,\n  \"total\": 45,\n  \"total_pages\": 3\n}"
+            }
+          ]
+        },
+        {
+          "name": "Create Resource",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Jean Dupont\",\n  \"type\": \"labor\",\n  \"standard_rate\": 85.0,\n  \"overtime_rate\": 127.5,\n  \"email\": \"jean.dupont@example.com\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/{{version}}/resources",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "{{version}}",
+                "resources"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 201', function () {",
+                  "  pm.response.to.have.status(201);",
+                  "});",
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData && jsonData.data && jsonData.data.id) {",
+                  "  pm.collectionVariables.set('resource_id', jsonData.data.id);",
+                  "  pm.environment.set('resource_id', jsonData.data.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "201 - Resource Created",
+              "originalRequest": {
+                "method": "POST",
+                "url": "{{baseUrl}}/{{version}}/resources"
+              },
+              "status": "Created",
+              "code": 201,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"data\": {\n    \"id\": \"f6a7b8c9-d0e1-4f5a-3b4c-5d6e7f8a9b0c\",\n    \"company_id\": \"550e8400-e29b-41d4-a716-446655440000\",\n    \"ms_project_uid\": null,\n    \"name\": \"Jean Dupont\",\n    \"type\": \"labor\",\n    \"standard_rate\": 85.0,\n    \"overtime_rate\": 127.5,\n    \"email\": \"jean.dupont@example.com\",\n    \"is_active\": true,\n    \"created_at\": \"2026-01-11T10:00:00Z\",\n    \"updated_at\": \"2026-01-11T10:00:00Z\"\n  },\n  \"message\": \"Resource created successfully\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Get Resource",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/{{version}}/resources/{{resource_id}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "{{version}}",
+                "resources",
+                "{{resource_id}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "200 - Resource",
+              "originalRequest": {
+                "method": "GET",
+                "url": "{{baseUrl}}/{{version}}/resources/{{resource_id}}"
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"data\": {\n    \"id\": \"f6a7b8c9-d0e1-4f5a-3b4c-5d6e7f8a9b0c\",\n    \"company_id\": \"550e8400-e29b-41d4-a716-446655440000\",\n    \"ms_project_uid\": 1,\n    \"name\": \"Jean Dupont\",\n    \"type\": \"labor\",\n    \"standard_rate\": 85.0,\n    \"overtime_rate\": 127.5,\n    \"email\": \"jean.dupont@example.com\",\n    \"is_active\": true,\n    \"created_at\": \"2026-01-11T10:00:00Z\",\n    \"updated_at\": \"2026-01-11T10:00:00Z\"\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "Update Resource",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"standard_rate\": 90.0,\n  \"overtime_rate\": 135.0\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/{{version}}/resources/{{resource_id}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "{{version}}",
+                "resources",
+                "{{resource_id}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "200 - Resource Updated",
+              "originalRequest": {
+                "method": "PATCH",
+                "url": "{{baseUrl}}/{{version}}/resources/{{resource_id}}"
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"data\": {\n    \"id\": \"f6a7b8c9-d0e1-4f5a-3b4c-5d6e7f8a9b0c\",\n    \"company_id\": \"550e8400-e29b-41d4-a716-446655440000\",\n    \"name\": \"Jean Dupont\",\n    \"type\": \"labor\",\n    \"standard_rate\": 90.0,\n    \"overtime_rate\": 135.0,\n    \"is_active\": true,\n    \"updated_at\": \"2026-01-11T10:05:00Z\"\n  },\n  \"message\": \"Resource updated successfully\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Delete Resource",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/{{version}}/resources/{{resource_id}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "{{version}}",
+                "resources",
+                "{{resource_id}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 204', function () {",
+                  "  pm.response.to.have.status(204);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "204 - Resource Deleted",
+              "originalRequest": {
+                "method": "DELETE",
+                "url": "{{baseUrl}}/{{version}}/resources/{{resource_id}}"
+              },
+              "status": "No Content",
+              "code": 204,
+              "_postman_previewlanguage": "text",
+              "header": []
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
