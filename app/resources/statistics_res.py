@@ -25,8 +25,13 @@ from app.schemas.statistics_schema import (
     MonthlyExpensesResponseSchema,
 )
 from app.services.guardian_service import Operation
+from app.utils.api_version import validate_api_version_or_error_response
 from app.utils.correlation import ResponseTuple, error_response
-from app.utils.jwt_decorators import access_required, require_jwt_auth
+from app.utils.jwt_decorators import (
+    access_required,
+    get_current_company_id,
+    require_jwt_auth,
+)
 from app.utils.rate_limit import rate_limit_user_key
 
 DictStrAny = dict[str, Any]
@@ -135,11 +140,12 @@ class ExpenseByCategoryResource(Resource):
     @require_jwt_auth
     @access_required(Operation.READ, "statistics")
     @limiter.limit("100 per minute", key_func=rate_limit_user_key)
-    def get(self, project_id: str) -> ResponseTuple:
+    def get(self, project_id: str, version: str | None = None) -> ResponseTuple:
         """Retrieve expense breakdown by category for a project.
 
         Args:
             project_id: Project UUID from URL path.
+            version: API version from URL path.
 
         Query Parameters:
             start_date: Optional filter from date (ISO 8601).
@@ -157,13 +163,21 @@ class ExpenseByCategoryResource(Resource):
             >>> resource.get(project_id="a1b2c3d4-...")
             ({'data': {'project_id': '...', 'total_expenses': 820000.0, ...}}, 200)
         """
-        # Validate project exists and user has access
+        # Validate API version
+        version_error = validate_api_version_or_error_response(version)
+        if version_error:
+            return version_error
+
+        # Validate project exists and user has access (company isolation)
         parsed_project_id = _parse_uuid(project_id, "project_id")
         if isinstance(parsed_project_id, tuple):
             return parsed_project_id
         project_uuid = parsed_project_id
 
-        project = db.session.get(Project, project_uuid)
+        company_id = get_current_company_id()
+        project = Project.query.filter_by(
+            id=project_uuid, company_id=company_id
+        ).first()
         if not project:
             return error_response(
                 "Project not found.",
@@ -289,11 +303,12 @@ class LaborByResourceResource(Resource):
     @require_jwt_auth
     @access_required(Operation.READ, "statistics")
     @limiter.limit("100 per minute", key_func=rate_limit_user_key)
-    def get(self, project_id: str) -> ResponseTuple:
+    def get(self, project_id: str, version: str | None = None) -> ResponseTuple:
         """Retrieve labor cost breakdown by resource for a project.
 
         Args:
             project_id: Project UUID from URL path.
+            version: API version from URL path.
 
         Query Parameters:
             start_date: Optional filter from date (ISO 8601).
@@ -312,13 +327,21 @@ class LaborByResourceResource(Resource):
             >>> resource.get(project_id="a1b2c3d4-...")
             ({'data': {'project_id': '...', 'total_labor_cost': 450000.0, ...}}, 200)
         """
-        # Validate project exists
+        # Validate API version
+        version_error = validate_api_version_or_error_response(version)
+        if version_error:
+            return version_error
+
+        # Validate project exists and user has access (company isolation)
         parsed_project_id = _parse_uuid(project_id, "project_id")
         if isinstance(parsed_project_id, tuple):
             return parsed_project_id
         project_uuid = parsed_project_id
 
-        project = db.session.get(Project, project_uuid)
+        company_id = get_current_company_id()
+        project = Project.query.filter_by(
+            id=project_uuid, company_id=company_id
+        ).first()
         if not project:
             return error_response(
                 "Project not found.",
@@ -461,11 +484,12 @@ class MonthlyExpensesResource(Resource):
     @require_jwt_auth
     @access_required(Operation.READ, "statistics")
     @limiter.limit("100 per minute", key_func=rate_limit_user_key)
-    def get(self, project_id: str) -> ResponseTuple:
+    def get(self, project_id: str, version: str | None = None) -> ResponseTuple:
         """Retrieve monthly expense distribution for a project.
 
         Args:
             project_id: Project UUID from URL path.
+            version: API version from URL path.
 
         Query Parameters:
             start_date: Optional filter from date (ISO 8601).
@@ -484,13 +508,21 @@ class MonthlyExpensesResource(Resource):
             >>> resource.get(project_id="a1b2c3d4-...")
             ({'data': {'project_id': '...', 'monthly_data': [...]}}, 200)
         """
-        # Validate project exists
+        # Validate API version
+        version_error = validate_api_version_or_error_response(version)
+        if version_error:
+            return version_error
+
+        # Validate project exists and user has access (company isolation)
         parsed_project_id = _parse_uuid(project_id, "project_id")
         if isinstance(parsed_project_id, tuple):
             return parsed_project_id
         project_uuid = parsed_project_id
 
-        project = db.session.get(Project, project_uuid)
+        company_id = get_current_company_id()
+        project = Project.query.filter_by(
+            id=project_uuid, company_id=company_id
+        ).first()
         if not project:
             return error_response(
                 "Project not found.",

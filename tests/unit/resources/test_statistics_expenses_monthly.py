@@ -9,7 +9,7 @@ Copyright (c) 2025 Waterfall Project. All rights reserved.
 from datetime import UTC, datetime
 from decimal import Decimal
 from unittest.mock import MagicMock, patch
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 from flask import Flask
@@ -23,11 +23,12 @@ class TestMonthlyExpensesEndpoint:
     """Tests for GET /projects/{project_id}/statistics/expenses/monthly endpoint."""
 
     @pytest.fixture
-    def project(self, app: Flask) -> Project:
+    def project(self, app: Flask, company_id: str) -> Project:
         """Create a test project.
 
         Args:
             app: Flask application instance.
+            company_id: Company ID from JWT fixture.
 
         Returns:
             Created project instance.
@@ -38,7 +39,7 @@ class TestMonthlyExpensesEndpoint:
             project = Project(
                 id=uuid4(),
                 name="Test Project",
-                company_id=uuid4(),
+                company_id=UUID(company_id),
                 start_date=datetime(2024, 11, 1, tzinfo=UTC),
                 finish_date=datetime(2026, 12, 31, tzinfo=UTC),
                 budget=Decimal("1000000.00"),
