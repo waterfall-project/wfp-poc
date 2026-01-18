@@ -1,0 +1,130 @@
+{
+  "info": {
+    "name": "WFP-POC Health API",
+    "description": "Health endpoints generated from openapi/wfp-poc-api-modular.yaml",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_postman_id": "0b3a2a7f-1d73-4b44-9a3a-6d6f7f8e1a2b",
+    "version": "1.0"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://127.0.0.1:5000",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "description": "Service health, readiness, and version info",
+      "item": [
+        {
+          "name": "Readiness Probe",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/ready",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "ready"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "200 - Ready",
+              "originalRequest": {
+                "method": "GET",
+                "url": "{{baseUrl}}/ready"
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"status\": \"ready\",\n  \"timestamp\": \"2026-01-18T09:00:00Z\",\n  \"checks\": {\n    \"database\": {\n      \"status\": \"ok\",\n      \"response_time_ms\": 10\n    }\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "Version Info",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/version",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "version"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "200 - Version",
+              "originalRequest": {
+                "method": "GET",
+                "url": "{{baseUrl}}/version"
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"version\": \"1.0.0\",\n  \"git_commit\": \"abc123def456\",\n  \"build_date\": \"2026-01-10T12:00:00Z\",\n  \"environment\": \"development\"\n}"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

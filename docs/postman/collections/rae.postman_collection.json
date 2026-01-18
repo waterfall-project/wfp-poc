@@ -1,0 +1,261 @@
+{
+  "info": {
+    "name": "WFP-POC RAE API",
+    "description": "RAE endpoints generated from openapi/wfp-poc-api-modular.yaml",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_postman_id": "4b7e5b2a-6f7a-4f8c-9d2f-6a1e9c5c1a2b",
+    "version": "1.0"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{access_token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://127.0.0.1:5000",
+      "type": "string"
+    },
+    {
+      "key": "version",
+      "value": "v0",
+      "type": "string"
+    },
+    {
+      "key": "project_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "milestone_id",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "RAE",
+      "description": "Remaining At End tracking",
+      "item": [
+        {
+          "name": "Update Milestone RAE",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"date\": \"2026-01-31T00:00:00Z\",\n  \"amount\": 75000.0,\n  \"comment\": \"Forecast updated after vendor quote\",\n  \"details\": {\n    \"task_estimates\": [\n      {\n        \"task_id\": \"{{task_id}}\",\n        \"task_name\": \"Design Phase\",\n        \"remaining_cost\": 25000.0,\n        \"comment\": \"Pending review\"\n      }\n    ]\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/{{version}}/milestones/{{milestone_id}}/rae",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "{{version}}",
+                "milestones",
+                "{{milestone_id}}",
+                "rae"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 201', function () {",
+                  "  pm.response.to.have.status(201);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "201 - RAE Updated",
+              "originalRequest": {
+                "method": "POST",
+                "url": "{{baseUrl}}/{{version}}/milestones/{{milestone_id}}/rae"
+              },
+              "status": "Created",
+              "code": 201,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"data\": {\n    \"id\": \"c1d2e3f4-5a6b-7c8d-9e0f-1a2b3c4d5e6f\",\n    \"milestone_id\": \"d4e5f6a7-b8c9-4d5e-1f2a-3b4c5d6e7f8a\",\n    \"date\": \"2026-01-31T00:00:00Z\",\n    \"amount\": 75000.0,\n    \"comment\": \"Forecast updated after vendor quote\",\n    \"updated_by\": \"77777777-8888-9999-aaaa-bbbbbbbbbbbb\",\n    \"created_at\": \"2026-01-31T12:00:00Z\"\n  },\n  \"message\": \"RAE updated successfully\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Get Milestone RAE History",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/{{version}}/milestones/{{milestone_id}}/rae/history?page=1&per_page=20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "{{version}}",
+                "milestones",
+                "{{milestone_id}}",
+                "rae",
+                "history"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "Page number for pagination"
+                },
+                {
+                  "key": "per_page",
+                  "value": "20",
+                  "description": "Items per page"
+                },
+                {
+                  "key": "date_from",
+                  "value": "",
+                  "description": "Filter from date"
+                },
+                {
+                  "key": "date_to",
+                  "value": "",
+                  "description": "Filter to date"
+                },
+                {
+                  "key": "sort_order",
+                  "value": "desc",
+                  "description": "Sort direction"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "200 - RAE History",
+              "originalRequest": {
+                "method": "GET",
+                "url": "{{baseUrl}}/{{version}}/milestones/{{milestone_id}}/rae/history?page=1&per_page=20"
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"data\": [\n    {\n      \"id\": \"c1d2e3f4-5a6b-7c8d-9e0f-1a2b3c4d5e6f\",\n      \"milestone_id\": \"d4e5f6a7-b8c9-4d5e-1f2a-3b4c5d6e7f8a\",\n      \"date\": \"2026-01-31T00:00:00Z\",\n      \"amount\": 75000.0,\n      \"comment\": \"Forecast updated after vendor quote\",\n      \"updated_by\": \"77777777-8888-9999-aaaa-bbbbbbbbbbbb\",\n      \"created_at\": \"2026-01-31T12:00:00Z\"\n    }\n  ],\n  \"page\": 1,\n  \"per_page\": 20,\n  \"total\": 12,\n  \"total_pages\": 1\n}"
+            }
+          ]
+        },
+        {
+          "name": "Get Project RAE Summary",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/{{version}}/projects/{{project_id}}/rae/summary",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "{{version}}",
+                "projects",
+                "{{project_id}}",
+                "rae",
+                "summary"
+              ],
+              "query": [
+                {
+                  "key": "as_of_date",
+                  "value": "",
+                  "description": "Get RAE values as of specific date (default latest)"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "200 - RAE Summary",
+              "originalRequest": {
+                "method": "GET",
+                "url": "{{baseUrl}}/{{version}}/projects/{{project_id}}/rae/summary"
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"data\": {\n    \"project_id\": \"a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d\",\n    \"as_of_date\": \"2026-01-31T00:00:00Z\",\n    \"total_rae\": 170000.0,\n    \"milestones\": [\n      {\n        \"milestone_id\": \"d4e5f6a7-b8c9-4d5e-1f2a-3b4c5d6e7f8a\",\n        \"name\": \"Phase 1 Complete\",\n        \"budget_weight\": 0.28,\n        \"rae\": 15000.0,\n        \"rae_date\": \"2026-01-31T00:00:00Z\",\n        \"achieved\": false,\n        \"comment\": \"Backend delay\"\n      }\n    ]\n  }\n}"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,374 @@
+{
+  "info": {
+    "name": "WFP-POC Projects API",
+    "description": "Projects endpoints generated from openapi/wfp-poc-api-modular.yaml",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_postman_id": "6ef1c118-b4c5-4f06-9d7f-2d1b3b8a4f23",
+    "version": "1.0"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{access_token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://127.0.0.1:5000",
+      "type": "string"
+    },
+    {
+      "key": "version",
+      "value": "v0",
+      "type": "string"
+    },
+    {
+      "key": "project_id",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Projects",
+      "description": "Project management operations (CRUD)",
+      "item": [
+        {
+          "name": "List Projects",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/{{version}}/projects?page=1&per_page=20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "{{version}}",
+                "projects"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "Page number for pagination"
+                },
+                {
+                  "key": "per_page",
+                  "value": "20",
+                  "description": "Items per page"
+                },
+                {
+                  "key": "status",
+                  "value": "",
+                  "description": "Filter by project status"
+                },
+                {
+                  "key": "start_date_from",
+                  "value": "",
+                  "description": "Filter projects starting after this date"
+                },
+                {
+                  "key": "start_date_to",
+                  "value": "",
+                  "description": "Filter projects starting before this date"
+                },
+                {
+                  "key": "search",
+                  "value": "",
+                  "description": "Search in name, code, title fields"
+                },
+                {
+                  "key": "sort_by",
+                  "value": "created_at",
+                  "description": "Field to sort by"
+                },
+                {
+                  "key": "sort_order",
+                  "value": "desc",
+                  "description": "Sort direction"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "200 - Project List",
+              "originalRequest": {
+                "method": "GET",
+                "url": "{{baseUrl}}/{{version}}/projects?page=1&per_page=20"
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"data\": [\n    {\n      \"id\": \"a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d\",\n      \"company_id\": \"550e8400-e29b-41d4-a716-446655440000\",\n      \"name\": \"Enterprise Modernization Project 2025\",\n      \"code\": \"G.PRJ.12345\",\n      \"start_date\": \"2024-11-25T09:00:00Z\",\n      \"finish_date\": \"2027-02-19T18:00:00Z\",\n      \"budget\": 1500000.0,\n      \"status\": \"active\",\n      \"created_at\": \"2026-01-10T10:00:00Z\",\n      \"updated_at\": \"2026-01-10T10:00:00Z\"\n    }\n  ],\n  \"page\": 1,\n  \"per_page\": 20,\n  \"total\": 1,\n  \"total_pages\": 1\n}"
+            }
+          ]
+        },
+        {
+          "name": "Create Project",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Enterprise Modernization Project 2025\",\n  \"code\": \"G.PRJ.12345\",\n  \"title\": \"Infrastructure Upgrade\",\n  \"start_date\": \"2024-11-25T09:00:00Z\",\n  \"finish_date\": \"2027-02-19T18:00:00Z\",\n  \"budget\": 1500000.0,\n  \"currency_code\": \"EUR\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/{{version}}/projects",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "{{version}}",
+                "projects"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 201', function () {",
+                  "  pm.response.to.have.status(201);",
+                  "});",
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData && jsonData.data && jsonData.data.id) {",
+                  "  pm.collectionVariables.set('project_id', jsonData.data.id);",
+                  "  pm.environment.set('project_id', jsonData.data.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "201 - Project Created",
+              "originalRequest": {
+                "method": "POST",
+                "url": "{{baseUrl}}/{{version}}/projects"
+              },
+              "status": "Created",
+              "code": 201,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"data\": {\n    \"id\": \"a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d\",\n    \"company_id\": \"550e8400-e29b-41d4-a716-446655440000\",\n    \"name\": \"Enterprise Modernization Project 2025\",\n    \"code\": \"G.PRJ.12345\",\n    \"start_date\": \"2024-11-25T09:00:00Z\",\n    \"finish_date\": \"2027-02-19T18:00:00Z\",\n    \"budget\": 1500000.0,\n    \"status\": \"active\",\n    \"created_at\": \"2026-01-10T10:00:00Z\",\n    \"updated_at\": \"2026-01-10T10:00:00Z\"\n  },\n  \"message\": \"Project created successfully\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Get Project",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/{{version}}/projects/{{project_id}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "{{version}}",
+                "projects",
+                "{{project_id}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "200 - Project",
+              "originalRequest": {
+                "method": "GET",
+                "url": "{{baseUrl}}/{{version}}/projects/{{project_id}}"
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"data\": {\n    \"id\": \"a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d\",\n    \"company_id\": \"550e8400-e29b-41d4-a716-446655440000\",\n    \"name\": \"Enterprise Modernization Project 2025\",\n    \"code\": \"G.PRJ.12345\",\n    \"start_date\": \"2024-11-25T09:00:00Z\",\n    \"finish_date\": \"2027-02-19T18:00:00Z\",\n    \"budget\": 1500000.0,\n    \"status\": \"active\",\n    \"created_at\": \"2026-01-10T10:00:00Z\",\n    \"updated_at\": \"2026-01-10T10:00:00Z\"\n  },\n  \"message\": \"Project retrieved successfully\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Update Project",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"active\",\n  \"title\": \"Infrastructure Upgrade - Phase 2\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/{{version}}/projects/{{project_id}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "{{version}}",
+                "projects",
+                "{{project_id}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "200 - Project Updated",
+              "originalRequest": {
+                "method": "PATCH",
+                "url": "{{baseUrl}}/{{version}}/projects/{{project_id}}"
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"data\": {\n    \"id\": \"a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d\",\n    \"company_id\": \"550e8400-e29b-41d4-a716-446655440000\",\n    \"name\": \"Enterprise Modernization Project 2025\",\n    \"code\": \"G.PRJ.12345\",\n    \"title\": \"Infrastructure Upgrade - Phase 2\",\n    \"start_date\": \"2024-11-25T09:00:00Z\",\n    \"finish_date\": \"2027-02-19T18:00:00Z\",\n    \"budget\": 1500000.0,\n    \"status\": \"active\",\n    \"created_at\": \"2026-01-10T10:00:00Z\",\n    \"updated_at\": \"2026-01-10T10:05:00Z\"\n  },\n  \"message\": \"Project updated successfully\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Delete Project",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/{{version}}/projects/{{project_id}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "{{version}}",
+                "projects",
+                "{{project_id}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 204', function () {",
+                  "  pm.response.to.have.status(204);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "204 - Project Deleted",
+              "originalRequest": {
+                "method": "DELETE",
+                "url": "{{baseUrl}}/{{version}}/projects/{{project_id}}"
+              },
+              "status": "No Content",
+              "code": 204,
+              "_postman_previewlanguage": "text",
+              "header": []
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

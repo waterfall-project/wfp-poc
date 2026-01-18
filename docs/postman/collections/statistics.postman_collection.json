@@ -1,0 +1,284 @@
+{
+  "info": {
+    "name": "WFP-POC Statistics API",
+    "description": "Statistics endpoints generated from openapi/wfp-poc-api-modular.yaml",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_postman_id": "b1d7f2a8-9e6f-4e1c-92d9-0f4d0e8b7c3a",
+    "version": "1.0"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{access_token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://127.0.0.1:5000",
+      "type": "string"
+    },
+    {
+      "key": "version",
+      "value": "v0",
+      "type": "string"
+    },
+    {
+      "key": "project_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "milestone_id",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Statistics",
+      "description": "Expense and labor statistics for analytics",
+      "item": [
+        {
+          "name": "Get Expense Breakdown by Category",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/{{version}}/projects/{{project_id}}/statistics/expenses/by-category?start_date=2025-01-01T00:00:00Z&end_date=2025-12-31T23:59:59Z&milestone_id={{milestone_id}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "{{version}}",
+                "projects",
+                "{{project_id}}",
+                "statistics",
+                "expenses",
+                "by-category"
+              ],
+              "query": [
+                {
+                  "key": "start_date",
+                  "value": "2025-01-01T00:00:00Z",
+                  "description": "Filter from date"
+                },
+                {
+                  "key": "end_date",
+                  "value": "2025-12-31T23:59:59Z",
+                  "description": "Filter to date"
+                },
+                {
+                  "key": "milestone_id",
+                  "value": "{{milestone_id}}",
+                  "description": "Filter by milestone"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "200 - Expense Breakdown",
+              "originalRequest": {
+                "method": "GET",
+                "url": "{{baseUrl}}/{{version}}/projects/{{project_id}}/statistics/expenses/by-category?start_date=2025-01-01T00:00:00Z&end_date=2025-12-31T23:59:59Z&milestone_id={{milestone_id}}"
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"data\": {\n    \"project_id\": \"a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d\",\n    \"total_expenses\": 820000.0,\n    \"breakdown\": [\n      {\n        \"category\": \"labor\",\n        \"amount\": 450000.0,\n        \"percentage\": 54.88,\n        \"count\": 156\n      },\n      {\n        \"category\": \"subcontracting\",\n        \"amount\": 220000.0,\n        \"percentage\": 26.83,\n        \"count\": 42\n      },\n      {\n        \"category\": \"procurement\",\n        \"amount\": 120000.0,\n        \"percentage\": 14.63,\n        \"count\": 68\n      },\n      {\n        \"category\": \"overhead\",\n        \"amount\": 30000.0,\n        \"percentage\": 3.66,\n        \"count\": 24\n      }\n    ],\n    \"echarts_format\": {\n      \"series\": [\n        {\n          \"name\": \"Expenses by Category\",\n          \"type\": \"pie\",\n          \"radius\": [\"40%\", \"70%\"],\n          \"data\": [\n            {\n              \"value\": 450000.0,\n              \"name\": \"Labor (54.88%)\"\n            },\n            {\n              \"value\": 220000.0,\n              \"name\": \"Subcontracting (26.83%)\"\n            },\n            {\n              \"value\": 120000.0,\n              \"name\": \"Procurement (14.63%)\"\n            },\n            {\n              \"value\": 30000.0,\n              \"name\": \"Overhead (3.66%)\"\n            }\n          ]\n        }\n      ]\n    }\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "Get Labor Cost by Resource",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/{{version}}/projects/{{project_id}}/statistics/labor/by-resource?start_date=2025-01-01T00:00:00Z&end_date=2025-12-31T23:59:59Z&limit=20&sort_order=desc",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "{{version}}",
+                "projects",
+                "{{project_id}}",
+                "statistics",
+                "labor",
+                "by-resource"
+              ],
+              "query": [
+                {
+                  "key": "start_date",
+                  "value": "2025-01-01T00:00:00Z",
+                  "description": "Filter from date"
+                },
+                {
+                  "key": "end_date",
+                  "value": "2025-12-31T23:59:59Z",
+                  "description": "Filter to date"
+                },
+                {
+                  "key": "limit",
+                  "value": "20",
+                  "description": "Max resources to return (top N by cost)"
+                },
+                {
+                  "key": "sort_order",
+                  "value": "desc",
+                  "description": "Sort direction"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "200 - Labor by Resource",
+              "originalRequest": {
+                "method": "GET",
+                "url": "{{baseUrl}}/{{version}}/projects/{{project_id}}/statistics/labor/by-resource?start_date=2025-01-01T00:00:00Z&end_date=2025-12-31T23:59:59Z&limit=20&sort_order=desc"
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"data\": {\n    \"project_id\": \"a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d\",\n    \"total_labor_cost\": 450000.0,\n    \"resource_count\": 25,\n    \"breakdown\": [\n      {\n        \"resource_id\": \"f6a7b8c9-d0e1-4f5a-3b4c-5d6e7f8a9b0c\",\n        \"resource_name\": \"Jean Dupont\",\n        \"amount\": 85000.0,\n        \"percentage\": 18.89,\n        \"hours\": 1000.0,\n        \"average_rate\": 85.0\n      },\n      {\n        \"resource_id\": \"a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d\",\n        \"resource_name\": \"Marie Martin\",\n        \"amount\": 72000.0,\n        \"percentage\": 16.0,\n        \"hours\": 900.0,\n        \"average_rate\": 80.0\n      }\n    ],\n    \"echarts_format\": {\n      \"xAxis\": {\n        \"type\": \"category\",\n        \"data\": [\"Jean Dupont\", \"Marie Martin\", \"Pierre Bernard\"]\n      },\n      \"yAxis\": {\n        \"type\": \"value\",\n        \"name\": \"Cost (€)\"\n      },\n      \"series\": [\n        {\n          \"name\": \"Labor Cost\",\n          \"type\": \"bar\",\n          \"data\": [85000.0, 72000.0, 65000.0]\n        }\n      ]\n    }\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "Get Monthly Expenses",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/{{version}}/projects/{{project_id}}/statistics/expenses/monthly?start_date=2024-11-01T00:00:00Z&end_date=2026-01-31T23:59:59Z&category=labor&cumulative=false",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "{{version}}",
+                "projects",
+                "{{project_id}}",
+                "statistics",
+                "expenses",
+                "monthly"
+              ],
+              "query": [
+                {
+                  "key": "start_date",
+                  "value": "2024-11-01T00:00:00Z",
+                  "description": "Filter from date"
+                },
+                {
+                  "key": "end_date",
+                  "value": "2026-01-31T23:59:59Z",
+                  "description": "Filter to date"
+                },
+                {
+                  "key": "category",
+                  "value": "labor",
+                  "description": "Filter by expense category"
+                },
+                {
+                  "key": "cumulative",
+                  "value": "false",
+                  "description": "Return cumulative values (true) or period values (false)"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "200 - Monthly Expenses",
+              "originalRequest": {
+                "method": "GET",
+                "url": "{{baseUrl}}/{{version}}/projects/{{project_id}}/statistics/expenses/monthly?start_date=2024-11-01T00:00:00Z&end_date=2026-01-31T23:59:59Z&category=labor&cumulative=false"
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"data\": {\n    \"project_id\": \"a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d\",\n    \"start_date\": \"2024-11-01T00:00:00Z\",\n    \"end_date\": \"2026-01-31T23:59:59Z\",\n    \"cumulative\": false,\n    \"monthly_data\": [\n      {\n        \"month\": \"2024-11\",\n        \"total\": 48000.0,\n        \"labor\": 25000.0,\n        \"subcontracting\": 15000.0,\n        \"procurement\": 6000.0,\n        \"overhead\": 2000.0\n      },\n      {\n        \"month\": \"2024-12\",\n        \"total\": 77000.0,\n        \"labor\": 42000.0,\n        \"subcontracting\": 20000.0,\n        \"procurement\": 12000.0,\n        \"overhead\": 3000.0\n      }\n    ],\n    \"echarts_format\": {\n      \"xAxis\": {\n        \"type\": \"category\",\n        \"data\": [\"2024-11\", \"2024-12\", \"2025-01\"]\n      },\n      \"yAxis\": {\n        \"type\": \"value\",\n        \"name\": \"Expenses (€)\"\n      },\n      \"series\": [\n        {\n          \"name\": \"Labor\",\n          \"type\": \"bar\",\n          \"stack\": \"total\",\n          \"data\": [25000, 42000, 45000]\n        },\n        {\n          \"name\": \"Subcontracting\",\n          \"type\": \"bar\",\n          \"stack\": \"total\",\n          \"data\": [15000, 20000, 25000]\n        },\n        {\n          \"name\": \"Procurement\",\n          \"type\": \"bar\",\n          \"stack\": \"total\",\n          \"data\": [6000, 12000, 11000]\n        },\n        {\n          \"name\": \"Overhead\",\n          \"type\": \"bar\",\n          \"stack\": \"total\",\n          \"data\": [2000, 3000, 4000]\n        }\n      ]\n    }\n  }\n}"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

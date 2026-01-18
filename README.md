@@ -15,7 +15,20 @@ Important defaults:
 - `JWT_SECRET_KEY` must be set (even for local use)
 - `METRICS_API_KEY` must be set
 
-## 2) Run the Guardian mock (local)
+## 2) Run with Docker Compose (recommended)
+
+Spin up API, database, Guardian mock, Adminer, and Superset:
+
+```bash
+docker compose up -d --build
+```
+
+Useful URLs:
+- API: http://127.0.0.1:5000
+- Adminer: http://127.0.0.1:8080
+- Superset: http://127.0.0.1:8088
+
+## 3) Run the Guardian mock (local, without Docker)
 
 Start the mock service on port 5001:
 
@@ -30,7 +43,7 @@ Optional flags:
 Then ensure:
 - `GUARDIAN_SERVICE_URL=http://localhost:5001`
 
-## 3) CLI commands
+## 4) CLI commands
 
 Show current configuration:
 
@@ -44,7 +57,7 @@ Validate configuration:
 FLASK_ENV=development FLASK_APP=wsgi.py flask config validate
 ```
 
-## 4) Database migrations
+## 5) Database migrations
 
 Initialize or update the database:
 
@@ -52,7 +65,7 @@ Initialize or update the database:
 FLASK_ENV=development FLASK_APP=wsgi.py flask db upgrade
 ```
 
-## 5) Run the service
+## 6) Run the service
 
 Start the API server (loads `.env.development`):
 
@@ -60,22 +73,28 @@ Start the API server (loads `.env.development`):
 FLASK_ENV=development python run.py
 ```
 
-## 6) Run tests
+## 7) Run tests
 
 ```bash
 pytest
 ```
 
-## 7) Generate a JWT for local calls
+## 8) Generate a JWT for local calls
 
 ```bash
-JWT=$(python tools/generate_jwt.py)
+JWT=$(python tools/generate_jwt.py --env-file .env.development)
 ```
 
 Optional arguments: `--env-file`, `--user-id`, `--company-id`, `--email`,
 `--expires-in`.
 
-## 8) Main curl commands
+## 9) Postman collections
+
+Postman collections are available in `docs/postman/collections/` with a local
+environment in `docs/postman/environments/wfp-poc.local.postman_environment.json`.
+Set `access_token` in the environment using a token generated above.
+
+## 10) Main curl commands
 
 Health and readiness:
 
