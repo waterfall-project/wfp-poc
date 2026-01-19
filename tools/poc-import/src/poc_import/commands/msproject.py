@@ -5,6 +5,7 @@
 
 import logging
 import sys
+import time
 import uuid
 from pathlib import Path
 
@@ -12,7 +13,13 @@ import click
 from rich.progress import Progress, SpinnerColumn, TextColumn
 
 from poc_import.api.client import WfpApiClient, WfpApiError
-from poc_import.cli_support import console, redact_secrets, setup_logging
+from poc_import.cli_support import (
+    console,
+    log_duration,
+    redact_secrets,
+    set_correlation_id,
+    setup_logging,
+)
 from poc_import.config import Config, load_env_file
 from poc_import.models import ImportMode, ImportReport
 from poc_import.parsers.msproject import MSProjectParser, MSProjectParserError
@@ -66,6 +73,13 @@ from poc_import.validators import (
     help="Validate only, do not call API",
 )
 @click.option(
+    "--log-level",
+    type=click.Choice(
+        ["debug", "info", "warning", "error", "critical"], case_sensitive=False
+    ),
+    help="Logging level",
+)
+@click.option(
     "--verbose",
     "-v",
     is_flag=True,
@@ -85,6 +99,7 @@ def msproject(
     api_url: str,
     company_id: str | None,
     dry_run: bool,
+    log_level: str | None,
     verbose: bool,
     output_report: Path | None,
 ) -> None:
@@ -104,9 +119,10 @@ def msproject(
         # Dry run (validation only)
         poc-import msproject planning.xml --mode=initial --token=$TOKEN --dry-run
     """
-    setup_logging(verbose)
+    setup_logging(verbose, log_level)
     load_env_file(env_name)
     logger = logging.getLogger(__name__)
+    start_time = time.monotonic()
     config = Config()
 
     api_url = api_url or config.api_url
@@ -114,7 +130,8 @@ def msproject(
 
     # Generate correlation ID for tracing
     correlation_id = str(uuid.uuid4())
-    logger.info(f"Starting import [correlation_id={correlation_id}]")
+    set_correlation_id(correlation_id)
+    logger.info("Starting import")
 
     # Validate arguments
     if mode == "sync" and not project_id:
@@ -374,5 +391,7 @@ def msproject(
         sys.exit(1)
     except Exception as e:
         logger.exception("Unexpected error")
-        console.print(f"\n[red]✗ Unexpected error:[/red] {e}")
+        console.print(f"\n[red]✗ Unexpected error:[/red] {redact_secrets(str(e))}")
         sys.exit(3)
+    finally:
+        log_duration(start_time, "msproject command", logger)
