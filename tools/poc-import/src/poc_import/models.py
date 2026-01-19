@@ -42,6 +42,8 @@ class ProjectMetadata(BaseModel):
     start_date: datetime
     finish_date: datetime
     guid: str | None = None
+    ms_project_save_version: int | None = None
+    line_number: int | None = None
 
 
 class TaskPredecessor(BaseModel):
@@ -50,6 +52,7 @@ class TaskPredecessor(BaseModel):
     predecessor_task_uid: int
     type: DependencyType = DependencyType.FS
     lag: int = 0  # Lag in minutes
+    line_number: int | None = None
 
 
 class Task(BaseModel):
@@ -63,11 +66,24 @@ class Task(BaseModel):
     is_milestone: bool = False
     planned_start_date: datetime | None = None
     planned_finish_date: datetime | None = None
+    planned_start_date_raw: str | None = None
+    planned_finish_date_raw: str | None = None
     duration_hours: float | None = None
     budget: float | None = None
     percent_complete: float = 0
     is_critical: bool = False
     predecessors: list[TaskPredecessor] = Field(default_factory=list)
+    line_number: int | None = None
+
+
+class Dependency(BaseModel):
+    """Task dependency derived from predecessor links."""
+
+    task_uid: int
+    predecessor_task_uid: int
+    type: DependencyType = DependencyType.FS
+    lag: int = 0
+    line_number: int | None = None
 
 
 class Resource(BaseModel):
@@ -79,6 +95,7 @@ class Resource(BaseModel):
     type: ResourceType
     standard_rate: float | None = None
     max_units: float = 1.0
+    line_number: int | None = None
 
 
 class Assignment(BaseModel):
@@ -88,6 +105,7 @@ class Assignment(BaseModel):
     resource_uid: int
     work_hours: float = 0
     units: float = 1.0
+    line_number: int | None = None
 
 
 class MSProjectData(BaseModel):
@@ -95,6 +113,7 @@ class MSProjectData(BaseModel):
 
     project: ProjectMetadata
     tasks: list[Task]
+    dependencies: list[Dependency] = Field(default_factory=list)
     resources: list[Resource]
     assignments: list[Assignment]
 

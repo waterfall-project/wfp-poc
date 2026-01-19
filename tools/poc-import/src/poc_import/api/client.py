@@ -125,10 +125,17 @@ class WfpApiClient:
                 error_data = {"detail": response.text}
 
             # REQ-035: Abort import on validation errors (4xx) without retry
+            message = (
+                error_data.get("message")
+                or error_data.get("detail")
+                or error_data.get("error")
+                or str(e)
+            )
+
             if 400 <= response.status_code < 500:
                 logger.error(f"Client error {response.status_code}: {error_data}")
                 raise WfpApiError(
-                    f"API client error: {error_data.get('detail', str(e))}",
+                    f"API client error: {message}",
                     status_code=response.status_code,
                     response_data=error_data,
                 ) from e
@@ -136,10 +143,48 @@ class WfpApiClient:
             # Server errors will be retried by the session retry strategy
             logger.error(f"Server error {response.status_code}: {error_data}")
             raise WfpApiError(
-                f"API server error: {error_data.get('detail', str(e))}",
+                f"API server error: {message}",
                 status_code=response.status_code,
                 response_data=error_data,
             ) from e
+
+    def _request(
+        self,
+        method: str,
+        path: str,
+        **kwargs: Any,
+    ) -> dict[str, Any]:
+        """Send an HTTP request with consistent error handling.
+
+        Args:
+            method: HTTP method (GET/POST/PUT/DELETE).
+            path: API path (e.g., "/v0/projects").
+            **kwargs: Requests parameters (json, params, timeout, etc.).
+
+        Returns:
+            Parsed JSON response.
+
+        Raises:
+            WfpApiError: On network or HTTP errors.
+        """
+        url = f"{self.base_url}{path}"
+        if "timeout" not in kwargs:
+            kwargs["timeout"] = self.timeout
+
+        try:
+            response = self.session.request(method, url, **kwargs)
+        except requests.exceptions.Timeout as exc:
+            raise WfpApiError(
+                f"API timeout after {self.timeout}s",
+                status_code=None,
+            ) from exc
+        except requests.exceptions.RequestException as exc:
+            raise WfpApiError(
+                f"API request failed: {exc}",
+                status_code=None,
+            ) from exc
+
+        return self._handle_response(response)
 
     def _convert_hours_to_iso8601_duration(self, duration_hours: float) -> str:
         """Convert duration in hours to ISO 8601 duration format.
@@ -190,8 +235,7 @@ class WfpApiClient:
             WfpApiError: If token is invalid (401)
         """
         logger.debug("Validating JWT token...")
-        response = self.session.get(f"{self.base_url}/health", timeout=self.timeout)
-        return self._handle_response(response)
+        return self._request("GET", "/health")
 
     def create_project(self, project: ProjectMetadata) -> dict[str, Any]:
         """Create a new project.
@@ -219,13 +263,7 @@ class WfpApiClient:
         if project.guid:
             payload["ms_project_guid"] = project.guid
 
-        response = self.session.post(
-            f"{self.base_url}/v0/projects",
-            json=payload,
-            timeout=self.timeout,
-        )
-
-        data = self._handle_response(response)
+        data = self._request("POST", "/v0/projects", json=payload)
         logger.info(f"Created project: {data.get('id')}")
         return data
 
@@ -242,11 +280,7 @@ class WfpApiClient:
             WfpApiError: On API error
         """
         logger.debug(f"Getting project: {project_id}")
-        response = self.session.get(
-            f"{self.base_url}/v0/projects/{project_id}",
-            timeout=self.timeout,
-        )
-        return self._handle_response(response)
+        return self._request("GET", f"/v0/projects/{project_id}")
 
     def get_project_milestones(self, project_id: str) -> list[dict[str, Any]]:
         """Get all milestones for a project.
@@ -261,11 +295,10 @@ class WfpApiClient:
             WfpApiError: On API error
         """
         logger.debug(f"Getting milestones for project: {project_id}")
-        response = self.session.get(
-            f"{self.base_url}/v0/projects/{project_id}/milestones",
-            timeout=self.timeout,
+        data = self._request(
+            "GET",
+            f"/v0/projects/{project_id}/milestones",
         )
-        data = self._handle_response(response)
         milestones: list[dict[str, Any]] = data.get("data", [])
         return milestones
 
@@ -293,12 +326,7 @@ class WfpApiClient:
         if per_page is not None:
             params["per_page"] = per_page
 
-        response = self.session.get(
-            f"{self.base_url}/v0/projects",
-            params=params,
-            timeout=self.timeout,
-        )
-        return self._handle_response(response)
+        return self._request("GET", "/v0/projects", params=params)
 
     def list_project_tasks(
         self,
@@ -326,12 +354,209 @@ class WfpApiClient:
         if per_page is not None:
             params["per_page"] = per_page
 
-        response = self.session.get(
-            f"{self.base_url}/v0/projects/{project_id}/tasks",
+        return self._request(
+            "GET",
+            f"/v0/projects/{project_id}/tasks",
             params=params,
-            timeout=self.timeout,
         )
-        return self._handle_response(response)
+
+    def get_project_task(self, project_id: str, task_id: str) -> dict[str, Any]:
+        """Get task details for a project.
+
+        Args:
+            project_id: Project UUID
+            task_id: Task UUID
+
+        Returns:
+            Task data
+
+        Raises:
+            WfpApiError: On API error
+        """
+        logger.debug("Getting task %s for project %s", task_id, project_id)
+        return self._request(
+            "GET",
+            f"/v0/projects/{project_id}/tasks/{task_id}",
+        )
+
+    def list_resources(
+        self,
+        page: int | None = None,
+        per_page: int | None = None,
+    ) -> dict[str, Any]:
+        """List company-scoped resources.
+
+        Args:
+            page: Optional page number
+            per_page: Optional items per page
+
+        Returns:
+            API response data
+
+        Raises:
+            WfpApiError: On API error
+        """
+        logger.debug("Listing resources")
+        params: dict[str, Any] = {}
+        if page is not None:
+            params["page"] = page
+        if per_page is not None:
+            params["per_page"] = per_page
+
+        return self._request("GET", "/v0/resources", params=params)
+
+    def list_project_resources(
+        self,
+        project_id: str,
+        page: int | None = None,
+        per_page: int | None = None,
+    ) -> dict[str, Any]:
+        """List resources for a project.
+
+        Args:
+            project_id: Project UUID
+            page: Optional page number
+            per_page: Optional items per page
+
+        Returns:
+            API response data
+
+        Raises:
+            WfpApiError: On API error
+        """
+        logger.debug("Listing resources for project: %s", project_id)
+        params: dict[str, Any] = {}
+        if page is not None:
+            params["page"] = page
+        if per_page is not None:
+            params["per_page"] = per_page
+
+        return self._request(
+            "GET",
+            f"/v0/projects/{project_id}/resources",
+            params=params,
+        )
+
+    def get_resource(self, resource_id: str) -> dict[str, Any]:
+        """Get resource details.
+
+        Args:
+            resource_id: Resource UUID
+
+        Returns:
+            Resource data
+
+        Raises:
+            WfpApiError: On API error
+        """
+        logger.debug("Getting resource: %s", resource_id)
+        return self._request("GET", f"/v0/resources/{resource_id}")
+
+    def list_assignments(
+        self,
+        project_id: str,
+        page: int | None = None,
+        per_page: int | None = None,
+    ) -> dict[str, Any]:
+        """List assignments for a project.
+
+        Args:
+            project_id: Project UUID
+            page: Optional page number
+            per_page: Optional items per page
+
+        Returns:
+            API response data
+
+        Raises:
+            WfpApiError: On API error
+        """
+        logger.debug("Listing assignments for project: %s", project_id)
+        params: dict[str, Any] = {}
+        if page is not None:
+            params["page"] = page
+        if per_page is not None:
+            params["per_page"] = per_page
+
+        return self._request(
+            "GET",
+            f"/v0/projects/{project_id}/assignments",
+            params=params,
+        )
+
+    def get_assignment(self, project_id: str, assignment_id: str) -> dict[str, Any]:
+        """Get assignment details for a project.
+
+        Args:
+            project_id: Project UUID
+            assignment_id: Assignment UUID
+
+        Returns:
+            Assignment data
+
+        Raises:
+            WfpApiError: On API error
+        """
+        logger.debug("Getting assignment %s for project %s", assignment_id, project_id)
+        return self._request(
+            "GET",
+            f"/v0/projects/{project_id}/assignments/{assignment_id}",
+        )
+
+    def list_dependencies(
+        self,
+        project_id: str,
+        page: int | None = None,
+        per_page: int | None = None,
+    ) -> dict[str, Any]:
+        """List dependencies for a project.
+
+        Args:
+            project_id: Project UUID
+            page: Optional page number
+            per_page: Optional items per page
+
+        Returns:
+            API response data
+
+        Raises:
+            WfpApiError: On API error
+        """
+        logger.debug("Listing dependencies for project: %s", project_id)
+        params: dict[str, Any] = {}
+        if page is not None:
+            params["page"] = page
+        if per_page is not None:
+            params["per_page"] = per_page
+
+        return self._request(
+            "GET",
+            f"/v0/projects/{project_id}/dependencies",
+            params=params,
+        )
+
+    def get_dependency(self, project_id: str, dependency_id: str) -> dict[str, Any]:
+        """Get dependency details for a project.
+
+        Args:
+            project_id: Project UUID
+            dependency_id: Dependency UUID
+
+        Returns:
+            Dependency data
+
+        Raises:
+            WfpApiError: On API error
+        """
+        logger.debug(
+            "Getting dependency %s for project %s",
+            dependency_id,
+            project_id,
+        )
+        return self._request(
+            "GET",
+            f"/v0/projects/{project_id}/dependencies/{dependency_id}",
+        )
 
     def create_tasks_bulk(self, project_id: str, tasks: list[Task]) -> dict[str, Any]:
         """Create tasks in bulk (initial import).
@@ -387,13 +612,12 @@ class WfpApiClient:
 
             task_payloads.append(payload)
 
-        response = self.session.post(
-            f"{self.base_url}/v0/projects/{project_id}/tasks/bulk",
+        data = self._request(
+            "POST",
+            f"/v0/projects/{project_id}/tasks/bulk",
             json={"tasks": task_payloads},
             timeout=self.timeout * 2,  # Longer timeout for bulk
         )
-
-        data = self._handle_response(response)
         task_map: dict[int, str] = {}
         tasks_data = data.get("data", {}).get("tasks", [])
         if isinstance(tasks_data, list):
@@ -465,13 +689,12 @@ class WfpApiClient:
 
             task_payloads.append(payload)
 
-        response = self.session.put(
-            f"{self.base_url}/v0/projects/{project_id}/tasks/sync",
+        data = self._request(
+            "PUT",
+            f"/v0/projects/{project_id}/tasks/sync",
             json={"tasks": task_payloads},
             timeout=self.timeout * 2,
         )
-
-        data = self._handle_response(response)
         logger.info(
             f"Synced tasks: created={data.get('created_count', 0)}, "
             f"updated={data.get('updated_count', 0)}, "
@@ -516,13 +739,11 @@ class WfpApiClient:
                 if resource.uid:
                     payload["ms_project_uid"] = resource.uid
 
-                response = self.session.post(
-                    f"{self.base_url}/v0/resources",
+                result = self._request(
+                    "POST",
+                    "/v0/resources",
                     json=payload,
-                    timeout=self.timeout,
                 )
-
-                result = self._handle_response(response)
                 resource_data = result.get("data", {})
                 resource_id = resource_data.get("id")
                 resource_ids.append(resource_id)
@@ -612,14 +833,12 @@ class WfpApiClient:
                 "percent_allocation": int(round(assignment.units * 100)),
             }
 
-            response = self.session.post(
-                f"{self.base_url}/v0/projects/{project_id}/assignments",
-                json=payload,
-                timeout=self.timeout,
-            )
-
             try:
-                result = self._handle_response(response)
+                result = self._request(
+                    "POST",
+                    f"/v0/projects/{project_id}/assignments",
+                    json=payload,
+                )
                 assignment_id = result.get("data", {}).get("id")
                 if assignment_id:
                     assignment_ids.append(assignment_id)

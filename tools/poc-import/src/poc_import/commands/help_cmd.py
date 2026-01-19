@@ -92,6 +92,7 @@ def _print_xml_help(topic: tuple[str, ...]) -> None:
                 "load  Load an XML file",
                 "list  List XML entities (see help xml list)",
                 "show  Show XML entities (see help xml show)",
+                "validate  Validate XML data",
             ]
         )
         return
@@ -142,24 +143,41 @@ def _print_service_help(topic: tuple[str, ...]) -> None:
         _print_header("Commands:")
         _print_command_list(
             [
-                "projects  Manage projects (see help service projects)",
-                "tasks     Manage tasks (see help service tasks)",
+                "list    List service entities (see help service list)",
+                "show    Show service entities (see help service show)",
+                "select  Select active project context",
             ]
         )
         return
 
-    if topic[0] == "projects":
-        _print_header("Project operations")
+    if topic[0] == "list":
+        _print_header("List service entities")
         _print_blank_line()
         _print_header("Commands:")
-        _print_command_list(["list: List projects"])
+        _print_command_list(
+            [
+                "projects: List projects",
+                "tasks: List tasks for selected project",
+                "resources: List resources",
+                "assignments: List assignments for selected project",
+                "dependencies: List dependencies for selected project",
+            ]
+        )
         return
 
-    if topic[0] == "tasks":
-        _print_header("Task operations")
+    if topic[0] == "show":
+        _print_header("Show service entities")
         _print_blank_line()
         _print_header("Commands:")
-        _print_command_list(["list: List tasks for a project"])
+        _print_command_list(
+            [
+                "project: Show selected project",
+                "task: Show task by ID",
+                "resource: Show resource by ID",
+                "assignment: Show assignment by ID",
+                "dependency: Show dependency by ID",
+            ]
+        )
         return
 
     console.print(f"Unknown service help topic: {' '.join(topic)}")

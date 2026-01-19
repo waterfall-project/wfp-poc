@@ -31,6 +31,8 @@ class TestMSProjectParser:
             assert data.project.name == "Test Project"
             assert data.project.title == "Test Project Title"
             assert data.project.guid == "12345678-1234-1234-1234-123456789012"
+            assert data.project.ms_project_save_version == 14
+            assert data.project.line_number is not None
 
             # Verify tasks
             assert len(data.tasks) == 2
@@ -46,6 +48,7 @@ class TestMSProjectParser:
             assert task1.duration_hours == pytest.approx(240.0)
             assert task1.budget == pytest.approx(50000.0)
             assert len(task1.predecessors) == 0
+            assert task1.line_number is not None
 
             # Check milestone
             task2 = data.tasks[1]
@@ -56,6 +59,7 @@ class TestMSProjectParser:
             assert len(task2.predecessors) == 1
             assert task2.predecessors[0].predecessor_task_uid == 1
             assert task2.predecessors[0].type == DependencyType.FS
+            assert task2.predecessors[0].line_number is not None
 
             # Verify resources
             assert len(data.resources) == 1
@@ -64,6 +68,7 @@ class TestMSProjectParser:
             assert resource.name == "Developer"
             assert resource.type == ResourceType.LABOR
             assert resource.standard_rate == pytest.approx(750.0)
+            assert resource.line_number is not None
 
             # Verify assignments
             assert len(data.assignments) == 1
@@ -71,6 +76,15 @@ class TestMSProjectParser:
             assert assignment.task_uid == 1
             assert assignment.resource_uid == 1
             assert assignment.work_hours == pytest.approx(240.0)
+            assert assignment.line_number is not None
+
+            # Verify dependencies
+            assert len(data.dependencies) == 1
+            dependency = data.dependencies[0]
+            assert dependency.task_uid == 2
+            assert dependency.predecessor_task_uid == 1
+            assert dependency.type == DependencyType.FS
+            assert dependency.line_number is not None
 
         finally:
             # Cleanup temporary file

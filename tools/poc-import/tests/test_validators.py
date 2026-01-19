@@ -10,6 +10,7 @@ import pytest
 
 from poc_import.models import (
     Assignment,
+    Dependency,
     MSProjectData,
     ProjectMetadata,
     Resource,
@@ -20,8 +21,10 @@ from poc_import.validators import (
     DataValidator,
     MilestoneValidator,
     ValidationError,
+    ValidationSeverity,
     validate_for_initial_import,
     validate_for_sync_import,
+    validate_msproject_rules,
 )
 
 
@@ -85,6 +88,136 @@ def valid_assignment():
         resource_uid=1,
         work_hours=40,
     )
+
+
+def test_validate_rules_circular_dependency(valid_project):
+    """Test circular dependency detection.
+
+    Given: Tasks with a circular dependency
+    When: Validation rules are executed
+    Then: VAL-001 error is reported
+    """
+    tasks = [
+        Task(uid=1, name="Task 1", wbs_code="1"),
+        Task(uid=2, name="Task 2", wbs_code="2"),
+        Task(uid=3, name="Task 3", wbs_code="3"),
+    ]
+    dependencies = [
+        Dependency(task_uid=1, predecessor_task_uid=2, line_number=10),
+        Dependency(task_uid=2, predecessor_task_uid=3, line_number=11),
+        Dependency(task_uid=3, predecessor_task_uid=1, line_number=12),
+    ]
+    data = MSProjectData(
+        project=valid_project,
+        tasks=tasks,
+        dependencies=dependencies,
+        resources=[],
+        assignments=[],
+    )
+
+    report = validate_msproject_rules(data)
+
+    assert report.has_errors() is True
+    assert any(issue.id == "VAL-001" for issue in report.checks)
+
+
+def test_validate_rules_invalid_date_format(valid_project):
+    """Test invalid date format detection.
+
+    Given: Task with invalid date format
+    When: Validation rules are executed
+    Then: VAL-004 error is reported
+    """
+    task = Task(
+        uid=1,
+        name="Task 1",
+        wbs_code="1",
+        planned_start_date=None,
+        planned_finish_date=None,
+        planned_start_date_raw="15/01/2026",
+    )
+    data = MSProjectData(
+        project=valid_project,
+        tasks=[task],
+        dependencies=[],
+        resources=[],
+        assignments=[],
+    )
+
+    report = validate_msproject_rules(data)
+
+    assert report.has_errors() is True
+    assert any(issue.id == "VAL-004" for issue in report.checks)
+
+
+def test_validate_rules_missing_resource_reference(valid_project):
+    """Test resource reference validation.
+
+    Given: Assignment referencing a missing resource
+    When: Validation rules are executed
+    Then: VAL-006 error is reported
+    """
+    task = Task(uid=1, name="Task 1", wbs_code="1")
+    assignment = Assignment(task_uid=1, resource_uid=99, line_number=42)
+    data = MSProjectData(
+        project=valid_project,
+        tasks=[task],
+        dependencies=[],
+        resources=[],
+        assignments=[assignment],
+    )
+
+    report = validate_msproject_rules(data)
+
+    assert report.has_errors() is True
+    assert any(issue.id == "VAL-006" for issue in report.checks)
+
+
+def test_validate_rules_version_conflict(valid_project):
+    """Test version conflict detection.
+
+    Given: XML and API versions are different
+    When: Validation rules are executed
+    Then: VAL-007 error is reported
+    """
+    valid_project.ms_project_save_version = 14
+    data = MSProjectData(
+        project=valid_project,
+        tasks=[],
+        dependencies=[],
+        resources=[],
+        assignments=[],
+    )
+    api_project = {"ms_project_save_version": 15}
+
+    report = validate_msproject_rules(data, api_project=api_project)
+
+    assert report.has_errors() is True
+    issue = next(issue for issue in report.checks if issue.id == "VAL-007")
+    assert issue.severity == ValidationSeverity.ERROR
+
+
+def test_validate_rules_version_warning_when_missing(valid_project):
+    """Test version conflict warning when API version missing.
+
+    Given: API project missing ms_project_save_version
+    When: Validation rules are executed
+    Then: VAL-007 warning is reported
+    """
+    valid_project.ms_project_save_version = 14
+    data = MSProjectData(
+        project=valid_project,
+        tasks=[],
+        dependencies=[],
+        resources=[],
+        assignments=[],
+    )
+    api_project: dict[str, object] = {}
+
+    report = validate_msproject_rules(data, api_project=api_project)
+
+    issue = next(issue for issue in report.checks if issue.id == "VAL-007")
+    assert issue.severity == ValidationSeverity.WARNING
 
 
 def test_extract_milestones(valid_task, valid_milestone):

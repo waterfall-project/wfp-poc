@@ -15,3 +15,5 @@ class ShellState:
 
     xml_path: Path | None = None
     data: MSProjectData | None = None
+    selected_project_id: str | None = None
+    selected_project_name: str | None = None
