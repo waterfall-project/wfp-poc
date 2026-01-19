@@ -4,9 +4,12 @@
 """Validation logic for import data and business rules."""
 
 import logging
+from enum import Enum
 from typing import Any
 
-from poc_import.models import MSProjectData, Task
+from pydantic import BaseModel, Field
+
+from poc_import.models import Assignment, Dependency, MSProjectData, Task
 
 logger = logging.getLogger(__name__)
 
@@ -17,6 +20,35 @@ class ValidationError(Exception):
     def __init__(self, message: str, errors: list[dict[str, Any]] | None = None):
         super().__init__(message)
         self.errors = errors or []
+
+
+class ValidationSeverity(str, Enum):
+    """Validation issue severity."""
+
+    ERROR = "error"
+    WARNING = "warning"
+
+
+class ValidationIssue(BaseModel):
+    """Single validation issue with context and line number."""
+
+    id: str
+    severity: ValidationSeverity
+    message: str
+    line: int | None = None
+    context: dict[str, Any] = Field(default_factory=dict)
+
+
+class ValidationReport(BaseModel):
+    """Aggregated validation report."""
+
+    status: str
+    summary: dict[str, int]
+    checks: list[ValidationIssue]
+
+    def has_errors(self) -> bool:
+        """Return True if report contains any error-level issues."""
+        return self.summary.get("errors", 0) > 0
 
 
 class MilestoneValidator:
@@ -226,6 +258,287 @@ class DataValidator:
                 logger.error(f"  Error {i}: {error}")
 
         return is_valid, errors
+
+
+def validate_msproject_rules(
+    data: MSProjectData,
+    api_project: dict[str, Any] | None = None,
+    strict: bool = False,
+) -> ValidationReport:
+    """Validate MS Project data against VAL-001 to VAL-007.
+
+    Args:
+        data: Parsed MS Project data.
+        api_project: Optional project payload from API.
+        strict: Treat warnings as errors when True.
+
+    Returns:
+        Validation report with errors and warnings.
+    """
+    issues: list[ValidationIssue] = []
+
+    task_uids = {task.uid for task in data.tasks}
+    resource_uids = {resource.uid for resource in data.resources}
+
+    _validate_circular_dependencies(data.dependencies, issues)
+    _validate_task_dates(data.tasks, issues)
+    _validate_references(
+        data.dependencies,
+        data.assignments,
+        task_uids,
+        resource_uids,
+        issues,
+    )
+    _validate_version_conflict(data, api_project, issues)
+
+    errors = sum(1 for issue in issues if issue.severity == ValidationSeverity.ERROR)
+    warnings = sum(
+        1 for issue in issues if issue.severity == ValidationSeverity.WARNING
+    )
+
+    if strict and warnings:
+        for issue in issues:
+            if issue.severity == ValidationSeverity.WARNING:
+                issue.severity = ValidationSeverity.ERROR
+        errors += warnings
+        warnings = 0
+
+    status = "failed" if errors else "passed"
+    summary = {"passed": 0, "warnings": warnings, "errors": errors}
+    return ValidationReport(status=status, summary=summary, checks=issues)
+
+
+def _validate_circular_dependencies(
+    dependencies: list[Dependency],
+    issues: list[ValidationIssue],
+) -> None:
+    """Validate circular dependencies (VAL-001)."""
+    adjacency: dict[int, list[tuple[int, int | None]]] = {}
+    for dep in dependencies:
+        adjacency.setdefault(dep.task_uid, []).append(
+            (dep.predecessor_task_uid, dep.line_number)
+        )
+
+    visited: set[int] = set()
+    stack: set[int] = set()
+    path: list[int] = []
+
+    def dfs(node: int) -> None:
+        if node in stack:
+            cycle_start_index = path.index(node)
+            cycle_path = path[cycle_start_index:] + [node]
+            cycle_text = " \u2192 ".join(f"#{uid}" for uid in cycle_path)
+            issues.append(
+                ValidationIssue(
+                    id="VAL-001",
+                    severity=ValidationSeverity.ERROR,
+                    message=(
+                        f"Circular dependency detected involving tasks: {cycle_text}"
+                    ),
+                    line=_find_dependency_line(node, cycle_path, dependencies),
+                    context={"cycle": cycle_path},
+                )
+            )
+            return
+
+        if node in visited:
+            return
+
+        visited.add(node)
+        stack.add(node)
+        path.append(node)
+        for neighbor, _line in adjacency.get(node, []):
+            dfs(neighbor)
+        path.pop()
+        stack.remove(node)
+
+    for node in adjacency:
+        if node not in visited:
+            dfs(node)
+
+
+def _find_dependency_line(
+    node: int,
+    cycle_path: list[int],
+    dependencies: list[Dependency],
+) -> int | None:
+    """Find a line number for a dependency within a cycle."""
+    if len(cycle_path) < 2:
+        return None
+    pairs = list(zip(cycle_path[:-1], cycle_path[1:], strict=False))
+    for src, dest in pairs:
+        for dep in dependencies:
+            if dep.task_uid == src and dep.predecessor_task_uid == dest:
+                return dep.line_number
+    for dep in dependencies:
+        if dep.task_uid == node:
+            return dep.line_number
+    return None
+
+
+def _validate_task_dates(tasks: list[Task], issues: list[ValidationIssue]) -> None:
+    """Validate task date rules (VAL-002 to VAL-004)."""
+    for task in tasks:
+        if task.is_milestone and (
+            task.planned_start_date is None or task.planned_finish_date is None
+        ):
+            issues.append(
+                ValidationIssue(
+                    id="VAL-002",
+                    severity=ValidationSeverity.ERROR,
+                    message=(f"Milestone '#{task.uid} - {task.name}' has no date"),
+                    line=task.line_number,
+                    context={"task_id": task.uid},
+                )
+            )
+
+        if task.planned_start_date and task.planned_finish_date:
+            if task.planned_finish_date < task.planned_start_date:
+                issues.append(
+                    ValidationIssue(
+                        id="VAL-003",
+                        severity=ValidationSeverity.ERROR,
+                        message=(
+                            f"Task #{task.uid} end date ({task.planned_finish_date}) "
+                            f"< start date ({task.planned_start_date})"
+                        ),
+                        line=task.line_number,
+                        context={"task_id": task.uid},
+                    )
+                )
+
+        if task.planned_start_date_raw and task.planned_start_date is None:
+            issues.append(
+                ValidationIssue(
+                    id="VAL-004",
+                    severity=ValidationSeverity.ERROR,
+                    message=(
+                        "Invalid date format "
+                        f"'{task.planned_start_date_raw}' for task #{task.uid}. "
+                        "Expected ISO 8601: YYYY-MM-DD"
+                    ),
+                    line=task.line_number,
+                    context={"task_id": task.uid},
+                )
+            )
+
+        if task.planned_finish_date_raw and task.planned_finish_date is None:
+            issues.append(
+                ValidationIssue(
+                    id="VAL-004",
+                    severity=ValidationSeverity.ERROR,
+                    message=(
+                        "Invalid date format "
+                        f"'{task.planned_finish_date_raw}' for task #{task.uid}. "
+                        "Expected ISO 8601: YYYY-MM-DD"
+                    ),
+                    line=task.line_number,
+                    context={"task_id": task.uid},
+                )
+            )
+
+
+def _validate_references(
+    dependencies: list[Dependency],
+    assignments: list[Assignment],
+    task_uids: set[int],
+    resource_uids: set[int],
+    issues: list[ValidationIssue],
+) -> None:
+    """Validate references (VAL-005 and VAL-006)."""
+    for dep in dependencies:
+        if dep.predecessor_task_uid not in task_uids:
+            issues.append(
+                ValidationIssue(
+                    id="VAL-005",
+                    severity=ValidationSeverity.ERROR,
+                    message=(
+                        f"Task #{dep.task_uid} references non-existent "
+                        f"predecessor #{dep.predecessor_task_uid}"
+                    ),
+                    line=dep.line_number,
+                    context={
+                        "task_id": dep.task_uid,
+                        "predecessor_id": dep.predecessor_task_uid,
+                    },
+                )
+            )
+
+    for assignment in assignments:
+        if assignment.resource_uid not in resource_uids:
+            issues.append(
+                ValidationIssue(
+                    id="VAL-006",
+                    severity=ValidationSeverity.ERROR,
+                    message=(
+                        "Assignment references non-existent resource "
+                        f"#{assignment.resource_uid}"
+                    ),
+                    line=getattr(assignment, "line_number", None),
+                    context={"resource_id": assignment.resource_uid},
+                )
+            )
+
+
+def _validate_version_conflict(
+    data: MSProjectData,
+    api_project: dict[str, Any] | None,
+    issues: list[ValidationIssue],
+) -> None:
+    """Validate MS Project version conflicts (VAL-007)."""
+    if api_project is None:
+        return
+
+    api_version = api_project.get("ms_project_save_version")
+    xml_version = data.project.ms_project_save_version
+
+    if api_version is None:
+        issues.append(
+            ValidationIssue(
+                id="VAL-007",
+                severity=ValidationSeverity.WARNING,
+                message=(
+                    "Version conflict detection unavailable: "
+                    "ms_project_save_version missing in API response."
+                ),
+                line=data.project.line_number,
+                context={},
+            )
+        )
+        return
+
+    if xml_version is None:
+        issues.append(
+            ValidationIssue(
+                id="VAL-007",
+                severity=ValidationSeverity.WARNING,
+                message=(
+                    "Version conflict detection unavailable: "
+                    "SaveVersion missing in XML."
+                ),
+                line=data.project.line_number,
+                context={},
+            )
+        )
+        return
+
+    if api_version != xml_version:
+        issues.append(
+            ValidationIssue(
+                id="VAL-007",
+                severity=ValidationSeverity.ERROR,
+                message=(
+                    "Version conflict detected. XML version: "
+                    f"{xml_version}, Database version: {api_version}. "
+                    "Project modified after export. Re-export before import."
+                ),
+                line=data.project.line_number,
+                context={
+                    "xml_version": xml_version,
+                    "api_version": api_version,
+                },
+            )
+        )
 
 
 def validate_for_initial_import(data: MSProjectData) -> None:

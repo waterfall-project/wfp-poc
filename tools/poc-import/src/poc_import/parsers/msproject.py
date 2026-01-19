@@ -11,6 +11,7 @@ from pydantic import ValidationError
 
 from poc_import.models import (
     Assignment,
+    Dependency,
     DependencyType,
     MSProjectData,
     ProjectMetadata,
@@ -40,6 +41,7 @@ class MSProjectParser:
         self.xml_path = xml_path
         self.tree: etree._ElementTree | None = None
         self.root: etree._Element | None = None
+        self.dependencies: list[Dependency] = []
 
     def parse(self) -> MSProjectData:
         """Parse MS Project XML file."""
@@ -60,11 +62,17 @@ class MSProjectParser:
             return MSProjectData(
                 project=project,
                 tasks=tasks,
+                dependencies=self.dependencies,
                 resources=resources,
                 assignments=assignments,
             )
 
         except etree.XMLSyntaxError as e:
+            line = getattr(e, "lineno", None)
+            if line:
+                raise MSProjectParserError(
+                    f"Invalid XML format at line {line}: {e}"
+                ) from e
             raise MSProjectParserError(f"Invalid XML format: {e}") from e
         except ValidationError as e:
             raise MSProjectParserError(f"Data validation error: {e}") from e
@@ -78,6 +86,8 @@ class MSProjectParser:
         start_date_str = self._get_text("StartDate")
         finish_date_str = self._get_text("FinishDate")
         guid = self._get_text("GUID")
+        save_version_text = self._get_text("SaveVersion")
+        line_number = self.root.sourceline if self.root is not None else None
 
         start_date = self._parse_datetime(start_date_str) if start_date_str else None
         finish_date = self._parse_datetime(finish_date_str) if finish_date_str else None
@@ -85,17 +95,27 @@ class MSProjectParser:
         if not start_date or not finish_date:
             raise MSProjectParserError("Project must have StartDate and FinishDate")
 
+        ms_project_save_version: int | None = None
+        if save_version_text:
+            try:
+                ms_project_save_version = int(save_version_text)
+            except ValueError:
+                logger.warning("Invalid SaveVersion value: %s", save_version_text)
+
         return ProjectMetadata(
             name=name or "Untitled Project",
             title=title,
             start_date=start_date,
             finish_date=finish_date,
             guid=guid,
+            ms_project_save_version=ms_project_save_version,
+            line_number=line_number,
         )
 
     def _parse_tasks(self) -> list[Task]:
         """Parse all tasks from Tasks section."""
         tasks: list[Task] = []
+        self.dependencies = []
         if self.root is None:
             return tasks
 
@@ -125,18 +145,22 @@ class MSProjectParser:
         name = elem.findtext(f"{NS}Name", default="Unnamed Task")
         guid = elem.findtext(f"{NS}GUID")
         wbs_code = elem.findtext(f"{NS}WBS")
+        line_number = elem.sourceline
 
         is_summary = elem.findtext(f"{NS}Summary") == "1"
-        is_milestone = elem.findtext(f"{NS}Milestone") == "1"
+        milestone_flag = elem.findtext(f"{NS}Milestone") == "1"
         is_critical = elem.findtext(f"{NS}Critical") == "1"
 
         start_text = elem.findtext(f"{NS}Start")
         finish_text = elem.findtext(f"{NS}Finish")
         planned_start = self._parse_datetime(start_text) if start_text else None
         planned_finish = self._parse_datetime(finish_text) if finish_text else None
+        planned_start_raw = start_text
+        planned_finish_raw = finish_text
 
         duration_text = elem.findtext(f"{NS}Duration")
         duration_hours = self._parse_duration(duration_text) if duration_text else None
+        is_milestone = milestone_flag or (duration_hours == 0)
 
         cost_text = elem.findtext(f"{NS}Cost")
         budget = float(cost_text) if cost_text else None
@@ -144,7 +168,8 @@ class MSProjectParser:
         percent_text = elem.findtext(f"{NS}PercentComplete", default="0")
         percent_complete = float(percent_text)
 
-        predecessors = self._parse_predecessors(elem)
+        predecessors, dependencies = self._parse_predecessors(uid, elem)
+        self.dependencies.extend(dependencies)
 
         return Task(
             uid=uid,
@@ -155,16 +180,22 @@ class MSProjectParser:
             is_milestone=is_milestone,
             planned_start_date=planned_start,
             planned_finish_date=planned_finish,
+            planned_start_date_raw=planned_start_raw,
+            planned_finish_date_raw=planned_finish_raw,
             duration_hours=duration_hours,
             budget=budget,
             percent_complete=percent_complete,
             is_critical=is_critical,
             predecessors=predecessors,
+            line_number=line_number,
         )
 
-    def _parse_predecessors(self, elem: etree._Element) -> list[TaskPredecessor]:
+    def _parse_predecessors(
+        self, task_uid: int, elem: etree._Element
+    ) -> tuple[list[TaskPredecessor], list[Dependency]]:
         """Parse predecessor links for a task."""
         predecessors: list[TaskPredecessor] = []
+        dependencies: list[Dependency] = []
 
         for pred_elem in elem.findall(f"{NS}PredecessorLink"):
             uid_text = pred_elem.findtext(f"{NS}PredecessorUID")
@@ -174,24 +205,36 @@ class MSProjectParser:
             pred_uid = int(uid_text)
             type_text = pred_elem.findtext(f"{NS}Type", default="1")
             type_map = {
-                "0": DependencyType.SS,
+                "0": DependencyType.FF,
                 "1": DependencyType.FS,
-                "2": DependencyType.FF,
-                "3": DependencyType.SF,
+                "2": DependencyType.SF,
+                "3": DependencyType.SS,
             }
             dep_type = type_map.get(type_text, DependencyType.FS)
             lag_text = pred_elem.findtext(f"{NS}LinkLag", default="0")
             lag = int(lag_text)
+            line_number = pred_elem.sourceline
 
             predecessors.append(
                 TaskPredecessor(
                     predecessor_task_uid=pred_uid,
                     type=dep_type,
                     lag=lag,
+                    line_number=line_number,
                 )
             )
 
-        return predecessors
+            dependencies.append(
+                Dependency(
+                    task_uid=task_uid,
+                    predecessor_task_uid=pred_uid,
+                    type=dep_type,
+                    lag=lag,
+                    line_number=line_number,
+                )
+            )
+
+        return predecessors, dependencies
 
     def _parse_resources(self) -> list[Resource]:
         """Parse all resources from Resources section."""
@@ -224,6 +267,7 @@ class MSProjectParser:
         uid = int(uid_text)
         name = elem.findtext(f"{NS}Name", default="Unnamed Resource")
         guid = elem.findtext(f"{NS}GUID")
+        line_number = elem.sourceline
 
         type_text = elem.findtext(f"{NS}Type", default="1")
         type_map = {
@@ -246,6 +290,7 @@ class MSProjectParser:
             type=resource_type,
             standard_rate=standard_rate,
             max_units=max_units,
+            line_number=line_number,
         )
 
     def _parse_assignments(self) -> list[Assignment]:
@@ -285,12 +330,14 @@ class MSProjectParser:
 
         units_text = elem.findtext(f"{NS}Units", default="1.0")
         units = float(units_text)
+        line_number = elem.sourceline
 
         return Assignment(
             task_uid=task_uid,
             resource_uid=resource_uid,
             work_hours=work_hours,
             units=units,
+            line_number=line_number,
         )
 
     def _get_text(self, element_name: str, default: str | None = None) -> str | None:

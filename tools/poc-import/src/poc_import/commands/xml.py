@@ -3,14 +3,18 @@
 
 """XML inspection commands for the interactive shell."""
 
+import json
+import sys
 from datetime import datetime
 from pathlib import Path
 
 import click
+from rich.table import Table
 
 from poc_import.cli_support import console, setup_logging
 from poc_import.parsers.msproject import MSProjectParser
 from poc_import.shell_state import ShellState
+from poc_import.validators import validate_msproject_rules
 
 
 @click.group(
@@ -19,7 +23,8 @@ from poc_import.shell_state import ShellState
         "Commands:\n"
         "  load  Load an XML file\n"
         "  list  List XML entities (see help xml list)\n"
-        "  show  Show XML entities (see help xml show)"
+        "  show  Show XML entities (see help xml show)\n"
+        "  validate  Validate XML entities"
     )
 )
 def xml() -> None:
@@ -118,3 +123,60 @@ def xml_show_task(state: ShellState, task_id: int) -> None:
         if isinstance(value, datetime):
             value = value.isoformat()
         console.print(f"{key}: {value}")
+
+
+@xml.command("validate", help="Validate loaded XML data.")
+@click.option(
+    "--output",
+    type=click.Choice(["table", "json"], case_sensitive=False),
+    default="table",
+    show_default=True,
+    help="Output format",
+)
+@click.option(
+    "--strict",
+    is_flag=True,
+    help="Treat warnings as errors",
+)
+@click.pass_obj
+def xml_validate(state: ShellState, output: str, strict: bool) -> None:
+    """Validate XML data using built-in rules."""
+    if not state.data:
+        console.print("[red]Error:[/red] No XML loaded. Use `xml load <file>`.")
+        return
+
+    setup_logging(verbose=False)
+    report = validate_msproject_rules(state.data, strict=strict)
+    payload = report.model_dump()
+
+    if output.lower() == "json":
+        console.print_json(json.dumps(payload))
+        if report.has_errors():
+            sys.exit(2)
+        return
+
+    table = Table(title="Validation Report")
+    table.add_column("Severity")
+    table.add_column("Rule")
+    table.add_column("Message")
+    table.add_column("Line")
+
+    for issue in report.checks:
+        severity = issue.severity.value.upper()
+        table.add_row(
+            severity,
+            issue.id,
+            issue.message,
+            str(issue.line or ""),
+        )
+
+    console.print(table)
+    summary = report.summary
+    console.print(
+        "Validation summary: "
+        f"{summary.get('errors', 0)} errors, "
+        f"{summary.get('warnings', 0)} warnings"
+    )
+
+    if report.has_errors():
+        sys.exit(2)

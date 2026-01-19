@@ -22,7 +22,7 @@ format:  ## Format code with ruff
 	ruff format .
 
 type-check:  ## Run type checking with mypy
-	mypy poc_import
+	mypy .
 
 clean:  ## Clean build artifacts and cache files
 	rm -rf build dist *.egg-info

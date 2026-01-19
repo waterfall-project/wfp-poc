@@ -21,6 +21,7 @@ def sample_msproject_xml():
 <Project xmlns="http://schemas.microsoft.com/project">
     <Name>Test Project</Name>
     <Title>Test Project Title</Title>
+    <SaveVersion>14</SaveVersion>
     <StartDate>2026-01-15T08:00:00</StartDate>
     <FinishDate>2026-12-31T17:00:00</FinishDate>
     <GUID>12345678-1234-1234-1234-123456789012</GUID>
