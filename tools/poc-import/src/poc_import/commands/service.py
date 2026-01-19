@@ -83,6 +83,91 @@ def _print_kv(data: dict[str, Any]) -> None:
         console.print(f"{key}: {value}")
 
 
+def _matches_id(value: Any, target: str) -> bool:
+    """Return True when value matches target ID as string."""
+    if value is None:
+        return False
+    return str(value) == str(target)
+
+
+def _filter_assignments_for_task(
+    items: list[dict[str, Any]],
+    task_id: str,
+) -> list[dict[str, Any]]:
+    """Filter assignments for a given task ID."""
+    return [item for item in items if _matches_id(item.get("task_id"), task_id)]
+
+
+def _filter_assignments_for_resource(
+    items: list[dict[str, Any]],
+    resource_id: str,
+) -> list[dict[str, Any]]:
+    """Filter assignments for a given resource ID."""
+    return [item for item in items if _matches_id(item.get("resource_id"), resource_id)]
+
+
+def _filter_dependencies_for_task(
+    items: list[dict[str, Any]],
+    task_id: str,
+) -> list[dict[str, Any]]:
+    """Filter dependencies where task is predecessor or successor."""
+    return [
+        item
+        for item in items
+        if _matches_id(item.get("task_id"), task_id)
+        or _matches_id(item.get("successor_task_id"), task_id)
+        or _matches_id(item.get("predecessor_task_id"), task_id)
+    ]
+
+
+def _print_assignments_table(assignments: list[dict[str, Any]]) -> None:
+    """Print assignments table."""
+    if not assignments:
+        console.print("No assignments found.")
+        return
+
+    table = Table(title="Assignments")
+    table.add_column("ID", style="cyan")
+    table.add_column("Task ID")
+    table.add_column("Resource ID")
+    table.add_column("Work")
+
+    for item in assignments:
+        table.add_row(
+            str(item.get("id", "")),
+            str(item.get("task_id", "")),
+            str(item.get("resource_id", "")),
+            str(item.get("work_hours", item.get("work", ""))),
+        )
+
+    console.print(table)
+
+
+def _print_dependencies_table(dependencies: list[dict[str, Any]]) -> None:
+    """Print dependencies table."""
+    if not dependencies:
+        console.print("No dependencies found.")
+        return
+
+    table = Table(title="Dependencies")
+    table.add_column("ID", style="cyan")
+    table.add_column("Predecessor")
+    table.add_column("Successor")
+    table.add_column("Type")
+    table.add_column("Lag")
+
+    for item in dependencies:
+        table.add_row(
+            str(item.get("id", "")),
+            str(item.get("predecessor_task_id", "")),
+            str(item.get("task_id", item.get("successor_task_id", ""))),
+            str(item.get("type", "")),
+            str(item.get("lag", "")),
+        )
+
+    console.print(table)
+
+
 @click.group(
     help=(
         "Manipulating the wfp-poc service.\n\n"
@@ -869,16 +954,36 @@ def service_show_task(
 
     try:
         result = client.get_project_task(project_id, task_id)
+        assignments_result = client.list_assignments(project_id=project_id)
+        dependencies_result = client.list_dependencies(project_id=project_id)
     except WfpApiError as exc:
         console.print(f"[red]Error:[/red] {redact_secrets(str(exc))}")
         sys.exit(2)
 
     data = result.get("data", result)
+    assignments = _filter_assignments_for_task(
+        assignments_result.get("data", []), task_id
+    )
+    dependencies = _filter_dependencies_for_task(
+        dependencies_result.get("data", []), task_id
+    )
     if output.lower() == "json":
-        _output_json({"data": data})
+        _output_json(
+            {
+                "data": data,
+                "assignments": assignments,
+                "dependencies": dependencies,
+            }
+        )
         return
 
     _print_kv(data)
+    console.print()
+    console.print("Assignments:")
+    _print_assignments_table(assignments)
+    console.print()
+    console.print("Dependencies:")
+    _print_dependencies_table(dependencies)
     log_duration(start_time, "service show task", logger)
 
 
@@ -928,7 +1033,9 @@ def service_show_task(
     is_flag=True,
     help="Enable verbose logging",
 )
+@click.pass_obj
 def service_show_resource(
+    state: ShellState,
     resource_id: str,
     output: str,
     token: str | None,
@@ -942,20 +1049,28 @@ def service_show_resource(
     setup_logging(verbose, log_level)
     logger = logging.getLogger(__name__)
     start_time = time.monotonic()
+    project_id = _require_selected_project(state)
     client = _build_client(api_url, token, company_id, env_name)
 
     try:
         result = client.get_resource(resource_id)
+        assignments_result = client.list_assignments(project_id=project_id)
     except WfpApiError as exc:
         console.print(f"[red]Error:[/red] {redact_secrets(str(exc))}")
         sys.exit(2)
 
     data = result.get("data", result)
+    assignments = _filter_assignments_for_resource(
+        assignments_result.get("data", []), resource_id
+    )
     if output.lower() == "json":
-        _output_json({"data": data})
+        _output_json({"data": data, "assignments": assignments})
         return
 
     _print_kv(data)
+    console.print()
+    console.print("Assignments:")
+    _print_assignments_table(assignments)
     log_duration(start_time, "service show resource", logger)
 
 
