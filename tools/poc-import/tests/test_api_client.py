@@ -10,6 +10,7 @@ import pytest
 import requests_mock
 
 from poc_import.api.client import WfpApiClient, WfpApiError
+from poc_import.commands.service import _build_client
 from poc_import.models import (
     Assignment,
     MSProjectData,
@@ -252,6 +253,25 @@ def test_create_assignments_bulk_success(api_client, sample_assignment):
 
     with pytest.raises(WfpApiError, match="requires UID->UUID mapping"):
         api_client.create_assignments_bulk(project_id, assignments)
+
+
+def test_service_build_client_token_override(monkeypatch):
+    """Test that explicit token overrides env token.
+
+    Given: WFP_JWT_TOKEN is set in environment
+    When: _build_client is called with a token argument
+    Then: The client uses the explicit token
+    """
+    monkeypatch.setenv("WFP_JWT_TOKEN", "env-token")
+
+    client = _build_client(
+        api_url="http://localhost:5000",
+        token="override-token",
+        company_id=None,
+        env_name=None,
+    )
+
+    assert client.token == "override-token"
 
 
 def test_import_msproject_data_initial(

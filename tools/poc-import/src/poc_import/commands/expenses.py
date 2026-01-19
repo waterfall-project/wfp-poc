@@ -5,12 +5,11 @@
 
 import sys
 from pathlib import Path
-from typing import Optional
 
 import click
 
 from poc_import.cli_support import console, setup_logging
-from poc_import.config import Config
+from poc_import.config import Config, load_env_file
 
 
 @click.command(help="Import expenses from an Excel file (not implemented).")
@@ -20,6 +19,12 @@ from poc_import.config import Config
     type=str,
     required=True,
     help="Project UUID",
+)
+@click.option(
+    "--env",
+    "env_name",
+    type=click.Choice(["dev", "staging", "prod"], case_sensitive=False),
+    help="Environment to load (.env.dev/.env.staging/.env.prod)",
 )
 @click.option(
     "--token",
@@ -48,13 +53,15 @@ from poc_import.config import Config
 def expenses(
     excel_file: Path,
     project_id: str,
-    token: Optional[str],
+    env_name: str | None,
+    token: str | None,
     api_url: str,
     dry_run: bool,
     verbose: bool,
 ) -> None:
     """Import expenses from Excel file."""
     setup_logging(verbose)
+    load_env_file(env_name)
     config = Config()
 
     api_url = api_url or config.api_url

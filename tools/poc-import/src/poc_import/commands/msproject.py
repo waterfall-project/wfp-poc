@@ -12,8 +12,8 @@ import click
 from rich.progress import Progress, SpinnerColumn, TextColumn
 
 from poc_import.api.client import WfpApiClient, WfpApiError
-from poc_import.cli_support import console, setup_logging
-from poc_import.config import Config
+from poc_import.cli_support import console, redact_secrets, setup_logging
+from poc_import.config import Config, load_env_file
 from poc_import.models import ImportMode, ImportReport
 from poc_import.parsers.msproject import MSProjectParser, MSProjectParserError
 from poc_import.validators import (
@@ -35,6 +35,12 @@ from poc_import.validators import (
     "--project-id",
     type=str,
     help="Existing project UUID (required for sync mode)",
+)
+@click.option(
+    "--env",
+    "env_name",
+    type=click.Choice(["dev", "staging", "prod"], case_sensitive=False),
+    help="Environment to load (.env.dev/.env.staging/.env.prod)",
 )
 @click.option(
     "--token",
@@ -74,6 +80,7 @@ def msproject(
     xml_file: Path,
     mode: str,
     project_id: str | None,
+    env_name: str | None,
     token: str | None,
     api_url: str,
     company_id: str | None,
@@ -98,6 +105,7 @@ def msproject(
         poc-import msproject planning.xml --mode=initial --token=$TOKEN --dry-run
     """
     setup_logging(verbose)
+    load_env_file(env_name)
     logger = logging.getLogger(__name__)
     config = Config()
 
@@ -191,7 +199,9 @@ def msproject(
             client.validate_token()
             console.print("[green]✓[/green] Authentication successful")
         except WfpApiError as e:
-            console.print(f"\n[red]✗ Authentication failed:[/red] {e}")
+            console.print(
+                f"\n[red]✗ Authentication failed:[/red] {redact_secrets(str(e))}"
+            )
             if e.status_code == 401:
                 console.print("  Check your JWT token and try again")
             sys.exit(2)

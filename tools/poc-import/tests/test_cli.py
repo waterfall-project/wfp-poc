@@ -147,3 +147,37 @@ class TestCLI:
             assert "not yet implemented" in result.output
         finally:
             Path(tmp_path).unlink()
+
+    def test_msproject_missing_token_error(
+        self, sample_msproject_xml, monkeypatch, tmp_path
+    ):
+        """Test msproject error when token is missing.
+
+        Given: No JWT token is available in env
+        When: msproject runs without --token
+        Then: A clear error is shown
+        """
+        runner = CliRunner()
+        monkeypatch.delenv("WFP_JWT_TOKEN", raising=False)
+        monkeypatch.delenv("JWT_SECRET_KEY", raising=False)
+        monkeypatch.delenv("WFP_USER_ID", raising=False)
+        monkeypatch.delenv("WFP_COMPANY_ID", raising=False)
+        monkeypatch.setenv("WFP_ENV_FILE", str(tmp_path / "missing.env"))
+
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".xml", delete=False) as tmp:
+            tmp.write(sample_msproject_xml)
+            tmp_path = tmp.name
+
+        try:
+            result = runner.invoke(
+                cli,
+                [
+                    "msproject",
+                    tmp_path,
+                    "--mode=initial",
+                ],
+            )
+            assert result.exit_code == 1
+            assert "--token is required" in result.output
+        finally:
+            Path(tmp_path).unlink()
