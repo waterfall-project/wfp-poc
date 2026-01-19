@@ -5,7 +5,6 @@
 
 from datetime import datetime
 from enum import Enum
-from typing import Optional
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -39,10 +38,10 @@ class ProjectMetadata(BaseModel):
     """MS Project metadata."""
 
     name: str
-    title: Optional[str] = None
+    title: str | None = None
     start_date: datetime
     finish_date: datetime
-    guid: Optional[str] = None
+    guid: str | None = None
 
 
 class TaskPredecessor(BaseModel):
@@ -57,15 +56,15 @@ class Task(BaseModel):
     """MS Project task."""
 
     uid: int
-    guid: Optional[str] = None
+    guid: str | None = None
     name: str
-    wbs_code: Optional[str] = None
+    wbs_code: str | None = None
     is_summary: bool = False
     is_milestone: bool = False
-    planned_start_date: Optional[datetime] = None
-    planned_finish_date: Optional[datetime] = None
-    duration_hours: Optional[float] = None
-    budget: Optional[float] = None
+    planned_start_date: datetime | None = None
+    planned_finish_date: datetime | None = None
+    duration_hours: float | None = None
+    budget: float | None = None
     percent_complete: float = 0
     is_critical: bool = False
     predecessors: list[TaskPredecessor] = Field(default_factory=list)
@@ -75,10 +74,10 @@ class Resource(BaseModel):
     """MS Project resource."""
 
     uid: int
-    guid: Optional[str] = None
+    guid: str | None = None
     name: str
     type: ResourceType
-    standard_rate: Optional[float] = None
+    standard_rate: float | None = None
     max_units: float = 1.0
 
 
@@ -111,5 +110,5 @@ class ImportReport(BaseModel):
     failed_count: int = 0
     validation_errors: list[str] = Field(default_factory=list)
     api_errors: list[str] = Field(default_factory=list)
-    project_id: Optional[UUID] = None
+    project_id: UUID | None = None
     timestamp: datetime = Field(default_factory=datetime.utcnow)

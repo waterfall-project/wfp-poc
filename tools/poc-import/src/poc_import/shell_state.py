@@ -5,7 +5,6 @@
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
 
 from poc_import.models import MSProjectData
 
@@ -14,5 +13,5 @@ from poc_import.models import MSProjectData
 class ShellState:
     """State for interactive shell session."""
 
-    xml_path: Optional[Path] = None
-    data: Optional[MSProjectData] = None
+    xml_path: Path | None = None
+    data: MSProjectData | None = None

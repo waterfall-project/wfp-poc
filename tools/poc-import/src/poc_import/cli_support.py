@@ -68,7 +68,7 @@ class CorrelationIdFilter(logging.Filter):
         return True
 
 
-def _record_factory(*args, **kwargs) -> logging.LogRecord:
+def _record_factory(*args: object, **kwargs: object) -> logging.LogRecord:
     record = _base_log_record_factory(*args, **kwargs)
     if not hasattr(record, "correlation_id"):
         record.correlation_id = get_correlation_id()

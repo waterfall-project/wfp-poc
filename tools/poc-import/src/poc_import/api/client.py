@@ -5,7 +5,7 @@
 
 import logging
 import math
-from typing import Any, Optional
+from typing import Any
 
 import requests
 from requests.adapters import HTTPAdapter
@@ -28,8 +28,8 @@ class WfpApiError(Exception):
     def __init__(
         self,
         message: str,
-        status_code: Optional[int] = None,
-        response_data: Optional[dict[str, Any]] = None,
+        status_code: int | None = None,
+        response_data: dict[str, Any] | None = None,
     ):
         super().__init__(message)
         self.status_code = status_code
@@ -52,7 +52,7 @@ class WfpApiClient:
         base_url: str,
         token: str,
         correlation_id: str,
-        company_id: Optional[str] = None,
+        company_id: str | None = None,
         timeout: int = 30,
     ):
         """Initialize API client.
@@ -271,8 +271,8 @@ class WfpApiClient:
 
     def list_projects(
         self,
-        page: Optional[int] = None,
-        per_page: Optional[int] = None,
+        page: int | None = None,
+        per_page: int | None = None,
     ) -> dict[str, Any]:
         """List projects.
 
@@ -303,8 +303,8 @@ class WfpApiClient:
     def list_project_tasks(
         self,
         project_id: str,
-        page: Optional[int] = None,
-        per_page: Optional[int] = None,
+        page: int | None = None,
+        per_page: int | None = None,
     ) -> dict[str, Any]:
         """List tasks for a project.
 

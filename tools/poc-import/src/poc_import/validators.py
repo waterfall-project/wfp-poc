@@ -4,7 +4,7 @@
 """Validation logic for import data and business rules."""
 
 import logging
-from typing import Any, Optional
+from typing import Any
 
 from poc_import.models import MSProjectData, Task
 
@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 class ValidationError(Exception):
     """Base exception for validation errors."""
 
-    def __init__(self, message: str, errors: Optional[list[dict[str, Any]]] = None):
+    def __init__(self, message: str, errors: list[dict[str, Any]] | None = None):
         super().__init__(message)
         self.errors = errors or []
 
