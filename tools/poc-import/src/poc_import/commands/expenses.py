@@ -3,14 +3,21 @@
 
 """Excel expenses import command."""
 
+import logging
 import sys
+import time
+import uuid
 from pathlib import Path
-from typing import Optional
 
 import click
 
-from poc_import.cli_support import console, setup_logging
-from poc_import.config import Config
+from poc_import.cli_support import (
+    console,
+    log_duration,
+    set_correlation_id,
+    setup_logging,
+)
+from poc_import.config import Config, load_env_file
 
 
 @click.command(help="Import expenses from an Excel file (not implemented).")
@@ -20,6 +27,12 @@ from poc_import.config import Config
     type=str,
     required=True,
     help="Project UUID",
+)
+@click.option(
+    "--env",
+    "env_name",
+    type=click.Choice(["dev", "staging", "prod"], case_sensitive=False),
+    help="Environment to load (.env.dev/.env.staging/.env.prod)",
 )
 @click.option(
     "--token",
@@ -40,6 +53,13 @@ from poc_import.config import Config
     help="Validate only, do not call API",
 )
 @click.option(
+    "--log-level",
+    type=click.Choice(
+        ["debug", "info", "warning", "error", "critical"], case_sensitive=False
+    ),
+    help="Logging level",
+)
+@click.option(
     "--verbose",
     "-v",
     is_flag=True,
@@ -48,13 +68,19 @@ from poc_import.config import Config
 def expenses(
     excel_file: Path,
     project_id: str,
-    token: Optional[str],
+    env_name: str | None,
+    token: str | None,
     api_url: str,
     dry_run: bool,
+    log_level: str | None,
     verbose: bool,
 ) -> None:
     """Import expenses from Excel file."""
-    setup_logging(verbose)
+    setup_logging(verbose, log_level)
+    load_env_file(env_name)
+    logger = logging.getLogger(__name__)
+    start_time = time.monotonic()
+    set_correlation_id(str(uuid.uuid4()))
     config = Config()
 
     api_url = api_url or config.api_url
@@ -75,4 +101,5 @@ def expenses(
     console.print("[yellow]⚠ Excel expenses import not yet implemented[/yellow]")
     console.print(f"  File: {excel_file}")
     console.print(f"  Project ID: {project_id}")
+    log_duration(start_time, "excel expenses", logger)
     sys.exit(0)

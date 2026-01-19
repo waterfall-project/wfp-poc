@@ -3,13 +3,14 @@
 
 """Tests for API client."""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import uuid4
 
 import pytest
 import requests_mock
 
 from poc_import.api.client import WfpApiClient, WfpApiError
+from poc_import.commands.service import _build_client
 from poc_import.models import (
     Assignment,
     MSProjectData,
@@ -35,8 +36,8 @@ def sample_project():
     """Create sample project metadata."""
     return ProjectMetadata(
         name="Test Project",
-        start_date=datetime(2026, 1, 1, tzinfo=timezone.utc),
-        finish_date=datetime(2026, 12, 31, tzinfo=timezone.utc),
+        start_date=datetime(2026, 1, 1, tzinfo=UTC),
+        finish_date=datetime(2026, 12, 31, tzinfo=UTC),
         guid=str(uuid4()),
     )
 
@@ -48,8 +49,8 @@ def sample_task():
         uid=1,
         name="Test Task",
         wbs_code="1.1",
-        planned_start_date=datetime(2026, 1, 1, tzinfo=timezone.utc),
-        planned_finish_date=datetime(2026, 1, 31, tzinfo=timezone.utc),
+        planned_start_date=datetime(2026, 1, 1, tzinfo=UTC),
+        planned_finish_date=datetime(2026, 1, 31, tzinfo=UTC),
         duration_hours=160,
         is_milestone=False,
         guid=str(uuid4()),
@@ -160,7 +161,7 @@ def test_get_project_milestones_success(api_client):
         m.get(
             f"http://localhost:5000/v0/projects/{project_id}/milestones",
             json={
-                "milestones": [
+                "data": [
                     {"id": str(uuid4()), "name": "Milestone 1"},
                     {"id": str(uuid4()), "name": "Milestone 2"},
                 ]
@@ -250,12 +251,27 @@ def test_create_assignments_bulk_success(api_client, sample_assignment):
     project_id = str(uuid4())
     assignments = [sample_assignment]
 
-    result = api_client.create_assignments_bulk(project_id, assignments)
+    with pytest.raises(WfpApiError, match="requires UID->UUID mapping"):
+        api_client.create_assignments_bulk(project_id, assignments)
 
-    # Assignments not implemented - should return failed
-    assert result["created_count"] == 0
-    assert result["failed_count"] == 1
-    assert len(result["errors"]) == 1
+
+def test_service_build_client_token_override(monkeypatch):
+    """Test that explicit token overrides env token.
+
+    Given: WFP_JWT_TOKEN is set in environment
+    When: _build_client is called with a token argument
+    Then: The client uses the explicit token
+    """
+    monkeypatch.setenv("WFP_JWT_TOKEN", "env-token")
+
+    client = _build_client(
+        api_url="http://localhost:5000",
+        token="override-token",
+        company_id=None,
+        env_name=None,
+    )
+
+    assert client.token == "override-token"
 
 
 def test_import_msproject_data_initial(

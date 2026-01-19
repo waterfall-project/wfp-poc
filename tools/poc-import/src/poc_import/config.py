@@ -11,38 +11,58 @@ from pathlib import Path
 
 import jwt
 from dotenv import load_dotenv
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
-def _load_env_file() -> None:
-    """Load poc-import environment file if present."""
+def load_env_file(env_name: str | None = None, *, override: bool = True) -> None:
+    """Load poc-import environment file if present.
+
+    Args:
+        env_name: Optional environment name (dev/staging/prod).
+        override: Whether to override existing environment variables.
+    """
     repo_root = Path(__file__).resolve().parents[4]
+
+    if env_name:
+        env_filename = f".env.{env_name}"
+        candidate_paths = [
+            (Path.cwd() / env_filename).resolve(),
+            (repo_root / env_filename).resolve(),
+            (repo_root / "tools" / "poc-import" / env_filename).resolve(),
+        ]
+        for path in candidate_paths:
+            if path.exists():
+                load_dotenv(path, override=override)
+                return
+
     env_value = os.getenv("WFP_ENV_FILE")
     if env_value:
         env_path = Path(env_value)
         if not env_path.is_absolute():
             cwd_path = (Path.cwd() / env_path).resolve()
             if cwd_path.exists():
-                load_dotenv(cwd_path)
+                load_dotenv(cwd_path, override=override)
                 return
             repo_path = (repo_root / env_path).resolve()
             if repo_path.exists():
-                load_dotenv(repo_path)
+                load_dotenv(repo_path, override=override)
                 return
         if env_path.exists():
-            load_dotenv(env_path)
+            load_dotenv(env_path, override=override)
         return
 
     default_path = repo_root / "tools" / "poc-import" / ".env"
     if default_path.exists():
-        load_dotenv(default_path)
+        load_dotenv(default_path, override=override)
 
 
-_load_env_file()
+load_env_file()
 
 
 class Config(BaseModel):
     """Application configuration."""
+
+    model_config = ConfigDict(frozen=True)
 
     api_url: str = Field(
         default_factory=lambda: os.getenv("WFP_API_URL", "http://localhost:5000"),
@@ -103,8 +123,3 @@ class Config(BaseModel):
         }
         token = jwt.encode(payload, self.jwt_secret_key, algorithm=self.jwt_algorithm)
         return token if isinstance(token, str) else token.decode("utf-8")
-
-    class Config:
-        """Pydantic config."""
-
-        frozen = True

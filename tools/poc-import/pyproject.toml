@@ -6,7 +6,7 @@ name = "poc-import"
 version = "1.0.0"
 description = "MS Project and Excel import service for wfp-poc API"
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.11"
 license = {text = "Commercial"}
 authors = [
     {name = "Waterfall Team", email = "team@waterfall-services.io"},
@@ -16,10 +16,9 @@ classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.9",
-    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
 ]
 
 dependencies = [
@@ -84,7 +83,7 @@ addopts = [
 ]
 
 [tool.ruff]
-target-version = "py39"
+target-version = "py311"
 line-length = 88
 exclude = [
     ".git",
@@ -110,7 +109,7 @@ ignore = []
 known-first-party = ["poc_import"]
 
 [tool.mypy]
-python_version = "3.9"
+python_version = "3.11"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true

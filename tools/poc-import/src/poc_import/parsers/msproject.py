@@ -5,7 +5,6 @@
 
 import logging
 from datetime import datetime
-from typing import Optional
 
 from lxml import etree
 from pydantic import ValidationError
@@ -39,8 +38,8 @@ class MSProjectParser:
     def __init__(self, xml_path: str) -> None:
         """Initialize parser with XML file path."""
         self.xml_path = xml_path
-        self.tree: Optional[etree._ElementTree] = None
-        self.root: Optional[etree._Element] = None
+        self.tree: etree._ElementTree | None = None
+        self.root: etree._Element | None = None
 
     def parse(self) -> MSProjectData:
         """Parse MS Project XML file."""
@@ -50,10 +49,8 @@ class MSProjectParser:
 
             project = self._parse_project_metadata()
             tasks = self._parse_tasks()
-            # resources = self._parse_resources()
-            # assignments = self._parse_assignments()
-            resources: list[Resource] = []
-            assignments: list[Assignment] = []
+            resources = self._parse_resources()
+            assignments = self._parse_assignments()
 
             logger.info(
                 f"Parsed MS Project: {len(tasks)} tasks, "
@@ -118,7 +115,7 @@ class MSProjectParser:
 
         return tasks
 
-    def _parse_task(self, elem: etree._Element) -> Optional[Task]:
+    def _parse_task(self, elem: etree._Element) -> Task | None:
         """Parse single task element."""
         uid_text = elem.findtext(f"{NS}UID")
         if not uid_text or uid_text == "0":
@@ -169,27 +166,30 @@ class MSProjectParser:
         """Parse predecessor links for a task."""
         predecessors: list[TaskPredecessor] = []
 
-        pred_elem = elem.find(f"{NS}PredecessorLink")
-        if pred_elem is not None:
+        for pred_elem in elem.findall(f"{NS}PredecessorLink"):
             uid_text = pred_elem.findtext(f"{NS}PredecessorUID")
-            if uid_text and uid_text != "0":
-                pred_uid = int(uid_text)
-                type_text = pred_elem.findtext(f"{NS}Type", default="1")
-                type_map = {
-                    "0": DependencyType.SS,
-                    "1": DependencyType.FS,
-                    "2": DependencyType.FF,
-                    "3": DependencyType.SF,
-                }
-                dep_type = type_map.get(type_text, DependencyType.FS)
-                lag_text = pred_elem.findtext(f"{NS}LinkLag", default="0")
-                lag = int(lag_text)
+            if not uid_text or uid_text == "0":
+                continue
 
-                predecessors.append(
-                    TaskPredecessor(
-                        predecessor_task_uid=pred_uid, type=dep_type, lag=lag
-                    )
+            pred_uid = int(uid_text)
+            type_text = pred_elem.findtext(f"{NS}Type", default="1")
+            type_map = {
+                "0": DependencyType.SS,
+                "1": DependencyType.FS,
+                "2": DependencyType.FF,
+                "3": DependencyType.SF,
+            }
+            dep_type = type_map.get(type_text, DependencyType.FS)
+            lag_text = pred_elem.findtext(f"{NS}LinkLag", default="0")
+            lag = int(lag_text)
+
+            predecessors.append(
+                TaskPredecessor(
+                    predecessor_task_uid=pred_uid,
+                    type=dep_type,
+                    lag=lag,
                 )
+            )
 
         return predecessors
 
@@ -215,7 +215,7 @@ class MSProjectParser:
 
         return resources
 
-    def _parse_resource(self, elem: etree._Element) -> Optional[Resource]:
+    def _parse_resource(self, elem: etree._Element) -> Resource | None:
         """Parse single resource element."""
         uid_text = elem.findtext(f"{NS}UID")
         if not uid_text or uid_text == "0":
@@ -269,7 +269,7 @@ class MSProjectParser:
 
         return assignments
 
-    def _parse_assignment(self, elem: etree._Element) -> Optional[Assignment]:
+    def _parse_assignment(self, elem: etree._Element) -> Assignment | None:
         """Parse single assignment element."""
         task_uid_text = elem.findtext(f"{NS}TaskUID")
         resource_uid_text = elem.findtext(f"{NS}ResourceUID")
@@ -293,18 +293,14 @@ class MSProjectParser:
             units=units,
         )
 
-    def _get_text(
-        self, element_name: str, default: Optional[str] = None
-    ) -> Optional[str]:
+    def _get_text(self, element_name: str, default: str | None = None) -> str | None:
         """Get text content of element."""
         if self.root is None:
             return default
-        result: Optional[str] = self.root.findtext(
-            f"{NS}{element_name}", default=default
-        )
+        result: str | None = self.root.findtext(f"{NS}{element_name}", default=default)
         return result
 
-    def _parse_datetime(self, date_str: Optional[str]) -> Optional[datetime]:
+    def _parse_datetime(self, date_str: str | None) -> datetime | None:
         """Parse MS Project datetime string."""
         if not date_str:
             return None

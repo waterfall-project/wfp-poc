@@ -28,6 +28,7 @@ class TestCLI:
         assert result.exit_code == 0
         assert "poc-import" in result.output
         assert "msproject" in result.output
+        assert "excel" in result.output
 
     def test_msproject_help(self):
         """Test msproject subcommand help."""
@@ -112,6 +113,7 @@ class TestCLI:
             result = runner.invoke(
                 cli,
                 [
+                    "excel",
                     "expenses",
                     tmp_path,
                     "--project-id=12345678-1234-1234-1234-123456789012",
@@ -134,6 +136,7 @@ class TestCLI:
             result = runner.invoke(
                 cli,
                 [
+                    "excel",
                     "rae",
                     tmp_path,
                     "--project-id=12345678-1234-1234-1234-123456789012",
@@ -144,3 +147,37 @@ class TestCLI:
             assert "not yet implemented" in result.output
         finally:
             Path(tmp_path).unlink()
+
+    def test_msproject_missing_token_error(
+        self, sample_msproject_xml, monkeypatch, tmp_path
+    ):
+        """Test msproject error when token is missing.
+
+        Given: No JWT token is available in env
+        When: msproject runs without --token
+        Then: A clear error is shown
+        """
+        runner = CliRunner()
+        monkeypatch.delenv("WFP_JWT_TOKEN", raising=False)
+        monkeypatch.delenv("JWT_SECRET_KEY", raising=False)
+        monkeypatch.delenv("WFP_USER_ID", raising=False)
+        monkeypatch.delenv("WFP_COMPANY_ID", raising=False)
+        monkeypatch.setenv("WFP_ENV_FILE", str(tmp_path / "missing.env"))
+
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".xml", delete=False) as tmp:
+            tmp.write(sample_msproject_xml)
+            xml_file_path = tmp.name
+
+        try:
+            result = runner.invoke(
+                cli,
+                [
+                    "msproject",
+                    xml_file_path,
+                    "--mode=initial",
+                ],
+            )
+            assert result.exit_code == 1
+            assert "--token is required" in result.output
+        finally:
+            Path(xml_file_path).unlink()

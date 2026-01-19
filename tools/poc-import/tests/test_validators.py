@@ -3,7 +3,7 @@
 
 """Tests for validators."""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import uuid4
 
 import pytest
@@ -30,8 +30,8 @@ def valid_project():
     """Create valid project metadata."""
     return ProjectMetadata(
         name="Test Project",
-        start_date=datetime(2026, 1, 1, tzinfo=timezone.utc),
-        finish_date=datetime(2026, 12, 31, tzinfo=timezone.utc),
+        start_date=datetime(2026, 1, 1, tzinfo=UTC),
+        finish_date=datetime(2026, 12, 31, tzinfo=UTC),
         guid=str(uuid4()),
     )
 
@@ -43,8 +43,8 @@ def valid_task():
         uid=1,
         name="Test Task",
         wbs_code="1.1",
-        planned_start_date=datetime(2026, 1, 1, tzinfo=timezone.utc),
-        planned_finish_date=datetime(2026, 1, 31, tzinfo=timezone.utc),
+        planned_start_date=datetime(2026, 1, 1, tzinfo=UTC),
+        planned_finish_date=datetime(2026, 1, 31, tzinfo=UTC),
         duration_hours=160,
         is_milestone=False,
         guid=str(uuid4()),
@@ -58,8 +58,8 @@ def valid_milestone():
         uid=2,
         name="Milestone 1",
         wbs_code="1.0",
-        planned_start_date=datetime(2026, 1, 31, tzinfo=timezone.utc),
-        planned_finish_date=datetime(2026, 1, 31, tzinfo=timezone.utc),
+        planned_start_date=datetime(2026, 1, 31, tzinfo=UTC),
+        planned_finish_date=datetime(2026, 1, 31, tzinfo=UTC),
         duration_hours=0,
         is_milestone=True,
         guid=str(uuid4()),
@@ -170,7 +170,7 @@ def test_validate_msproject_data_empty_project_name(valid_project, valid_task):
 
 def test_validate_msproject_data_invalid_dates(valid_project, valid_task):
     """Test validation with invalid dates."""
-    valid_project.finish_date = datetime(2025, 1, 1, tzinfo=timezone.utc)
+    valid_project.finish_date = datetime(2025, 1, 1, tzinfo=UTC)
     data = MSProjectData(
         project=valid_project, tasks=[valid_task], resources=[], assignments=[]
     )
@@ -231,8 +231,8 @@ def test_validate_msproject_data_duplicate_task_uid(valid_project, valid_task):
         uid=1,  # Duplicate UID
         name="Task 2",
         wbs_code="1.2",
-        planned_start_date=datetime(2026, 2, 1, tzinfo=timezone.utc),
-        planned_finish_date=datetime(2026, 2, 28, tzinfo=timezone.utc),
+        planned_start_date=datetime(2026, 2, 1, tzinfo=UTC),
+        planned_finish_date=datetime(2026, 2, 28, tzinfo=UTC),
         duration_hours=160,
         is_milestone=False,
     )
