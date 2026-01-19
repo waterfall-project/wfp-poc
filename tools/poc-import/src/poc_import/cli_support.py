@@ -61,9 +61,11 @@ class CorrelationIdFilter(logging.Filter):
 
     def filter(self, record: logging.LogRecord) -> bool:
         record.correlation_id = get_correlation_id()
-        message = record.getMessage()
-        redacted = redact_secrets(message)
-        record.msg = redacted
+        # Format message with args before redaction to ensure args are included
+        formatted_message = record.getMessage()
+        redacted_message = redact_secrets(formatted_message)
+        # Replace msg with redacted formatted message and clear args
+        record.msg = redacted_message
         record.args = ()
         return True
 

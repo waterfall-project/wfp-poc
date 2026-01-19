@@ -166,18 +166,18 @@ class TestCLI:
 
         with tempfile.NamedTemporaryFile(mode="w", suffix=".xml", delete=False) as tmp:
             tmp.write(sample_msproject_xml)
-            tmp_path = tmp.name
+            xml_file_path = tmp.name
 
         try:
             result = runner.invoke(
                 cli,
                 [
                     "msproject",
-                    tmp_path,
+                    xml_file_path,
                     "--mode=initial",
                 ],
             )
             assert result.exit_code == 1
             assert "--token is required" in result.output
         finally:
-            Path(tmp_path).unlink()
+            Path(xml_file_path).unlink()

@@ -18,7 +18,11 @@ from poc_import.commands.rae import rae
     )
 )
 def excel() -> None:
-    """Excel-related commands."""
+    """Excel-related commands.
+
+    This command group provides subcommands for importing data from Excel files,
+    including expenses and RAE (Resource Assignment Estimates) data.
+    """
 
 
 excel.add_command(expenses)
