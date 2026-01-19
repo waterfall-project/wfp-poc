@@ -7,7 +7,6 @@ import logging
 import sys
 import uuid
 from pathlib import Path
-from typing import Optional
 
 import click
 from rich.progress import Progress, SpinnerColumn, TextColumn
@@ -24,7 +23,7 @@ from poc_import.validators import (
 )
 
 
-@click.command(help="Import MS Project XML into the API.")
+@click.command(help="Import MS Project XML file into the API.")
 @click.argument("xml_file", type=click.Path(exists=True, path_type=Path))
 @click.option(
     "--mode",
@@ -74,13 +73,13 @@ from poc_import.validators import (
 def msproject(
     xml_file: Path,
     mode: str,
-    project_id: Optional[str],
-    token: Optional[str],
+    project_id: str | None,
+    token: str | None,
     api_url: str,
-    company_id: Optional[str],
+    company_id: str | None,
     dry_run: bool,
     verbose: bool,
-    output_report: Optional[Path],
+    output_report: Path | None,
 ) -> None:
     """Import MS Project XML file.
 

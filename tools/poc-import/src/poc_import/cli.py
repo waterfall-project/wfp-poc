@@ -6,6 +6,7 @@
 import click
 from click_shell import shell
 
+from poc_import.commands.excel import excel
 from poc_import.commands.help_cmd import help_cmd
 from poc_import.commands.msproject import msproject
 from poc_import.commands.service import service
@@ -13,7 +14,7 @@ from poc_import.commands.xml import xml
 from poc_import.shell_state import ShellState
 
 
-@shell(prompt="> ")
+@shell(name="poc-import", prompt="> ")
 @click.version_option(version="1.0.0", prog_name="poc-import")
 @click.pass_context
 def cli(ctx: click.Context) -> None:
@@ -25,6 +26,7 @@ def cli(ctx: click.Context) -> None:
 cli.add_command(msproject)
 cli.add_command(xml)
 cli.add_command(service)
+cli.add_command(excel)
 cli.add_command(help_cmd)
 
 

@@ -11,7 +11,7 @@ from pathlib import Path
 
 import jwt
 from dotenv import load_dotenv
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 def _load_env_file() -> None:
@@ -43,6 +43,8 @@ _load_env_file()
 
 class Config(BaseModel):
     """Application configuration."""
+
+    model_config = ConfigDict(frozen=True)
 
     api_url: str = Field(
         default_factory=lambda: os.getenv("WFP_API_URL", "http://localhost:5000"),
@@ -103,8 +105,3 @@ class Config(BaseModel):
         }
         token = jwt.encode(payload, self.jwt_secret_key, algorithm=self.jwt_algorithm)
         return token if isinstance(token, str) else token.decode("utf-8")
-
-    class Config:
-        """Pydantic config."""
-
-        frozen = True

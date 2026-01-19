@@ -165,6 +165,43 @@ def _print_service_help(topic: tuple[str, ...]) -> None:
     console.print(f"Unknown service help topic: {' '.join(topic)}")
 
 
+def _print_excel_help(topic: tuple[str, ...]) -> None:
+    """Print structured help for Excel commands."""
+    if not topic:
+        _print_header("Manipulating Excel files and imports")
+        _print_blank_line()
+        _print_header("Commands:")
+        _print_command_list(
+            [
+                "expenses  Import expenses from an Excel file",
+                "rae       Import RAE from an Excel file",
+            ]
+        )
+        return
+
+    if topic[0] == "expenses":
+        _print_header("Import expenses from Excel")
+        _print_blank_line()
+        _print_header("Parameters:")
+        _print_command_list(["excel_file"])
+        _print_blank_line()
+        _print_header("Example:")
+        console.print("  excel expenses ./expenses.xlsx --project-id <uuid>")
+        return
+
+    if topic[0] == "rae":
+        _print_header("Import RAE from Excel")
+        _print_blank_line()
+        _print_header("Parameters:")
+        _print_command_list(["excel_file"])
+        _print_blank_line()
+        _print_header("Example:")
+        console.print("  excel rae ./rae.xlsx --project-id <uuid>")
+        return
+
+    console.print(f"Unknown excel help topic: {' '.join(topic)}")
+
+
 @click.command(name="help", help="Show help for a command or topic.")
 @click.argument("topic", nargs=-1)
 @click.pass_context
@@ -180,6 +217,10 @@ def help_cmd(ctx: click.Context, topic: tuple[str, ...]) -> None:
 
     if topic[0] == "service":
         _print_service_help(topic[1:])
+        return
+
+    if topic[0] == "excel":
+        _print_excel_help(topic[1:])
         return
 
     command = _get_command(ctx, topic[0])

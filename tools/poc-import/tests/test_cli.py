@@ -28,6 +28,7 @@ class TestCLI:
         assert result.exit_code == 0
         assert "poc-import" in result.output
         assert "msproject" in result.output
+        assert "excel" in result.output
 
     def test_msproject_help(self):
         """Test msproject subcommand help."""
@@ -112,6 +113,7 @@ class TestCLI:
             result = runner.invoke(
                 cli,
                 [
+                    "excel",
                     "expenses",
                     tmp_path,
                     "--project-id=12345678-1234-1234-1234-123456789012",
@@ -134,6 +136,7 @@ class TestCLI:
             result = runner.invoke(
                 cli,
                 [
+                    "excel",
                     "rae",
                     tmp_path,
                     "--project-id=12345678-1234-1234-1234-123456789012",

@@ -19,10 +19,15 @@ pip install -e ".[dev]"
 
 ## Usage
 
-You can run via the installed CLI or the local wrapper:
+You can run via the installed CLI or the local wrapper to start the interactive
+shell:
 
 ```bash
-./tools/poc-import/poc-import.py --help
+./tools/poc-import/poc-import.py
+```
+
+```bash
+poc-import
 ```
 
 ### Import MS Project XML (Initial)
@@ -53,6 +58,14 @@ poc-import msproject path/to/your/project.xml \
   --token=$WFP_JWT_TOKEN \
   --api-url=http://localhost:5000 \
   --dry-run
+```
+
+### Excel Imports (Scaffolded)
+
+```bash
+poc-import
+> excel expenses ./expenses.xlsx --project-id <project-uuid>
+> excel rae ./rae.xlsx --project-id <project-uuid>
 ```
 
 ## Environment Variables
