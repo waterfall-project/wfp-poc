@@ -5,6 +5,7 @@
 
 from datetime import datetime
 from enum import Enum
+from typing import Any
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -74,6 +75,7 @@ class Task(BaseModel):
     is_critical: bool = False
     predecessors: list[TaskPredecessor] = Field(default_factory=list)
     line_number: int | None = None
+    raw_fields: dict[str, Any] = Field(default_factory=dict)
 
 
 class Dependency(BaseModel):
@@ -84,6 +86,7 @@ class Dependency(BaseModel):
     type: DependencyType = DependencyType.FS
     lag: int = 0
     line_number: int | None = None
+    raw_fields: dict[str, Any] = Field(default_factory=dict)
 
 
 class Resource(BaseModel):
@@ -96,6 +99,7 @@ class Resource(BaseModel):
     standard_rate: float | None = None
     max_units: float = 1.0
     line_number: int | None = None
+    raw_fields: dict[str, Any] = Field(default_factory=dict)
 
 
 class Assignment(BaseModel):
@@ -106,6 +110,7 @@ class Assignment(BaseModel):
     work_hours: float = 0
     units: float = 1.0
     line_number: int | None = None
+    raw_fields: dict[str, Any] = Field(default_factory=dict)
 
 
 class MSProjectData(BaseModel):

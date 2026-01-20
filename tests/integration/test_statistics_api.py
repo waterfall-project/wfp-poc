@@ -8,7 +8,7 @@ Copyright (c) 2025 Waterfall Project. All rights reserved.
 
 from datetime import UTC, datetime
 from decimal import Decimal
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 from flask import Flask
@@ -22,11 +22,12 @@ from app.models.task import Task
 
 
 @pytest.fixture
-def test_project(app: Flask) -> Project:
+def test_project(app: Flask, company_id: str) -> Project:
     """Create a test project for integration tests.
 
     Args:
         app: Flask application instance.
+        company_id: Company UUID for multi-tenant isolation.
 
     Returns:
         Created project instance.
@@ -37,7 +38,7 @@ def test_project(app: Flask) -> Project:
         project = Project(
             id=uuid4(),
             name="Statistics Test Project",
-            company_id=uuid4(),
+            company_id=UUID(company_id),
             start_date=datetime(2024, 11, 1, tzinfo=UTC),
             finish_date=datetime(2026, 12, 31, tzinfo=UTC),
             budget=Decimal("1000000.00"),

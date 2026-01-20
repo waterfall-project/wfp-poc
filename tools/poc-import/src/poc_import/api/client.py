@@ -640,6 +640,26 @@ class WfpApiClient:
         data["task_map"] = task_map
         return data
 
+    def create_task(self, project_id: str, task: Task) -> dict[str, Any]:
+        """Create a single task for a project.
+
+        Args:
+            project_id: Project UUID
+            task: Task to create
+
+        Returns:
+            Dict containing created task ID and UID mapping
+        """
+        result = self.create_tasks_bulk(project_id, [task])
+        tasks_data = result.get("data", {}).get("tasks", [])
+        created_id = None
+        if isinstance(tasks_data, list) and tasks_data:
+            created_id = tasks_data[0].get("id")
+        return {
+            "task_id": created_id,
+            "task_map": result.get("task_map", {}),
+        }
+
     def sync_tasks(self, project_id: str, tasks: list[Task]) -> dict[str, Any]:
         """Sync tasks (update for reimport).
 
@@ -766,6 +786,34 @@ class WfpApiClient:
             "errors": errors,
         }
 
+    def create_resource(self, resource: Resource) -> dict[str, Any]:
+        """Create a single resource.
+
+        Args:
+            resource: Resource to create
+
+        Returns:
+            Dict containing created resource ID and UID mapping
+        """
+        payload: dict[str, Any] = {
+            "name": resource.name,
+            "type": resource.type.value,
+        }
+        if resource.standard_rate is not None:
+            payload["standard_rate"] = float(resource.standard_rate)
+        if resource.uid:
+            payload["ms_project_uid"] = resource.uid
+
+        result = self._request("POST", "/v0/resources", json=payload)
+        resource_id = result.get("data", {}).get("id")
+        resource_map: dict[int, str] = {}
+        if resource_id and resource.uid is not None:
+            resource_map[resource.uid] = resource_id
+        return {
+            "resource_id": resource_id,
+            "resource_map": resource_map,
+        }
+
     def create_assignments_bulk(
         self, project_id: str, assignments: list[Assignment]
     ) -> dict[str, Any]:
@@ -853,6 +901,155 @@ class WfpApiClient:
             "assignment_ids": assignment_ids,
             "errors": errors,
         }
+
+    def create_assignment(
+        self,
+        project_id: str,
+        assignment: Assignment,
+        task_map: dict[int, str],
+        resource_map: dict[int, str],
+    ) -> dict[str, Any]:
+        """Create a single assignment with UID-to-UUID mapping.
+
+        Args:
+            project_id: Project UUID
+            assignment: Assignment to create
+            task_map: Map of MS Project task UID -> task UUID
+            resource_map: Map of MS Project resource UID -> resource UUID
+
+        Returns:
+            Dict containing created assignment ID
+        """
+        task_id = task_map.get(assignment.task_uid)
+        resource_id = resource_map.get(assignment.resource_uid)
+        if not task_id or not resource_id:
+            raise WfpApiError(
+                "Missing task/resource mapping for assignment",
+                status_code=400,
+            )
+
+        payload: dict[str, Any] = {
+            "task_id": task_id,
+            "resource_id": resource_id,
+            "work_hours": self._convert_hours_to_iso8601_duration(
+                assignment.work_hours
+            ),
+            "percent_allocation": int(round(assignment.units * 100)),
+        }
+
+        result = self._request(
+            "POST",
+            f"/v0/projects/{project_id}/assignments",
+            json=payload,
+        )
+        assignment_id = result.get("data", {}).get("id")
+        return {"assignment_id": assignment_id}
+
+    def delete_task(self, project_id: str, task_id: str) -> dict[str, Any]:
+        """Delete a task by ID.
+
+        Args:
+            project_id: Project UUID
+            task_id: Task UUID
+
+        Returns:
+            API response data
+        """
+        return self._request("DELETE", f"/v0/projects/{project_id}/tasks/{task_id}")
+
+    def delete_assignment(self, project_id: str, assignment_id: str) -> dict[str, Any]:
+        """Delete an assignment by ID.
+
+        Args:
+            project_id: Project UUID
+            assignment_id: Assignment UUID
+
+        Returns:
+            API response data
+        """
+        return self._request(
+            "DELETE",
+            f"/v0/projects/{project_id}/assignments/{assignment_id}",
+        )
+
+    def delete_dependency(self, project_id: str, dependency_id: str) -> dict[str, Any]:
+        """Delete a dependency by ID.
+
+        Args:
+            project_id: Project UUID
+            dependency_id: Dependency UUID
+
+        Returns:
+            API response data
+        """
+        return self._request(
+            "DELETE",
+            f"/v0/projects/{project_id}/dependencies/{dependency_id}",
+        )
+
+    def delete_resource(self, resource_id: str) -> dict[str, Any]:
+        """Delete a resource by ID.
+
+        Args:
+            resource_id: Resource UUID
+
+        Returns:
+            API response data
+        """
+        return self._request("DELETE", f"/v0/resources/{resource_id}")
+
+    def rollback_import(
+        self,
+        project_id: str,
+        task_ids: list[str] | None = None,
+        assignment_ids: list[str] | None = None,
+        resource_ids: list[str] | None = None,
+        dependency_ids: list[str] | None = None,
+    ) -> dict[str, Any]:
+        """Rollback created entities after a failed import.
+
+        Args:
+            project_id: Project UUID
+            task_ids: Task UUIDs to delete
+            assignment_ids: Assignment UUIDs to delete
+            resource_ids: Resource UUIDs to delete
+            dependency_ids: Dependency UUIDs to delete
+
+        Returns:
+            Dict with rollback summary and failures
+        """
+        failures: list[dict[str, str]] = []
+        deleted: list[str] = []
+
+        for dep_id in reversed(dependency_ids or []):
+            try:
+                self.delete_dependency(project_id, dep_id)
+                deleted.append(dep_id)
+            except WfpApiError as exc:
+                failures.append({"dependency_id": dep_id, "error": str(exc)})
+
+        for assignment_id in reversed(assignment_ids or []):
+            try:
+                self.delete_assignment(project_id, assignment_id)
+                deleted.append(assignment_id)
+            except WfpApiError as exc:
+                failures.append({"assignment_id": assignment_id, "error": str(exc)})
+
+        for task_id in reversed(task_ids or []):
+            try:
+                self.delete_task(project_id, task_id)
+                deleted.append(task_id)
+            except WfpApiError as exc:
+                failures.append({"task_id": task_id, "error": str(exc)})
+
+        for resource_id in reversed(resource_ids or []):
+            try:
+                self.delete_resource(resource_id)
+                deleted.append(resource_id)
+            except WfpApiError as exc:
+                failures.append({"resource_id": resource_id, "error": str(exc)})
+
+        return {"deleted": deleted, "failed": failures}
 
     def import_msproject_data(
         self,
