@@ -191,30 +191,43 @@ def _print_excel_help(topic: tuple[str, ...]) -> None:
         _print_header("Commands:")
         _print_command_list(
             [
-                "expenses  Import expenses from an Excel file",
-                "rae       Import RAE from an Excel file",
+                "load   Load an Excel file",
+                "list   List Excel entries",
+                "show   Show Excel entries",
+                "import Import Excel entries",
             ]
         )
         return
 
-    if topic[0] == "expenses":
-        _print_header("Import expenses from Excel")
-        _print_blank_line()
-        _print_header("Parameters:")
-        _print_command_list(["excel_file"])
+    if topic[0] == "load":
+        _print_header("Load Excel data")
         _print_blank_line()
         _print_header("Example:")
-        console.print("  excel expenses ./expenses.xlsx --project-id <uuid>")
+        console.print("  excel load ./expenses.xlsx --type expenses")
+        console.print("  excel load ./rae.xlsx --type rae")
         return
 
-    if topic[0] == "rae":
-        _print_header("Import RAE from Excel")
+    if topic[0] == "list":
+        _print_header("List Excel entries")
         _print_blank_line()
-        _print_header("Parameters:")
-        _print_command_list(["excel_file"])
+        _print_header("Commands:")
+        _print_command_list(["expenses", "rae"])
+        return
+
+    if topic[0] == "show":
+        _print_header("Show Excel entries")
+        _print_blank_line()
+        _print_header("Commands:")
+        _print_command_list(["expense", "rae"])
+        return
+
+    if topic[0] == "import":
+        _print_header("Import Excel entries")
+        _print_blank_line()
         _print_blank_line()
         _print_header("Example:")
-        console.print("  excel rae ./rae.xlsx --project-id <uuid>")
+        console.print("  excel import expenses --dry-run")
+        console.print("  excel import rae --dry-run")
         return
 
     console.print(f"Unknown excel help topic: {' '.join(topic)}")
