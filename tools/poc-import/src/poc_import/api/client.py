@@ -302,6 +302,30 @@ class WfpApiClient:
         milestones: list[dict[str, Any]] = data.get("data", [])
         return milestones
 
+    def create_milestone_rae(
+        self,
+        milestone_id: str,
+        payload: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Create or update RAE for a milestone.
+
+        Args:
+            milestone_id: Milestone UUID
+            payload: RAE payload
+
+        Returns:
+            API response data
+
+        Raises:
+            WfpApiError: On API error
+        """
+        logger.debug("Updating RAE for milestone: %s", milestone_id)
+        return self._request(
+            "POST",
+            f"/v0/milestones/{milestone_id}/rae",
+            json=payload,
+        )
+
     def list_projects(
         self,
         page: int | None = None,
@@ -358,6 +382,63 @@ class WfpApiClient:
             "GET",
             f"/v0/projects/{project_id}/tasks",
             params=params,
+        )
+
+    def list_project_expenses(
+        self,
+        project_id: str,
+        page: int | None = None,
+        per_page: int | None = None,
+    ) -> dict[str, Any]:
+        """List expenses for a project.
+
+        Args:
+            project_id: Project UUID
+            page: Optional page number
+            per_page: Optional items per page
+
+        Returns:
+            API response data
+
+        Raises:
+            WfpApiError: On API error
+        """
+        logger.debug("Listing expenses for project: %s", project_id)
+        params: dict[str, Any] = {}
+        if page is not None:
+            params["page"] = page
+        if per_page is not None:
+            params["per_page"] = per_page
+
+        return self._request(
+            "GET",
+            f"/v0/projects/{project_id}/expenses",
+            params=params,
+        )
+
+    def bulk_create_expenses(
+        self,
+        project_id: str,
+        expenses: list[dict[str, Any]],
+    ) -> dict[str, Any]:
+        """Bulk create expenses for a project.
+
+        Args:
+            project_id: Project UUID
+            expenses: List of expense payloads
+
+        Returns:
+            API response data
+
+        Raises:
+            WfpApiError: On API error
+        """
+        logger.debug("Bulk creating %s expenses", len(expenses))
+        payload = {"expenses": expenses}
+        return self._request(
+            "POST",
+            f"/v0/projects/{project_id}/expenses/bulk",
+            json=payload,
         )
 
     def get_project_task(self, project_id: str, task_id: str) -> dict[str, Any]:

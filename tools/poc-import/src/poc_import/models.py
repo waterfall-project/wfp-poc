@@ -3,7 +3,7 @@
 
 """Data models for poc-import."""
 
-from datetime import datetime
+from datetime import date, datetime
 from enum import Enum
 from typing import Any
 from uuid import UUID
@@ -136,3 +136,106 @@ class ImportReport(BaseModel):
     api_errors: list[str] = Field(default_factory=list)
     project_id: UUID | None = None
     timestamp: datetime = Field(default_factory=datetime.utcnow)
+
+
+class ExcelFileType(str, Enum):
+    """Excel file type."""
+
+    EXPENSES = "expenses"
+    RAE = "rae"
+
+
+class ExpenseRow(BaseModel):
+    """Single expense row parsed from Excel."""
+
+    row_number: int
+    purchase_document: str | None = None
+    fiscal_year: int | None = None
+    period: int | None = None
+    otp_element: str | None = None
+    resource_name: str | None = None
+    vendor_name: str | None = None
+    accounting_nature: str | None = None
+    accounting_nature_label: str | None = None
+    reference_number: str | None = None
+    amount: float | None = None
+    expense_date: date | None = None
+    description: str | None = None
+    origin_group: str | None = None
+    purchase_reference: str | None = None
+
+
+class ExpenseEntry(BaseModel):
+    """Grouped expense entry ready for listing or import."""
+
+    entry_id: int
+    reference_number: str | None
+    expense_date: date | None
+    amount: float
+    category: str
+    description: str | None
+    purchase_document: str | None
+    fiscal_year: int | None
+    period: int | None
+    otp_element: str | None
+    resource_name: str | None
+    vendor_name: str | None
+    accounting_nature: str | None
+    accounting_nature_label: str | None
+    origin_group: str | None
+    purchase_reference: str | None
+    row_numbers: list[int] = Field(default_factory=list)
+    grouped_rows: int = 1
+
+
+class ExcelExpensesData(BaseModel):
+    """Parsed Excel expenses data with grouping summary."""
+
+    file_path: str
+    sheet_name: str
+    rows: list[ExpenseRow]
+    entries: list[ExpenseEntry]
+    total_rows: int
+    total_amount: float
+    period_start: date | None
+    period_end: date | None
+    unique_references: int
+    grouped_count: int
+    missing_references: int
+    purchase_rows: int
+    purchase_amount: float
+    time_rows: int
+    time_amount: float
+
+
+class RAETaskBreakdown(BaseModel):
+    """RAE task breakdown entry."""
+
+    task_name: str
+    amount: float
+    comment: str | None = None
+
+
+class RAEEntry(BaseModel):
+    """RAE entry parsed from Excel."""
+
+    entry_id: int
+    milestone_name: str
+    remaining_amount: float | None
+    forecast_date: date | None
+    task_breakdown: list[RAETaskBreakdown] = Field(default_factory=list)
+    breakdown_sum: float = 0.0
+    row_number: int | None = None
+    parse_error: str | None = None
+
+
+class ExcelRAEData(BaseModel):
+    """Parsed Excel RAE data."""
+
+    file_path: str
+    sheet_name: str
+    entries: list[RAEEntry]
+    total_rows: int
+    total_remaining: float
+    milestone_count: int
+    forecast_period: str | None

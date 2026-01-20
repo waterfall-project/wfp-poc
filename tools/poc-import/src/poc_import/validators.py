@@ -4,12 +4,21 @@
 """Validation logic for import data and business rules."""
 
 import logging
+import re
+from datetime import date
 from enum import Enum
 from typing import Any
 
 from pydantic import BaseModel, Field
 
-from poc_import.models import Assignment, Dependency, MSProjectData, Task
+from poc_import.models import (
+    Assignment,
+    Dependency,
+    ExpenseRow,
+    MSProjectData,
+    RAEEntry,
+    Task,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -65,7 +74,6 @@ class MilestoneValidator:
 
         Args:
             tasks: List of tasks
-
         Returns:
             List of (wbs, name) tuples for milestones
         """
@@ -303,6 +311,266 @@ def validate_msproject_rules(
         errors += warnings
         warnings = 0
 
+    status = "failed" if errors else "passed"
+    summary = {"passed": 0, "warnings": warnings, "errors": errors}
+    return ValidationReport(status=status, summary=summary, checks=issues)
+
+
+def validate_expense_rows(rows: list[ExpenseRow]) -> ValidationReport:
+    """Validate expenses rows against Excel rules.
+
+    Args:
+        rows: Parsed expense rows.
+
+    Returns:
+        Validation report with errors and warnings.
+    """
+    issues: list[ValidationIssue] = []
+    otp_pattern = re.compile(r"^[A-Z0-9]+-[A-Z0-9]+(-[A-Z0-9]+)?$")
+
+    for row in rows:
+        line = row.row_number
+
+        if row.fiscal_year is None or not (2000 <= row.fiscal_year <= 2100):
+            issues.append(
+                ValidationIssue(
+                    id="VAL-EXP-001",
+                    severity=ValidationSeverity.ERROR,
+                    message="Exercice comptable must be between 2000 and 2100",
+                    line=line,
+                )
+            )
+
+        if row.period is None or not (1 <= row.period <= 12):
+            issues.append(
+                ValidationIssue(
+                    id="VAL-EXP-002",
+                    severity=ValidationSeverity.ERROR,
+                    message="Période must be between 1 and 12",
+                    line=line,
+                )
+            )
+
+        if row.amount is None or row.amount < 0:
+            issues.append(
+                ValidationIssue(
+                    id="VAL-EXP-003",
+                    severity=ValidationSeverity.ERROR,
+                    message="Val./Devise objet must be a non-negative amount",
+                    line=line,
+                )
+            )
+
+        if row.expense_date is None:
+            issues.append(
+                ValidationIssue(
+                    id="VAL-EXP-004",
+                    severity=ValidationSeverity.ERROR,
+                    message="Date de la pièce must be a valid date",
+                    line=line,
+                )
+            )
+
+        if not row.purchase_document:
+            if not row.resource_name:
+                issues.append(
+                    ValidationIssue(
+                        id="VAL-EXP-005",
+                        severity=ValidationSeverity.ERROR,
+                        message=(
+                            "Nom Matricule is required when Document d'achat is empty"
+                        ),
+                        line=line,
+                    )
+                )
+        elif not row.vendor_name:
+            issues.append(
+                ValidationIssue(
+                    id="VAL-EXP-006",
+                    severity=ValidationSeverity.ERROR,
+                    message="Nom 1 is required when Document d'achat is provided",
+                    line=line,
+                )
+            )
+
+        if not row.otp_element:
+            issues.append(
+                ValidationIssue(
+                    id="VAL-EXP-007",
+                    severity=ValidationSeverity.WARNING,
+                    message="Elément d'OTP is missing",
+                    line=line,
+                )
+            )
+        elif not otp_pattern.match(row.otp_element):
+            issues.append(
+                ValidationIssue(
+                    id="VAL-EXP-007",
+                    severity=ValidationSeverity.ERROR,
+                    message="Elément d'OTP must match expected pattern",
+                    line=line,
+                )
+            )
+
+        if not row.accounting_nature_label:
+            issues.append(
+                ValidationIssue(
+                    id="VAL-EXP-008",
+                    severity=ValidationSeverity.ERROR,
+                    message="Désign.nat.comptable must not be empty",
+                    line=line,
+                )
+            )
+
+    return _build_validation_report(issues)
+
+
+def validate_rae_entries(
+    entries: list[RAEEntry],
+    milestone_names: set[str] | None = None,
+    task_names: set[str] | None = None,
+    milestone_dates: dict[str, date] | None = None,
+) -> ValidationReport:
+    """Validate RAE entries against Excel rules.
+
+    Args:
+        entries: Parsed RAE entries.
+        milestone_names: Optional set of valid milestone names.
+        task_names: Optional set of valid task names from loaded XML.
+        milestone_dates: Optional mapping of milestone names to planned dates.
+
+    Returns:
+        Validation report with errors and warnings.
+    """
+    issues: list[ValidationIssue] = []
+
+    for entry in entries:
+        line = entry.row_number
+
+        if not entry.milestone_name:
+            issues.append(
+                ValidationIssue(
+                    id="VAL-RAE-001",
+                    severity=ValidationSeverity.ERROR,
+                    message="milestone_name is required",
+                    line=line,
+                )
+            )
+        elif (
+            milestone_names is not None and entry.milestone_name not in milestone_names
+        ):
+            issues.append(
+                ValidationIssue(
+                    id="VAL-RAE-001",
+                    severity=ValidationSeverity.ERROR,
+                    message="milestone_name does not match any known milestone",
+                    line=line,
+                )
+            )
+
+        if entry.remaining_amount is None or entry.remaining_amount < 0:
+            issues.append(
+                ValidationIssue(
+                    id="VAL-RAE-002",
+                    severity=ValidationSeverity.ERROR,
+                    message="remaining_amount must be non-negative",
+                    line=line,
+                )
+            )
+
+        if entry.forecast_date is None:
+            issues.append(
+                ValidationIssue(
+                    id="VAL-RAE-003",
+                    severity=ValidationSeverity.ERROR,
+                    message="forecast_date must be a valid date",
+                    line=line,
+                )
+            )
+
+        if entry.parse_error:
+            issues.append(
+                ValidationIssue(
+                    id="VAL-RAE-004",
+                    severity=ValidationSeverity.ERROR,
+                    message=f"task_breakdown invalid: {entry.parse_error}",
+                    line=line,
+                )
+            )
+        elif entry.task_breakdown and entry.remaining_amount is not None:
+            if abs(entry.breakdown_sum - entry.remaining_amount) > 0.01:
+                issues.append(
+                    ValidationIssue(
+                        id="VAL-RAE-004",
+                        severity=ValidationSeverity.ERROR,
+                        message="task_breakdown sum must match remaining_amount",
+                        line=line,
+                        context={
+                            "breakdown_sum": entry.breakdown_sum,
+                            "remaining_amount": entry.remaining_amount,
+                        },
+                    )
+                )
+
+            if task_names is not None and entry.task_breakdown:
+                missing_tasks = [
+                    item.task_name
+                    for item in entry.task_breakdown
+                    if item.task_name not in task_names
+                ]
+                if missing_tasks:
+                    issues.append(
+                        ValidationIssue(
+                            id="VAL-RAE-005",
+                            severity=ValidationSeverity.ERROR,
+                            message=(
+                                "task_breakdown contains tasks not found in "
+                                f"loaded XML: {missing_tasks}"
+                            ),
+                            line=line,
+                            context={"missing_tasks": missing_tasks},
+                        )
+                    )
+
+        # Check milestone date match (independent of task_breakdown)
+        if milestone_dates is not None and entry.milestone_name:
+            expected_date = milestone_dates.get(entry.milestone_name)
+            if (
+                expected_date
+                and entry.forecast_date
+                and entry.forecast_date != expected_date
+            ):
+                issues.append(
+                    ValidationIssue(
+                        id="VAL-RAE-006",
+                        severity=ValidationSeverity.WARNING,
+                        message=(
+                            "forecast_date does not match milestone date from XML"
+                        ),
+                        line=line,
+                        context={
+                            "forecast_date": str(entry.forecast_date),
+                            "milestone_date": str(expected_date),
+                        },
+                    )
+                )
+
+    return _build_validation_report(issues)
+
+
+def _build_validation_report(issues: list[ValidationIssue]) -> ValidationReport:
+    """Build a validation report from issues.
+
+    Args:
+        issues: Validation issues.
+
+    Returns:
+        Validation report with summary.
+    """
+    errors = sum(1 for issue in issues if issue.severity == ValidationSeverity.ERROR)
+    warnings = sum(
+        1 for issue in issues if issue.severity == ValidationSeverity.WARNING
+    )
     status = "failed" if errors else "passed"
     summary = {"passed": 0, "warnings": warnings, "errors": errors}
     return ValidationReport(status=status, summary=summary, checks=issues)

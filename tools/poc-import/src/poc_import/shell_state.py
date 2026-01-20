@@ -6,7 +6,13 @@
 from dataclasses import dataclass
 from pathlib import Path
 
-from poc_import.models import MSProjectData
+from poc_import.models import (
+    ExcelExpensesData,
+    ExcelFileType,
+    ExcelRAEData,
+    MSProjectData,
+)
+from poc_import.validators import ValidationReport
 
 
 @dataclass
@@ -17,3 +23,8 @@ class ShellState:
     data: MSProjectData | None = None
     selected_project_id: str | None = None
     selected_project_name: str | None = None
+    excel_path: Path | None = None
+    excel_type: ExcelFileType | None = None
+    expenses_data: ExcelExpensesData | None = None
+    rae_data: ExcelRAEData | None = None
+    excel_report: ValidationReport | None = None
