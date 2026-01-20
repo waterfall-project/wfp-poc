@@ -136,6 +136,63 @@ class TestMSProjectParser:
         # Test invalid duration
         assert parser._parse_duration("invalid") == pytest.approx(0.0)
 
+    def test_parse_dependency_types(self, sample_msproject_xml):
+        """Test parsing dependency types.
+
+        Given: MS Project XML with all dependency type values
+        When: The parser processes the predecessor links
+        Then: Each dependency type maps to the correct enum value
+        """
+        original_link = """            <PredecessorLink>
+                <PredecessorUID>1</PredecessorUID>
+                <Type>1</Type>
+                <LinkLag>0</LinkLag>
+            </PredecessorLink>"""
+        replacement_links = """            <PredecessorLink>
+                <PredecessorUID>1</PredecessorUID>
+                <Type>0</Type>
+                <LinkLag>0</LinkLag>
+            </PredecessorLink>
+            <PredecessorLink>
+                <PredecessorUID>1</PredecessorUID>
+                <Type>1</Type>
+                <LinkLag>0</LinkLag>
+            </PredecessorLink>
+            <PredecessorLink>
+                <PredecessorUID>1</PredecessorUID>
+                <Type>2</Type>
+                <LinkLag>0</LinkLag>
+            </PredecessorLink>
+            <PredecessorLink>
+                <PredecessorUID>1</PredecessorUID>
+                <Type>3</Type>
+                <LinkLag>0</LinkLag>
+            </PredecessorLink>"""
+
+        xml_with_types = sample_msproject_xml.replace(original_link, replacement_links)
+
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".xml", delete=False) as tmp:
+            tmp.write(xml_with_types)
+            tmp_path = tmp.name
+
+        try:
+            parser = MSProjectParser(tmp_path)
+            data = parser.parse()
+
+            task2 = data.tasks[1]
+            expected_types = [
+                DependencyType.SS,
+                DependencyType.FS,
+                DependencyType.FF,
+                DependencyType.SF,
+            ]
+            assert [pred.type for pred in task2.predecessors] == expected_types
+
+            dependency_types = [dep.type for dep in data.dependencies]
+            assert dependency_types == expected_types
+        finally:
+            Path(tmp_path).unlink()
+
     def test_parse_sample_file(self, sample_xml_path):
         """Test parsing sample MS Project XML file."""
         xml_path = Path(sample_xml_path)

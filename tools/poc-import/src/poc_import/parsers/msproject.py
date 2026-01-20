@@ -205,10 +205,10 @@ class MSProjectParser:
             pred_uid = int(uid_text)
             type_text = pred_elem.findtext(f"{NS}Type", default="1")
             type_map = {
-                "0": DependencyType.FF,
+                "0": DependencyType.SS,
                 "1": DependencyType.FS,
-                "2": DependencyType.SF,
-                "3": DependencyType.SS,
+                "2": DependencyType.FF,
+                "3": DependencyType.SF,
             }
             dep_type = type_map.get(type_text, DependencyType.FS)
             lag_text = pred_elem.findtext(f"{NS}LinkLag", default="0")
