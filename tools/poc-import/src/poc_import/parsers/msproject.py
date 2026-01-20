@@ -171,6 +171,25 @@ class MSProjectParser:
         predecessors, dependencies = self._parse_predecessors(uid, elem)
         self.dependencies.extend(dependencies)
 
+        raw_fields = self._extract_raw_fields(
+            elem,
+            {
+                "UID",
+                "GUID",
+                "Name",
+                "WBS",
+                "Summary",
+                "Milestone",
+                "Critical",
+                "Start",
+                "Finish",
+                "Duration",
+                "Cost",
+                "PercentComplete",
+                "PredecessorLink",
+            },
+        )
+
         return Task(
             uid=uid,
             guid=guid,
@@ -188,6 +207,7 @@ class MSProjectParser:
             is_critical=is_critical,
             predecessors=predecessors,
             line_number=line_number,
+            raw_fields=raw_fields,
         )
 
     def _parse_predecessors(
@@ -215,6 +235,11 @@ class MSProjectParser:
             lag = int(lag_text)
             line_number = pred_elem.sourceline
 
+            raw_fields = self._extract_raw_fields(
+                pred_elem,
+                {"PredecessorUID", "Type", "LinkLag"},
+            )
+
             predecessors.append(
                 TaskPredecessor(
                     predecessor_task_uid=pred_uid,
@@ -231,6 +256,7 @@ class MSProjectParser:
                     type=dep_type,
                     lag=lag,
                     line_number=line_number,
+                    raw_fields=raw_fields,
                 )
             )
 
@@ -283,6 +309,11 @@ class MSProjectParser:
         units_text = elem.findtext(f"{NS}MaxUnits", default="1.0")
         max_units = float(units_text)
 
+        raw_fields = self._extract_raw_fields(
+            elem,
+            {"UID", "GUID", "Name", "Type", "StandardRate", "MaxUnits"},
+        )
+
         return Resource(
             uid=uid,
             guid=guid,
@@ -291,6 +322,7 @@ class MSProjectParser:
             standard_rate=standard_rate,
             max_units=max_units,
             line_number=line_number,
+            raw_fields=raw_fields,
         )
 
     def _parse_assignments(self) -> list[Assignment]:
@@ -332,13 +364,43 @@ class MSProjectParser:
         units = float(units_text)
         line_number = elem.sourceline
 
+        raw_fields = self._extract_raw_fields(
+            elem,
+            {"TaskUID", "ResourceUID", "Work", "Units"},
+        )
+
         return Assignment(
             task_uid=task_uid,
             resource_uid=resource_uid,
             work_hours=work_hours,
             units=units,
             line_number=line_number,
+            raw_fields=raw_fields,
         )
+
+    def _extract_raw_fields(
+        self, elem: etree._Element, exclude: set[str]
+    ) -> dict[str, str]:
+        """Extract non-imported leaf fields from an XML element.
+
+        Args:
+            elem: XML element to extract fields from.
+            exclude: Tag names to exclude.
+
+        Returns:
+            Mapping of tag name to text content.
+        """
+        raw_fields: dict[str, str] = {}
+        for child in elem:
+            tag_name = child.tag.replace(NS, "")
+            if tag_name in exclude:
+                continue
+            if len(child):
+                continue
+            if child.text is None:
+                continue
+            raw_fields[tag_name] = child.text
+        return raw_fields
 
     def _get_text(self, element_name: str, default: str | None = None) -> str | None:
         """Get text content of element."""
