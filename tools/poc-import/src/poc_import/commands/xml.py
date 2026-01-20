@@ -4,6 +4,7 @@
 """XML inspection and import commands for the interactive shell."""
 
 import csv
+import html
 import json
 import sys
 import time
@@ -94,10 +95,10 @@ def _render_validation_html(report: ValidationReport) -> str:
     for issue in report.checks:
         rows.append(
             "<tr>"
-            f"<td>{issue.severity.value}</td>"
-            f"<td>{issue.id}</td>"
-            f"<td>{issue.message}</td>"
-            f"<td>{issue.line or ''}</td>"
+            f"<td>{html.escape(issue.severity.value)}</td>"
+            f"<td>{html.escape(issue.id)}</td>"
+            f"<td>{html.escape(issue.message)}</td>"
+            f"<td>{html.escape(str(issue.line)) if issue.line else ''}</td>"
             "</tr>"
         )
     summary = report.summary
@@ -707,8 +708,8 @@ def xml_show_dependency(state: ShellState, dependency_id: int) -> None:
 @xml.command("validate", help="Validate loaded XML data.")
 @click.option(
     "--output",
-    type=click.Choice(["table", "json"], case_sensitive=False),
-    default="table",
+    type=click.Choice(["console", "table", "json", "html"], case_sensitive=False),
+    default="console",
     show_default=True,
     help="Output format",
 )
@@ -904,6 +905,35 @@ def xml_import_project(
     task_map: dict[int, str] = {}
     resource_map: dict[int, str] = {}
 
+    def _handle_import_error(
+        exc: WfpApiError,
+        created_tasks: list[str],
+        created_resources: list[str],
+        created_assignments: list[str],
+        created_deps: list[str] | None = None,
+    ) -> None:
+        """Handle import error with rollback.
+
+        Args:
+            exc: The API error that occurred.
+            created_tasks: List of created task IDs.
+            created_resources: List of created resource IDs.
+            created_assignments: List of created assignment IDs.
+            created_deps: Optional list of created dependency IDs.
+        """
+        console.print(f"[red]Error:[/red] {redact_secrets(str(exc))}")
+        if not continue_on_error:
+            console.print("\n[red]✗ Import failed. Rolling back...[/red]")
+            rollback = client.rollback_import(
+                project_id,
+                task_ids=created_tasks,
+                assignment_ids=created_assignments,
+                resource_ids=created_resources,
+                dependency_ids=created_deps or [],
+            )
+            _print_rollback_failures(rollback.get("failed", []))
+            sys.exit(1)
+
     console.print("\n[bold]Importing tasks...[/bold]")
     with Progress(
         TextColumn(
@@ -923,17 +953,12 @@ def xml_import_project(
                 if task_id:
                     created_task_ids.append(task_id)
             except WfpApiError as exc:
-                console.print(f"[red]Error:[/red] {redact_secrets(str(exc))}")
-                if not continue_on_error:
-                    console.print("\n[red]✗ Import failed. Rolling back...[/red]")
-                    rollback = client.rollback_import(
-                        project_id,
-                        task_ids=created_task_ids,
-                        assignment_ids=created_assignment_ids,
-                        resource_ids=created_resource_ids,
-                    )
-                    _print_rollback_failures(rollback.get("failed", []))
-                    sys.exit(1)
+                _handle_import_error(
+                    exc,
+                    created_task_ids,
+                    created_resource_ids,
+                    created_assignment_ids,
+                )
             finally:
                 progress.update(task_progress, advance=1)
 
@@ -957,17 +982,12 @@ def xml_import_project(
                 if resource_id:
                     created_resource_ids.append(resource_id)
             except WfpApiError as exc:
-                console.print(f"[red]Error:[/red] {redact_secrets(str(exc))}")
-                if not continue_on_error:
-                    console.print("\n[red]✗ Import failed. Rolling back...[/red]")
-                    rollback = client.rollback_import(
-                        project_id,
-                        task_ids=created_task_ids,
-                        assignment_ids=created_assignment_ids,
-                        resource_ids=created_resource_ids,
-                    )
-                    _print_rollback_failures(rollback.get("failed", []))
-                    sys.exit(1)
+                _handle_import_error(
+                    exc,
+                    created_task_ids,
+                    created_resource_ids,
+                    created_assignment_ids,
+                )
             finally:
                 progress.update(res_progress, advance=1)
 
@@ -995,17 +1015,12 @@ def xml_import_project(
                 if assignment_id:
                     created_assignment_ids.append(assignment_id)
             except WfpApiError as exc:
-                console.print(f"[red]Error:[/red] {redact_secrets(str(exc))}")
-                if not continue_on_error:
-                    console.print("\n[red]✗ Import failed. Rolling back...[/red]")
-                    rollback = client.rollback_import(
-                        project_id,
-                        task_ids=created_task_ids,
-                        assignment_ids=created_assignment_ids,
-                        resource_ids=created_resource_ids,
-                    )
-                    _print_rollback_failures(rollback.get("failed", []))
-                    sys.exit(1)
+                _handle_import_error(
+                    exc,
+                    created_task_ids,
+                    created_resource_ids,
+                    created_assignment_ids,
+                )
             finally:
                 progress.update(assign_progress, advance=1)
 
@@ -1061,8 +1076,13 @@ def xml_import_project(
                         created_dependency_ids.extend(
                             sorted(after_ids - existing_dependency_ids)
                         )
-                    except WfpApiError:
-                        pass
+                    except WfpApiError as dep_exc:
+                        console.print(
+                            "[yellow]Warning:[/yellow] "
+                            "Unable to list dependencies after failed "
+                            "import for rollback: "
+                            f"{redact_secrets(str(dep_exc))}"
+                        )
                     rollback = client.rollback_import(
                         project_id,
                         task_ids=created_task_ids,

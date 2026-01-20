@@ -5,6 +5,7 @@
 
 import logging
 from datetime import datetime
+from typing import Any
 
 from lxml import etree
 from pydantic import ValidationError
@@ -380,7 +381,7 @@ class MSProjectParser:
 
     def _extract_raw_fields(
         self, elem: etree._Element, exclude: set[str]
-    ) -> dict[str, str]:
+    ) -> dict[str, Any]:
         """Extract non-imported leaf fields from an XML element.
 
         Args:
@@ -390,7 +391,7 @@ class MSProjectParser:
         Returns:
             Mapping of tag name to text content.
         """
-        raw_fields: dict[str, str] = {}
+        raw_fields: dict[str, Any] = {}
         for child in elem:
             tag_name = child.tag.replace(NS, "")
             if tag_name in exclude:

@@ -27,6 +27,7 @@ def test_project(app: Flask, company_id: str) -> Project:
 
     Args:
         app: Flask application instance.
+        company_id: Company UUID for multi-tenant isolation.
 
     Returns:
         Created project instance.
