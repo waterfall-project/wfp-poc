@@ -33,7 +33,7 @@ from poc_import.config import Config, load_env_file
 from poc_import.models import MSProjectData
 from poc_import.parsers.msproject import MSProjectParser
 from poc_import.shell_state import ShellState
-from poc_import.validators import validate_msproject_rules
+from poc_import.validators import ValidationReport, validate_msproject_rules
 
 
 @click.group(
@@ -81,7 +81,7 @@ def _require_selected_project(state: ShellState) -> str:
     return state.selected_project_id
 
 
-def _render_validation_html(report) -> str:
+def _render_validation_html(report: ValidationReport) -> str:
     """Render validation report as HTML.
 
     Args:
@@ -795,7 +795,7 @@ def xml_import() -> None:
     """Import entities into wfp-poc."""
 
 
-def _print_validation_report(report) -> None:
+def _print_validation_report(report: ValidationReport) -> None:
     """Print a concise validation summary.
 
     Args:
