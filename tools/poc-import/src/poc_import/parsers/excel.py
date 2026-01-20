@@ -185,14 +185,29 @@ def parse_rae_excel(path: Path) -> ExcelRAEData:
 
 
 def _get_sheet(workbook: Any, preferred_name: str) -> Any:
-    """Get worksheet by name or return first sheet."""
+    """Get worksheet by name or return first sheet.
+
+    Args:
+        workbook: Excel workbook object.
+        preferred_name: Preferred sheet name to search for.
+
+    Returns:
+        Worksheet object from workbook.
+    """
     if preferred_name in workbook.sheetnames:
         return workbook[preferred_name]
     return workbook[workbook.sheetnames[0]]
 
 
 def _get_header_map(sheet: Any) -> dict[str, int]:
-    """Extract column header mappings from first row."""
+    """Extract column header mappings from first row.
+
+    Args:
+        sheet: Excel worksheet object.
+
+    Returns:
+        Dictionary mapping column headers to their index positions.
+    """
     header_row = next(sheet.iter_rows(min_row=1, max_row=1, values_only=True))
     header_map: dict[str, int] = {}
     for index, value in enumerate(header_row):
@@ -205,6 +220,14 @@ def _get_header_map(sheet: Any) -> dict[str, int]:
 
 
 def _row_is_empty(row_values: tuple[Any, ...]) -> bool:
+    """Check if row contains only empty/whitespace values.
+
+    Args:
+        row_values: Tuple of cell values from row.
+
+    Returns:
+        True if row is empty, False otherwise.
+    """
     return all(
         value is None or (isinstance(value, str) and not value.strip())
         for value in row_values
@@ -214,6 +237,16 @@ def _row_is_empty(row_values: tuple[Any, ...]) -> bool:
 def _get_cell(
     row_values: tuple[Any, ...], header_map: dict[str, int], column: str
 ) -> Any:
+    """Get cell value from row by column name.
+
+    Args:
+        row_values: Tuple of cell values from row.
+        header_map: Dictionary mapping column headers to indices.
+        column: Column header name.
+
+    Returns:
+        Cell value at column index, or None if column not found.
+    """
     index = header_map.get(column)
     if index is None:
         return None
@@ -221,6 +254,14 @@ def _get_cell(
 
 
 def _as_str(value: Any) -> str | None:
+    """Convert cell value to trimmed string.
+
+    Args:
+        value: Cell value of any type.
+
+    Returns:
+        Trimmed string value, or None if empty/None.
+    """
     if value is None:
         return None
     text = str(value).strip()
@@ -228,6 +269,14 @@ def _as_str(value: Any) -> str | None:
 
 
 def _parse_int(value: Any) -> int | None:
+    """Parse cell value to integer.
+
+    Args:
+        value: Cell value (int, float, or string).
+
+    Returns:
+        Parsed integer value, or None if parsing fails.
+    """
     if value is None:
         return None
     if isinstance(value, int):
@@ -246,6 +295,14 @@ def _parse_int(value: Any) -> int | None:
 
 
 def _parse_float(value: Any) -> float | None:
+    """Parse cell value to float, handling European format.
+
+    Args:
+        value: Cell value (int, float, or string with spaces/commas).
+
+    Returns:
+        Parsed float value, or None if parsing fails.
+    """
     if value is None:
         return None
     if isinstance(value, (int, float)):
@@ -263,6 +320,14 @@ def _parse_float(value: Any) -> float | None:
 
 
 def _parse_date(value: Any) -> date | None:
+    """Parse cell value to date, handling multiple formats.
+
+    Args:
+        value: Cell value (datetime, date, Excel serial, or string).
+
+    Returns:
+        Parsed date object, or None if parsing fails.
+    """
     if value is None:
         return None
     if isinstance(value, datetime):
@@ -294,6 +359,14 @@ def _parse_date(value: Any) -> date | None:
 def _group_expense_rows(
     rows: list[ExpenseRow],
 ) -> tuple[list[ExpenseEntry], dict[str, Any]]:
+    """Group expense rows by reference number and create entries.
+
+    Args:
+        rows: List of parsed expense rows.
+
+    Returns:
+        Tuple of (expense_entries, summary_stats).
+    """
     grouped: dict[str, list[ExpenseRow]] = {}
     for row in rows:
         reference = row.reference_number.strip() if row.reference_number else ""
@@ -366,6 +439,14 @@ def _group_expense_rows(
 
 
 def _infer_expense_category(row: ExpenseRow) -> str:
+    """Infer expense category from accounting nature label.
+
+    Args:
+        row: Expense row with accounting_nature_label.
+
+    Returns:
+        Category: 'labor', 'subcontracting', 'overhead', or 'procurement'.
+    """
     label = (row.accounting_nature_label or "").lower()
     if not row.purchase_document:
         return "labor"
@@ -379,6 +460,14 @@ def _infer_expense_category(row: ExpenseRow) -> str:
 
 
 def _infer_expense_description(row: ExpenseRow) -> str | None:
+    """Infer expense description from available fields.
+
+    Args:
+        row: Expense row with description, resource_name, vendor_name.
+
+    Returns:
+        First non-empty description field, or None.
+    """
     if row.description:
         return row.description
     if row.resource_name:
@@ -391,6 +480,14 @@ def _infer_expense_description(row: ExpenseRow) -> str | None:
 def _parse_task_breakdown(
     value: Any,
 ) -> tuple[list[RAETaskBreakdown], float, str | None]:
+    """Parse task breakdown from JSON string or dict.
+
+    Args:
+        value: JSON string, dict, or None containing task estimates.
+
+    Returns:
+        Tuple of (breakdown_list, breakdown_sum, error_message).
+    """
     if value is None or (isinstance(value, str) and not value.strip()):
         return [], 0.0, None
 
@@ -432,6 +529,14 @@ def _parse_task_breakdown(
 
 
 def _format_forecast_period(entries: list[RAEEntry]) -> str | None:
+    """Format forecast period range from RAE entries.
+
+    Args:
+        entries: List of RAE entries with forecast dates.
+
+    Returns:
+        Formatted period string like 'Q1 2026' or '2026-01 to 2026-03'.
+    """
     dates = [entry.forecast_date for entry in entries if entry.forecast_date]
     if not dates:
         return None
@@ -443,4 +548,12 @@ def _format_forecast_period(entries: list[RAEEntry]) -> str | None:
 
 
 def _quarter(value: date) -> int:
+    """Get quarter number from date.
+
+    Args:
+        value: Date object.
+
+    Returns:
+        Quarter number (1-4).
+    """
     return (value.month - 1) // 3 + 1

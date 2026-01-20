@@ -436,9 +436,11 @@ def validate_rae_entries(
     Args:
         entries: Parsed RAE entries.
         milestone_names: Optional set of valid milestone names.
+        task_names: Optional set of valid task names from loaded XML.
+        milestone_dates: Optional mapping of milestone names to planned dates.
 
     Returns:
-        Validation report with errors.
+        Validation report with errors and warnings.
     """
     issues: list[ValidationIssue] = []
 

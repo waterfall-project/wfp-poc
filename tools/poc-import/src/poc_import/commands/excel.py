@@ -78,6 +78,17 @@ def _require_loaded_excel(
 
 
 def _require_selected_project(state: ShellState) -> str:
+    """Ensure project is selected or exit.
+
+    Args:
+        state: Shell state with selected project.
+
+    Returns:
+        Selected project UUID.
+
+    Raises:
+        SystemExit: If no project selected.
+    """
     if not state.selected_project_id:
         console.print(
             "[red]Error:[/red] No project selected. "
@@ -88,16 +99,41 @@ def _require_selected_project(state: ShellState) -> str:
 
 
 def _format_amount(value: float | None) -> str:
+    """Format amount with thousand separators.
+
+    Args:
+        value: Amount to format, or None.
+
+    Returns:
+        Formatted amount string or "-" if None.
+    """
     if value is None:
         return "-"
     return f"{value:,.2f}".replace(",", " ")
 
 
 def _format_date(value: date | None) -> str:
+    """Format date as ISO string.
+
+    Args:
+        value: Date to format, or None.
+
+    Returns:
+        ISO formatted date string or "-" if None.
+    """
     return value.isoformat() if value else "-"
 
 
 def _entry_has_errors(entry: ExpenseEntry, report: ValidationReport | None) -> bool:
+    """Check if expense entry has validation errors.
+
+    Args:
+        entry: Expense entry to check.
+        report: Validation report, or None.
+
+    Returns:
+        True if entry has ERROR severity issues, False otherwise.
+    """
     if report is None:
         return False
     entry_rows = set(entry.row_numbers)
@@ -108,6 +144,11 @@ def _entry_has_errors(entry: ExpenseEntry, report: ValidationReport | None) -> b
 
 
 def _print_validation_summary(report: ValidationReport) -> None:
+    """Print validation report summary to console.
+
+    Args:
+        report: Validation report with errors and warnings.
+    """
     errors = report.summary.get("errors", 0)
     warnings = report.summary.get("warnings", 0)
     status = "✓ Passed" if errors == 0 else "✗ Failed"
@@ -121,6 +162,14 @@ def _print_validation_summary(report: ValidationReport) -> None:
 def _get_xml_context(
     state: ShellState,
 ) -> tuple[set[str] | None, dict[str, date] | None]:
+    """Extract task names and milestone dates from loaded XML.
+
+    Args:
+        state: Shell state containing loaded XML data.
+
+    Returns:
+        Tuple of (task_names, milestone_dates) or (None, None) if no XML loaded.
+    """
     if not state.data:
         return None, None
     task_names = {task.name for task in state.data.tasks if task.name}
@@ -135,6 +184,14 @@ def _get_xml_context(
 
 
 def _extract_hours(value: str | None) -> float | None:
+    """Extract hours from text like '40h' or '7.5h'.
+
+    Args:
+        value: Text containing hours notation.
+
+    Returns:
+        Extracted hours as float, or None if not found.
+    """
     if not value:
         return None
     match = re.search(r"(\d+(?:[\.,]\d+)?)\s*h", value, flags=re.IGNORECASE)
@@ -943,10 +1000,28 @@ def excel_import_rae(
 
 
 def _chunk_entries(entries: list[ExpenseEntry], size: int) -> list[list[ExpenseEntry]]:
+    """Split expense entries into chunks of given size.
+
+    Args:
+        entries: List of expense entries to chunk.
+        size: Maximum entries per chunk.
+
+    Returns:
+        List of entry chunks.
+    """
     return [entries[i : i + size] for i in range(0, len(entries), size)]
 
 
 def _fetch_existing_expense_refs(client: WfpApiClient, project_id: str) -> set[str]:
+    """Fetch all existing expense reference numbers from API.
+
+    Args:
+        client: WFP API client.
+        project_id: Project UUID.
+
+    Returns:
+        Set of existing reference numbers.
+    """
     refs: set[str] = set()
     page = 1
     per_page = 100
@@ -967,6 +1042,14 @@ def _fetch_existing_expense_refs(client: WfpApiClient, project_id: str) -> set[s
 
 
 def _expense_entry_to_payload(entry: ExpenseEntry) -> dict[str, Any]:
+    """Convert expense entry to API payload.
+
+    Args:
+        entry: Expense entry to convert.
+
+    Returns:
+        Dictionary payload for API request.
+    """
     return {
         "date": _format_api_date(entry.expense_date),
         "amount": entry.amount,
@@ -984,12 +1067,28 @@ def _expense_entry_to_payload(entry: ExpenseEntry) -> dict[str, Any]:
 
 
 def _format_api_date(value: date | None) -> str:
+    """Format date for API in ISO 8601 datetime format.
+
+    Args:
+        value: Date to format, or None.
+
+    Returns:
+        ISO datetime string with timezone, or empty string if None.
+    """
     if value is None:
         return ""
     return f"{value.isoformat()}T00:00:00Z"
 
 
 def _expense_entry_to_json(entry: ExpenseEntry) -> dict[str, Any]:
+    """Convert expense entry to JSON representation for display.
+
+    Args:
+        entry: Expense entry to convert.
+
+    Returns:
+        Dictionary with expense details for JSON output.
+    """
     resource_name, resource_id = _split_resource_name(entry.resource_name)
     payload: dict[str, Any] = {
         "id": entry.entry_id,
@@ -1011,6 +1110,14 @@ def _expense_entry_to_json(entry: ExpenseEntry) -> dict[str, Any]:
 
 
 def _rae_entry_to_json(entry: Any) -> dict[str, Any]:
+    """Convert RAE entry to JSON representation for display.
+
+    Args:
+        entry: RAE entry to convert.
+
+    Returns:
+        Dictionary with RAE details for JSON output.
+    """
     remaining = (
         round(entry.remaining_amount, 2) if entry.remaining_amount is not None else None
     )
@@ -1031,6 +1138,14 @@ def _rae_entry_to_json(entry: Any) -> dict[str, Any]:
 
 
 def _split_resource_name(value: str | None) -> tuple[str | None, str | None]:
+    """Extract name and ID from resource string like 'John Doe (ID: 12345)'.
+
+    Args:
+        value: Resource name string with optional ID.
+
+    Returns:
+        Tuple of (name, id) or (value, None) if no ID found.
+    """
     if not value:
         return None, None
     match = re.match(r"^(.*?)\s*\(ID:\s*([^\)]+)\)", value)
@@ -1040,6 +1155,15 @@ def _split_resource_name(value: str | None) -> tuple[str | None, str | None]:
 
 
 def _fetch_task_name_map(client: WfpApiClient, project_id: str) -> dict[str, str]:
+    """Fetch all project tasks and build name-to-ID mapping.
+
+    Args:
+        client: WFP API client.
+        project_id: Project UUID.
+
+    Returns:
+        Dictionary mapping task names to task UUIDs.
+    """
     task_map: dict[str, str] = {}
     page = 1
     per_page = 200
@@ -1059,6 +1183,15 @@ def _fetch_task_name_map(client: WfpApiClient, project_id: str) -> dict[str, str
 
 
 def _build_rae_details(entry: Any, task_map: dict[str, str]) -> dict[str, Any] | None:
+    """Build RAE details payload with task estimates for API.
+
+    Args:
+        entry: RAE entry with task breakdown.
+        task_map: Mapping of task names to task UUIDs.
+
+    Returns:
+        Dictionary with task_estimates, or None if no valid tasks.
+    """
     if not entry.task_breakdown:
         return None
     task_estimates = []
