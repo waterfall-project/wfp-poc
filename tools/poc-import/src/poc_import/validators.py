@@ -268,6 +268,93 @@ class DataValidator:
         return is_valid, errors
 
 
+def _validate_assignments(
+    assignments: list[Assignment],
+    resources: list,
+    issues: list[ValidationIssue],
+) -> None:
+    """Validate assignment units and resource allocation.
+
+    VAL-008: Assignments with units > 1.0 (>100%) will be capped
+    VAL-009: Assignments with units < 0 are invalid
+    VAL-010: Resource max_units exceeded
+
+    Args:
+        assignments: List of assignments to validate.
+        resources: List of resources for max_units check.
+        issues: List to append validation issues to.
+    """
+    # Build resource map for max_units lookup
+    resource_map = {r.uid: r for r in resources}
+
+    for assignment in assignments:
+        line = assignment.line_number
+
+        # VAL-008: Units > 1.0 (will be capped to 100%)
+        if assignment.units > 1.0:
+            issues.append(
+                ValidationIssue(
+                    id="VAL-008",
+                    severity=ValidationSeverity.WARNING,
+                    message=(
+                        f"Assignment units={assignment.units:.2f} exceeds 100% "
+                        f"(task_uid={assignment.task_uid}, "
+                        f"resource_uid={assignment.resource_uid}). "
+                        "Will be capped to 100% during import."
+                    ),
+                    line=line,
+                    context={
+                        "task_uid": assignment.task_uid,
+                        "resource_uid": assignment.resource_uid,
+                        "units": assignment.units,
+                    },
+                )
+            )
+
+        # VAL-009: Negative units
+        if assignment.units < 0:
+            issues.append(
+                ValidationIssue(
+                    id="VAL-009",
+                    severity=ValidationSeverity.ERROR,
+                    message=(
+                        f"Assignment units={assignment.units:.2f} is negative "
+                        f"(task_uid={assignment.task_uid}, "
+                        f"resource_uid={assignment.resource_uid})."
+                    ),
+                    line=line,
+                    context={
+                        "task_uid": assignment.task_uid,
+                        "resource_uid": assignment.resource_uid,
+                        "units": assignment.units,
+                    },
+                )
+            )
+
+        # VAL-010: Check against resource max_units (if available)
+        resource = resource_map.get(assignment.resource_uid)
+        if resource and assignment.units > resource.max_units:
+            issues.append(
+                ValidationIssue(
+                    id="VAL-010",
+                    severity=ValidationSeverity.WARNING,
+                    message=(
+                        f"Assignment units={assignment.units:.2f} exceeds "
+                        f"resource max_units={resource.max_units:.2f} "
+                        f"(resource='{resource.name}', task_uid={assignment.task_uid})."
+                    ),
+                    line=line,
+                    context={
+                        "task_uid": assignment.task_uid,
+                        "resource_uid": assignment.resource_uid,
+                        "resource_name": resource.name,
+                        "units": assignment.units,
+                        "max_units": resource.max_units,
+                    },
+                )
+            )
+
+
 def validate_msproject_rules(
     data: MSProjectData,
     api_project: dict[str, Any] | None = None,
@@ -297,6 +384,7 @@ def validate_msproject_rules(
         resource_uids,
         issues,
     )
+    _validate_assignments(data.assignments, data.resources, issues)
     _validate_version_conflict(data, api_project, issues)
 
     errors = sum(1 for issue in issues if issue.severity == ValidationSeverity.ERROR)

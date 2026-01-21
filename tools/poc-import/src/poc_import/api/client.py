@@ -282,6 +282,18 @@ class WfpApiClient:
         logger.debug(f"Getting project: {project_id}")
         return self._request("GET", f"/v0/projects/{project_id}")
 
+    def delete_project(self, project_id: str) -> dict[str, Any]:
+        """Delete a project by ID.
+
+        Args:
+            project_id: Project UUID
+
+        Returns:
+            API response data
+        """
+        logger.debug("Deleting project: %s", project_id)
+        return self._request("DELETE", f"/v0/projects/{project_id}")
+
     def get_project_milestones(self, project_id: str) -> list[dict[str, Any]]:
         """Get all milestones for a project.
 
@@ -413,6 +425,38 @@ class WfpApiClient:
         return self._request(
             "GET",
             f"/v0/projects/{project_id}/expenses",
+            params=params,
+        )
+
+    def list_project_milestones(
+        self,
+        project_id: str,
+        page: int | None = None,
+        per_page: int | None = None,
+    ) -> dict[str, Any]:
+        """List milestones for a project.
+
+        Args:
+            project_id: Project UUID
+            page: Optional page number
+            per_page: Optional items per page
+
+        Returns:
+            API response data
+
+        Raises:
+            WfpApiError: On API error
+        """
+        logger.debug("Listing milestones for project: %s", project_id)
+        params: dict[str, Any] = {}
+        if page is not None:
+            params["page"] = page
+        if per_page is not None:
+            params["per_page"] = per_page
+
+        return self._request(
+            "GET",
+            f"/v0/projects/{project_id}/milestones",
             params=params,
         )
 
@@ -866,13 +910,29 @@ class WfpApiClient:
                 )
                 continue
 
+            # Convert units to percent_allocation (cap at 100%)
+            percent_allocation = int(round(assignment.units * 100))
+            if percent_allocation > 100:
+                logger.warning(
+                    f"Assignment {idx}: units={assignment.units} exceeds 100% "
+                    f"(task_uid={assignment.task_uid}, "
+                    f"resource_uid={assignment.resource_uid}). Capping to 100%."
+                )
+                percent_allocation = 100
+            elif percent_allocation < 0:
+                logger.warning(
+                    f"Assignment {idx}: units={assignment.units} is negative. "
+                    "Setting to 0%."
+                )
+                percent_allocation = 0
+
             payload: dict[str, Any] = {
                 "task_id": task_id,
                 "resource_id": resource_id,
                 "work_hours": self._convert_hours_to_iso8601_duration(
                     assignment.work_hours
                 ),
-                "percent_allocation": int(round(assignment.units * 100)),
+                "percent_allocation": percent_allocation,
             }
 
             try:
@@ -922,13 +982,28 @@ class WfpApiClient:
                 status_code=400,
             )
 
+        # Convert units to percent_allocation (cap at 100%)
+        percent_allocation = int(round(assignment.units * 100))
+        if percent_allocation > 100:
+            logger.warning(
+                f"Assignment units={assignment.units} exceeds 100% "
+                f"(task_uid={assignment.task_uid}, "
+                f"resource_uid={assignment.resource_uid}). Capping to 100%."
+            )
+            percent_allocation = 100
+        elif percent_allocation < 0:
+            logger.warning(
+                f"Assignment units={assignment.units} is negative. Setting to 0%."
+            )
+            percent_allocation = 0
+
         payload: dict[str, Any] = {
             "task_id": task_id,
             "resource_id": resource_id,
             "work_hours": self._convert_hours_to_iso8601_duration(
                 assignment.work_hours
             ),
-            "percent_allocation": int(round(assignment.units * 100)),
+            "percent_allocation": percent_allocation,
         }
 
         result = self._request(
@@ -952,6 +1027,36 @@ class WfpApiClient:
         return self._request(
             "DELETE",
             f"/v0/projects/{project_id}/assignments/{assignment_id}",
+        )
+
+    def delete_expense(self, project_id: str, expense_id: str) -> dict[str, Any]:
+        """Delete an expense by ID.
+
+        Args:
+            project_id: Project UUID
+            expense_id: Expense UUID
+
+        Returns:
+            API response data
+        """
+        return self._request(
+            "DELETE",
+            f"/v0/projects/{project_id}/expenses/{expense_id}",
+        )
+
+    def delete_milestone(self, project_id: str, milestone_id: str) -> dict[str, Any]:
+        """Delete a milestone by ID.
+
+        Args:
+            project_id: Project UUID
+            milestone_id: Milestone UUID
+
+        Returns:
+            API response data
+        """
+        return self._request(
+            "DELETE",
+            f"/v0/projects/{project_id}/milestones/{milestone_id}",
         )
 
     def delete_task(self, project_id: str, task_id: str) -> dict[str, Any]:

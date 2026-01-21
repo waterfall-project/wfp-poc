@@ -93,6 +93,7 @@ def _print_xml_help(topic: tuple[str, ...]) -> None:
                 "list  List XML entities (see help xml list)",
                 "show  Show XML entities (see help xml show)",
                 "validate  Validate XML data",
+                "import  Import XML entities (see help xml import)",
             ]
         )
         return
@@ -108,10 +109,17 @@ def _print_xml_help(topic: tuple[str, ...]) -> None:
         return
 
     if topic[0] == "list":
-        _print_header("Show XML entities")
+        _print_header("List XML entities")
         _print_blank_line()
         _print_header("Commands:")
-        _print_command_list(["tasks: List project tasks"])
+        _print_command_list(
+            [
+                "tasks: List project tasks",
+                "resources: List project resources",
+                "assignments: List project assignments",
+                "dependencies: List project dependencies",
+            ]
+        )
         return
 
     if topic[0] == "show":
@@ -122,14 +130,37 @@ def _print_xml_help(topic: tuple[str, ...]) -> None:
             [
                 "info: Show project informations",
                 "task: Show task detail",
+                "resource: Show resource detail",
+                "assignment: Show assignment detail",
+                "dependency: Show dependency detail",
             ]
         )
         _print_blank_line()
         _print_header("Parameters:")
-        _print_command_list(["task_id"])
+        _print_command_list(
+            [
+                "task_id",
+                "resource_id",
+                "assignment_id",
+                "dependency_id",
+            ]
+        )
         _print_blank_line()
         _print_header("Example:")
         console.print("  xml show task <task_id>")
+        return
+
+    if topic[0] == "import":
+        _print_header("Import XML entities")
+        _print_blank_line()
+        _print_header("Commands:")
+        _print_command_list(
+            [
+                "create-project: Create a project and import data",
+                "project: Import full project data",
+                "task: Import a single task",
+            ]
+        )
         return
 
     console.print(f"Unknown XML help topic: {' '.join(topic)}")
@@ -146,6 +177,9 @@ def _print_service_help(topic: tuple[str, ...]) -> None:
                 "list    List service entities (see help service list)",
                 "show    Show service entities (see help service show)",
                 "select  Select active project context",
+                "delete  Delete service entities (see help service delete)",
+                "projects  Project operations (see help service projects)",
+                "tasks  Task operations (see help service tasks)",
             ]
         )
         return
@@ -178,6 +212,34 @@ def _print_service_help(topic: tuple[str, ...]) -> None:
                 "dependency: Show dependency by ID",
             ]
         )
+        return
+
+    if topic[0] == "delete":
+        _print_header("Delete service entities")
+        _print_blank_line()
+        _print_header("Commands:")
+        _print_command_list(
+            [
+                "project: Delete selected project (or pass project_id)",
+                "task: Delete task by ID (selected project required)",
+                "resource: Delete resource by ID",
+                "assignment: Delete assignment by ID (selected project required)",
+            ]
+        )
+        return
+
+    if topic[0] == "projects":
+        _print_header("Project operations")
+        _print_blank_line()
+        _print_header("Commands:")
+        _print_command_list(["list: List projects"])
+        return
+
+    if topic[0] == "tasks":
+        _print_header("Task operations")
+        _print_blank_line()
+        _print_header("Commands:")
+        _print_command_list(["list: List tasks for a project"])
         return
 
     console.print(f"Unknown service help topic: {' '.join(topic)}")

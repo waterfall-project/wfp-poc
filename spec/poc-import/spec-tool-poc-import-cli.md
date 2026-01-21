@@ -239,6 +239,10 @@ Earned Value Management requires strict milestone tracking:
 - **REQ-048**: poc-import SHALL provide `service show resource <id>` command displaying resource details + assignments
 - **REQ-049**: poc-import SHALL provide `service list assignments` command displaying assignments for active project
 - **REQ-050**: poc-import SHALL provide `service show assignment <id>` command displaying assignment details
+- **REQ-050a**: poc-import SHALL provide `service delete project [project_id]` command that deletes selected project (or provided ID)
+- **REQ-050b**: poc-import SHALL provide `service delete task <id>` command that deletes a task for the selected project
+- **REQ-050c**: poc-import SHALL provide `service delete resource <id>` command that deletes a resource
+- **REQ-050d**: poc-import SHALL provide `service delete assignment <id>` command that deletes an assignment for the selected project
 
 #### Excel Commands
 
@@ -871,6 +875,59 @@ Use 'service show task 123e4567-...' to verify.
 #### Command: `service list projects`
 
 **Purpose**: Query wfp-poc API and display all projects accessible to authenticated user.
+
+---
+
+#### Command: `service delete project [project_id]`
+
+**Purpose**: Delete a project. Uses selected project if no ID is provided.
+
+**Prerequisites:**
+- JWT token available
+
+**Output Format:**
+```
+✓ Project deleted: <project_id>
+```
+
+---
+
+#### Command: `service delete task <task_id>`
+
+**Purpose**: Delete a task for the selected project.
+
+**Prerequisites:**
+- Project selected via `service select`
+
+**Output Format:**
+```
+✓ Task deleted: <task_id>
+```
+
+---
+
+#### Command: `service delete resource <resource_id>`
+
+**Purpose**: Delete a resource by ID.
+
+**Output Format:**
+```
+✓ Resource deleted: <resource_id>
+```
+
+---
+
+#### Command: `service delete assignment <assignment_id>`
+
+**Purpose**: Delete an assignment for the selected project.
+
+**Prerequisites:**
+- Project selected via `service select`
+
+**Output Format:**
+```
+✓ Assignment deleted: <assignment_id>
+```
 
 **Prerequisites:** Valid JWT token (from .env or --token flag)
 
@@ -1783,13 +1840,38 @@ ERROR: Circular dependency detected involving tasks: #42 → #45 → #48 → #42
 
 ---
 
-### 9.5. EVM-Specific Validation (Future)
+### 9.5. Assignment & Resource Validation
 
-**VAL-008**: Milestone deletion with declared pose
+**VAL-008**: Assignment units exceeds 100%
+- **Check**: `assignment.units > 1.0`
+- **Severity**: WARNING
+- **Message**: `Assignment units=1.50 exceeds 100% (task_uid=42, resource_uid=5). Will be capped to 100% during import.`
+- **Rationale**: MS Project allows units > 1.0 for over-allocation, but wfp-poc API expects percent_allocation between 0-100. Import will automatically cap to 100%.
+- **Action**: User should review MS Project resource allocation and correct if needed before re-import.
+
+**VAL-009**: Assignment units is negative
+- **Check**: `assignment.units < 0`
+- **Severity**: ERROR
+- **Message**: `Assignment units=-0.50 is negative (task_uid=42, resource_uid=5).`
+- **Rationale**: Negative allocation is invalid and will cause import failure.
+- **Action**: User must fix the assignment in MS Project before import.
+
+**VAL-010**: Assignment exceeds resource max_units
+- **Check**: `assignment.units > resource.max_units`
+- **Severity**: WARNING
+- **Message**: `Assignment units=2.00 exceeds resource max_units=1.50 (resource='John Doe', task_uid=42).`
+- **Rationale**: Resource over-allocated beyond their maximum availability.
+- **Action**: Review resource allocation strategy in MS Project.
+
+---
+
+### 9.6. EVM-Specific Validation (Future)
+
+**VAL-011**: Milestone deletion with declared pose
 - Check: Milestone exists in wfp-poc with pose_date set, but missing in XML
 - Error: `ERROR: Cannot delete milestone "Foundation Complete" with declared pose date 2026-03-31`
 
-**VAL-009**: Milestone date shift > threshold
+**VAL-012**: Milestone date shift > threshold
 - Check: `abs(XML.milestone_date - wfp_poc.milestone_date) > 7 days`
 - Warning: `WARNING: Milestone "Phase 1" date shifted by 15 days (2026-03-31 → 2026-04-15). Review impact on EVM calculations.`
 

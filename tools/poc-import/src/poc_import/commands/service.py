@@ -8,6 +8,7 @@ import logging
 import sys
 import time
 import uuid
+from collections.abc import Callable
 from typing import Any
 
 import click
@@ -120,6 +121,42 @@ def _filter_dependencies_for_task(
     ]
 
 
+def _collect_paginated(
+    fetch_page: Callable[[int, int], dict[str, Any]],
+    per_page: int = 100,
+) -> list[dict[str, Any]]:
+    """Collect all items from a paginated API endpoint.
+
+    Args:
+        fetch_page: Function that fetches a page given (page, per_page).
+        per_page: Page size to request.
+
+    Returns:
+        List of aggregated items.
+    """
+    items: list[dict[str, Any]] = []
+    page = 1
+
+    while True:
+        result = fetch_page(page, per_page)
+        page_items = result.get("data", [])
+        if isinstance(page_items, list):
+            items.extend(page_items)
+
+        total_pages = result.get("total_pages")
+        if isinstance(total_pages, int):
+            if page >= total_pages:
+                break
+            page += 1
+            continue
+
+        if not page_items or len(page_items) < per_page:
+            break
+        page += 1
+
+    return items
+
+
 def _print_assignments_table(assignments: list[dict[str, Any]]) -> None:
     """Print assignments table."""
     if not assignments:
@@ -174,7 +211,8 @@ def _print_dependencies_table(dependencies: list[dict[str, Any]]) -> None:
         "Commands:\n"
         "  list    List service entities (see help service list)\n"
         "  show    Show service entities (see help service show)\n"
-        "  select  Select active project context"
+        "  select  Select active project context\n"
+        "  delete  Delete service entities (see help service delete)"
     )
 )
 def service() -> None:
@@ -280,6 +318,21 @@ def service_select(
 )
 def service_list() -> None:
     """List service entities."""
+
+
+@service.group(
+    "delete",
+    help=(
+        "Delete service entities.\n\n"
+        "Commands:\n"
+        "  project     Delete selected project (or pass project_id)\n"
+        "  task        Delete task by ID (selected project required)\n"
+        "  resource    Delete resource by ID\n"
+        "  assignment  Delete assignment by ID (selected project required)"
+    ),
+)
+def service_delete() -> None:
+    """Delete service entities."""
 
 
 @service_list.command("projects", help="List projects.")
@@ -808,6 +861,335 @@ def service_list_dependencies(
 
     console.print(table)
     log_duration(start_time, "service list dependencies", logger)
+
+
+@service_delete.command("project", help="Delete a project.")
+@click.argument("project_id", required=False)
+@click.option(
+    "--token",
+    type=str,
+    envvar="WFP_JWT_TOKEN",
+    help="JWT authentication token (or set WFP_JWT_TOKEN env var)",
+)
+@click.option(
+    "--env",
+    "env_name",
+    type=click.Choice(["dev", "staging", "prod"], case_sensitive=False),
+    help="Environment to load (.env.dev/.env.staging/.env.prod)",
+)
+@click.option(
+    "--api-url",
+    type=str,
+    envvar="WFP_API_URL",
+    default="http://localhost:5000",
+    help="wfp-poc API base URL (or set WFP_API_URL env var)",
+)
+@click.option(
+    "--company-id",
+    type=str,
+    help="Company UUID for multi-tenant isolation (optional)",
+)
+@click.option(
+    "--log-level",
+    type=click.Choice(
+        ["debug", "info", "warning", "error", "critical"],
+        case_sensitive=False,
+    ),
+    help="Logging level",
+)
+@click.option(
+    "--verbose",
+    is_flag=True,
+    help="Enable verbose logging",
+)
+@click.pass_obj
+def service_delete_project(
+    state: ShellState,
+    project_id: str | None,
+    token: str | None,
+    env_name: str | None,
+    api_url: str,
+    company_id: str | None,
+    log_level: str | None,
+    verbose: bool,
+) -> None:
+    """Delete a project by ID or selected project."""
+    setup_logging(verbose, log_level)
+    logger = logging.getLogger(__name__)
+    start_time = time.monotonic()
+
+    if not project_id:
+        if not state.selected_project_id:
+            console.print(
+                "[red]Error:[/red] No project selected. "
+                "Use `service select <project_id>` or pass project_id."
+            )
+            sys.exit(1)
+        project_id = state.selected_project_id
+
+    client = _build_client(api_url, token, company_id, env_name)
+
+    try:
+        console.print("[bold]Deleting project dependencies...[/bold]")
+
+        expenses = _collect_paginated(
+            lambda page, per_page: client.list_project_expenses(
+                project_id,
+                page=page,
+                per_page=per_page,
+            )
+        )
+        for expense in expenses:
+            expense_id = expense.get("id")
+            if expense_id:
+                client.delete_expense(project_id, str(expense_id))
+
+        assignments = _collect_paginated(
+            lambda page, per_page: client.list_assignments(
+                project_id,
+                page=page,
+                per_page=per_page,
+            )
+        )
+        for assignment in assignments:
+            assignment_id = assignment.get("id")
+            if assignment_id:
+                client.delete_assignment(project_id, str(assignment_id))
+
+        tasks = _collect_paginated(
+            lambda page, per_page: client.list_project_tasks(
+                project_id,
+                page=page,
+                per_page=per_page,
+            )
+        )
+        for task in tasks:
+            task_id = task.get("id")
+            if task_id:
+                client.delete_task(project_id, str(task_id))
+
+        milestones = _collect_paginated(
+            lambda page, per_page: client.list_project_milestones(
+                project_id,
+                page=page,
+                per_page=per_page,
+            )
+        )
+        for milestone in milestones:
+            milestone_id = milestone.get("id")
+            if milestone_id:
+                client.delete_milestone(project_id, str(milestone_id))
+
+        client.delete_project(project_id)
+    except WfpApiError as exc:
+        console.print(f"[red]Error:[/red] {redact_secrets(str(exc))}")
+        sys.exit(2)
+
+    console.print(f"[green]✓[/green] Project deleted: {project_id}")
+    if state.selected_project_id == project_id:
+        state.selected_project_id = None
+        state.selected_project_name = None
+    log_duration(start_time, "service delete project", logger)
+
+
+@service_delete.command("task", help="Delete a task by ID.")
+@click.argument("task_id")
+@click.option(
+    "--token",
+    type=str,
+    envvar="WFP_JWT_TOKEN",
+    help="JWT authentication token (or set WFP_JWT_TOKEN env var)",
+)
+@click.option(
+    "--env",
+    "env_name",
+    type=click.Choice(["dev", "staging", "prod"], case_sensitive=False),
+    help="Environment to load (.env.dev/.env.staging/.env.prod)",
+)
+@click.option(
+    "--api-url",
+    type=str,
+    envvar="WFP_API_URL",
+    default="http://localhost:5000",
+    help="wfp-poc API base URL (or set WFP_API_URL env var)",
+)
+@click.option(
+    "--company-id",
+    type=str,
+    help="Company UUID for multi-tenant isolation (optional)",
+)
+@click.option(
+    "--log-level",
+    type=click.Choice(
+        ["debug", "info", "warning", "error", "critical"],
+        case_sensitive=False,
+    ),
+    help="Logging level",
+)
+@click.option(
+    "--verbose",
+    is_flag=True,
+    help="Enable verbose logging",
+)
+@click.pass_obj
+def service_delete_task(
+    state: ShellState,
+    task_id: str,
+    token: str | None,
+    env_name: str | None,
+    api_url: str,
+    company_id: str | None,
+    log_level: str | None,
+    verbose: bool,
+) -> None:
+    """Delete a task for the selected project."""
+    setup_logging(verbose, log_level)
+    logger = logging.getLogger(__name__)
+    start_time = time.monotonic()
+    project_id = _require_selected_project(state)
+    client = _build_client(api_url, token, company_id, env_name)
+
+    try:
+        client.delete_task(project_id, task_id)
+    except WfpApiError as exc:
+        console.print(f"[red]Error:[/red] {redact_secrets(str(exc))}")
+        sys.exit(2)
+
+    console.print(f"[green]✓[/green] Task deleted: {task_id}")
+    log_duration(start_time, "service delete task", logger)
+
+
+@service_delete.command("resource", help="Delete a resource by ID.")
+@click.argument("resource_id")
+@click.option(
+    "--token",
+    type=str,
+    envvar="WFP_JWT_TOKEN",
+    help="JWT authentication token (or set WFP_JWT_TOKEN env var)",
+)
+@click.option(
+    "--env",
+    "env_name",
+    type=click.Choice(["dev", "staging", "prod"], case_sensitive=False),
+    help="Environment to load (.env.dev/.env.staging/.env.prod)",
+)
+@click.option(
+    "--api-url",
+    type=str,
+    envvar="WFP_API_URL",
+    default="http://localhost:5000",
+    help="wfp-poc API base URL (or set WFP_API_URL env var)",
+)
+@click.option(
+    "--company-id",
+    type=str,
+    help="Company UUID for multi-tenant isolation (optional)",
+)
+@click.option(
+    "--log-level",
+    type=click.Choice(
+        ["debug", "info", "warning", "error", "critical"],
+        case_sensitive=False,
+    ),
+    help="Logging level",
+)
+@click.option(
+    "--verbose",
+    is_flag=True,
+    help="Enable verbose logging",
+)
+@click.pass_obj
+def service_delete_resource(
+    state: ShellState,
+    resource_id: str,
+    token: str | None,
+    env_name: str | None,
+    api_url: str,
+    company_id: str | None,
+    log_level: str | None,
+    verbose: bool,
+) -> None:
+    """Delete a resource by ID."""
+    setup_logging(verbose, log_level)
+    logger = logging.getLogger(__name__)
+    start_time = time.monotonic()
+    client = _build_client(api_url, token, company_id, env_name)
+
+    try:
+        client.delete_resource(resource_id)
+    except WfpApiError as exc:
+        console.print(f"[red]Error:[/red] {redact_secrets(str(exc))}")
+        sys.exit(2)
+
+    console.print(f"[green]✓[/green] Resource deleted: {resource_id}")
+    log_duration(start_time, "service delete resource", logger)
+
+
+@service_delete.command("assignment", help="Delete an assignment by ID.")
+@click.argument("assignment_id")
+@click.option(
+    "--token",
+    type=str,
+    envvar="WFP_JWT_TOKEN",
+    help="JWT authentication token (or set WFP_JWT_TOKEN env var)",
+)
+@click.option(
+    "--env",
+    "env_name",
+    type=click.Choice(["dev", "staging", "prod"], case_sensitive=False),
+    help="Environment to load (.env.dev/.env.staging/.env.prod)",
+)
+@click.option(
+    "--api-url",
+    type=str,
+    envvar="WFP_API_URL",
+    default="http://localhost:5000",
+    help="wfp-poc API base URL (or set WFP_API_URL env var)",
+)
+@click.option(
+    "--company-id",
+    type=str,
+    help="Company UUID for multi-tenant isolation (optional)",
+)
+@click.option(
+    "--log-level",
+    type=click.Choice(
+        ["debug", "info", "warning", "error", "critical"],
+        case_sensitive=False,
+    ),
+    help="Logging level",
+)
+@click.option(
+    "--verbose",
+    is_flag=True,
+    help="Enable verbose logging",
+)
+@click.pass_obj
+def service_delete_assignment(
+    state: ShellState,
+    assignment_id: str,
+    token: str | None,
+    env_name: str | None,
+    api_url: str,
+    company_id: str | None,
+    log_level: str | None,
+    verbose: bool,
+) -> None:
+    """Delete an assignment for the selected project."""
+    setup_logging(verbose, log_level)
+    logger = logging.getLogger(__name__)
+    start_time = time.monotonic()
+    project_id = _require_selected_project(state)
+    client = _build_client(api_url, token, company_id, env_name)
+
+    try:
+        client.delete_assignment(project_id, assignment_id)
+    except WfpApiError as exc:
+        console.print(f"[red]Error:[/red] {redact_secrets(str(exc))}")
+        sys.exit(2)
+
+    console.print(f"[green]✓[/green] Assignment deleted: {assignment_id}")
+    log_duration(start_time, "service delete assignment", logger)
 
 
 @service.group(

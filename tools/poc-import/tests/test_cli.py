@@ -39,6 +39,62 @@ class TestCLI:
         assert "--mode" in result.output
         assert "--dry-run" in result.output
 
+    def test_service_delete_help(self):
+        """Test service delete help output."""
+        runner = CliRunner()
+        result = runner.invoke(cli, ["service", "delete", "--help"])
+        assert result.exit_code == 0
+        assert "project" in result.output
+        assert "task" in result.output
+        assert "resource" in result.output
+        assert "assignment" in result.output
+
+    def test_custom_help_xml_includes_import(self):
+        """Test custom help for XML lists import commands."""
+        runner = CliRunner()
+        result = runner.invoke(cli, ["help", "xml"])
+        assert result.exit_code == 0
+        assert "import" in result.output
+
+    def test_custom_help_xml_list_entities(self):
+        """Test custom help for XML list entities."""
+        runner = CliRunner()
+        result = runner.invoke(cli, ["help", "xml", "list"])
+        assert result.exit_code == 0
+        assert "tasks" in result.output
+        assert "resources" in result.output
+        assert "assignments" in result.output
+        assert "dependencies" in result.output
+
+    def test_custom_help_service_includes_delete(self):
+        """Test custom help for service includes delete and groups."""
+        runner = CliRunner()
+        result = runner.invoke(cli, ["help", "service"])
+        assert result.exit_code == 0
+        assert "delete" in result.output
+        assert "projects" in result.output
+        assert "tasks" in result.output
+
+    def test_service_delete_project_requires_selection(self):
+        """Test delete project requires selection or project_id."""
+        runner = CliRunner()
+        result = runner.invoke(
+            cli,
+            ["service", "delete", "project", "--token=dummy-token"],
+        )
+        assert result.exit_code == 1
+        assert "No project selected" in result.output
+
+    def test_service_delete_task_requires_selection(self):
+        """Test delete task requires selected project."""
+        runner = CliRunner()
+        result = runner.invoke(
+            cli,
+            ["service", "delete", "task", "123", "--token=dummy-token"],
+        )
+        assert result.exit_code == 1
+        assert "No project selected" in result.output
+
     def test_xml_import_help_includes_create_project(self):
         """Test xml import help lists create-project."""
         runner = CliRunner()
