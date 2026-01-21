@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Project xmlns="http://schemas.microsoft.com/project">
+    <Name>Fixture Project</Name>
+    <Title>Fixture Project Title</Title>
+    <SaveVersion>14</SaveVersion>
+    <StartDate>2026-01-01T08:00:00</StartDate>
+    <FinishDate>2026-12-31T17:00:00</FinishDate>
+    <GUID>11111111-2222-3333-4444-555555555555</GUID>
+    <Tasks>
+    <Task>
+        <UID>1</UID>
+        <GUID>AAAAAAAA-BBBB-CCCC-DDDD-000000000001</GUID>
+        <Name>Task 1</Name>
+        <WBS>1</WBS>
+        <Start>2026-01-01T08:00:00</Start>
+        <Finish>2026-01-10T17:00:00</Finish>
+        <Duration>PT72H0M0S</Duration>
+        <Cost>1000</Cost>
+        <PercentComplete>0</PercentComplete>
+        <Critical>1</Critical>
+        <Milestone>0</Milestone>
+        <Summary>0</Summary>
+    </Task>
+    <Task>
+        <UID>2</UID>
+        <GUID>BBBBBBBB-CCCC-DDDD-EEEE-000000000002</GUID>
+        <Name>Milestone 1</Name>
+        <WBS>2</WBS>
+        <Start>2026-01-10T17:00:00</Start>
+        <Finish>2026-01-10T17:00:00</Finish>
+        <Duration>PT0H0M0S</Duration>
+        <Cost>0</Cost>
+        <PercentComplete>0</PercentComplete>
+        <Critical>0</Critical>
+        <Milestone>1</Milestone>
+        <Summary>0</Summary>
+        <PredecessorLink>
+
+            <PredecessorUID>1</PredecessorUID>
+            <Type>1</Type>
+            <LinkLag>0</LinkLag>
+                </PredecessorLink>
+    </Task>
+    </Tasks>
+    <Resources>
+    <Resource>
+        <UID>1</UID>
+        <GUID>RESOURCE-AAAA-BBBB-CCCC-000000000001</GUID>
+        <Name>Developer</Name>
+        <Type>1</Type>
+        <StandardRate>100</StandardRate>
+        <MaxUnits>1.0</MaxUnits>
+    </Resource>
+    </Resources>
+    <Assignments>
+    <Assignment>
+        <TaskUID>1</TaskUID>
+        <ResourceUID>1</ResourceUID>
+        <Work>PT72H0M0S</Work>
+        <Units>1.0</Units>
+    </Assignment>
+    </Assignments>
+</Project>

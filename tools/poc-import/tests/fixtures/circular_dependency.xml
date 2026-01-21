@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Project xmlns="http://schemas.microsoft.com/project">
+    <Name>Fixture Project</Name>
+    <Title>Fixture Project Title</Title>
+    <SaveVersion>14</SaveVersion>
+    <StartDate>2026-01-01T08:00:00</StartDate>
+    <FinishDate>2026-12-31T17:00:00</FinishDate>
+    <GUID>11111111-2222-3333-4444-555555555555</GUID>
+    <Tasks>
+    <Task>
+        <UID>1</UID>
+        <GUID>CIRC-AAAA-BBBB-CCCC-000000000001</GUID>
+        <Name>Task A</Name>
+        <WBS>1</WBS>
+        <Start>2026-01-01T08:00:00</Start>
+        <Finish>2026-01-05T17:00:00</Finish>
+        <Duration>PT40H0M0S</Duration>
+        <Cost>0</Cost>
+        <PercentComplete>0</PercentComplete>
+        <Critical>0</Critical>
+        <Milestone>0</Milestone>
+        <Summary>0</Summary>
+        <PredecessorLink>
+
+            <PredecessorUID>2</PredecessorUID>
+            <Type>1</Type>
+            <LinkLag>0</LinkLag>
+                </PredecessorLink>
+    </Task>
+    <Task>
+        <UID>2</UID>
+        <GUID>CIRC-AAAA-BBBB-CCCC-000000000002</GUID>
+        <Name>Task B</Name>
+        <WBS>2</WBS>
+        <Start>2026-01-06T08:00:00</Start>
+        <Finish>2026-01-10T17:00:00</Finish>
+        <Duration>PT40H0M0S</Duration>
+        <Cost>0</Cost>
+        <PercentComplete>0</PercentComplete>
+        <Critical>0</Critical>
+        <Milestone>0</Milestone>
+        <Summary>0</Summary>
+        <PredecessorLink>
+
+            <PredecessorUID>3</PredecessorUID>
+            <Type>1</Type>
+            <LinkLag>0</LinkLag>
+                </PredecessorLink>
+    </Task>
+    <Task>
+        <UID>3</UID>
+        <GUID>CIRC-AAAA-BBBB-CCCC-000000000003</GUID>
+        <Name>Task C</Name>
+        <WBS>3</WBS>
+        <Start>2026-01-11T08:00:00</Start>
+        <Finish>2026-01-15T17:00:00</Finish>
+        <Duration>PT40H0M0S</Duration>
+        <Cost>0</Cost>
+        <PercentComplete>0</PercentComplete>
+        <Critical>0</Critical>
+        <Milestone>0</Milestone>
+        <Summary>0</Summary>
+        <PredecessorLink>
+
+            <PredecessorUID>1</PredecessorUID>
+            <Type>1</Type>
+            <LinkLag>0</LinkLag>
+                </PredecessorLink>
+    </Task>
+    </Tasks>
+    <Resources></Resources>
+    <Assignments></Assignments>
+</Project>

@@ -549,13 +549,10 @@ def service_list_resources(
     setup_logging(verbose, log_level)
     logger = logging.getLogger(__name__)
     start_time = time.monotonic()
-    project_id = _require_selected_project(state)
     client = _build_client(api_url, token, company_id, env_name)
 
     try:
-        result = client.list_project_resources(
-            project_id=project_id, page=page, per_page=per_page
-        )
+        result = client.list_resources(page=page, per_page=per_page)
     except WfpApiError as exc:
         console.print(f"[red]Error:[/red] {redact_secrets(str(exc))}")
         sys.exit(2)
@@ -757,19 +754,39 @@ def service_list_dependencies(
     client = _build_client(api_url, token, company_id, env_name)
 
     try:
-        result = client.list_dependencies(
-            project_id=project_id, page=page, per_page=per_page
+        result = client.list_project_tasks(
+            project_id=project_id,
+            page=page,
+            per_page=per_page,
         )
     except WfpApiError as exc:
         console.print(f"[red]Error:[/red] {redact_secrets(str(exc))}")
         sys.exit(2)
 
+    task_items = result.get("data", [])
+    dependencies: list[dict[str, object]] = []
+    for task in task_items:
+        if not isinstance(task, dict):
+            continue
+        task_id = task.get("id")
+        predecessors = task.get("predecessors") or []
+        for pred in predecessors:
+            if not isinstance(pred, dict):
+                continue
+            dependencies.append(
+                {
+                    "from_task_id": pred.get("predecessor_task_id"),
+                    "to_task_id": task_id,
+                    "type": pred.get("type"),
+                    "lag": pred.get("lag"),
+                }
+            )
+
     if output.lower() == "json":
-        _output_json(result)
+        _output_json({"data": dependencies})
         return
 
-    items = result.get("data", [])
-    if not items:
+    if not dependencies:
         console.print("No dependencies found.")
         return
 
@@ -780,9 +797,9 @@ def service_list_dependencies(
     table.add_column("Type")
     table.add_column("Lag")
 
-    for item in items:
+    for idx, item in enumerate(dependencies, start=1):
         table.add_row(
-            str(item.get("id", "")),
+            str(idx),
             str(item.get("from_task_id", "")),
             str(item.get("to_task_id", "")),
             str(item.get("type", "")),
@@ -955,7 +972,6 @@ def service_show_task(
     try:
         result = client.get_project_task(project_id, task_id)
         assignments_result = client.list_assignments(project_id=project_id)
-        dependencies_result = client.list_dependencies(project_id=project_id)
     except WfpApiError as exc:
         console.print(f"[red]Error:[/red] {redact_secrets(str(exc))}")
         sys.exit(2)
@@ -964,9 +980,19 @@ def service_show_task(
     assignments = _filter_assignments_for_task(
         assignments_result.get("data", []), task_id
     )
-    dependencies = _filter_dependencies_for_task(
-        dependencies_result.get("data", []), task_id
-    )
+    predecessors = data.get("predecessors", []) if isinstance(data, dict) else []
+    dependencies = []
+    for pred in predecessors:
+        if not isinstance(pred, dict):
+            continue
+        dependencies.append(
+            {
+                "predecessor_task_id": pred.get("predecessor_task_id"),
+                "successor_task_id": task_id,
+                "type": pred.get("type"),
+                "lag": pred.get("lag"),
+            }
+        )
     if output.lower() == "json":
         _output_json(
             {
@@ -1216,21 +1242,26 @@ def service_show_dependency(
     setup_logging(verbose, log_level)
     logger = logging.getLogger(__name__)
     start_time = time.monotonic()
-    project_id = _require_selected_project(state)
-    client = _build_client(api_url, token, company_id, env_name)
+    _require_selected_project(state)
+    load_env_file(env_name)
 
-    try:
-        result = client.get_dependency(project_id, dependency_id)
-    except WfpApiError as exc:
-        console.print(f"[red]Error:[/red] {redact_secrets(str(exc))}")
+    message = (
+        "Dependency endpoints are not available in the API. "
+        "Use `service list tasks` to inspect task predecessors."
+    )
+
+    if output.lower() == "json":
+        _output_json(
+            {
+                "error": message,
+                "dependency_id": dependency_id,
+            }
+        )
         sys.exit(2)
 
-    data = result.get("data", result)
-    if output.lower() == "json":
-        _output_json({"data": data})
-        return
-
-    _print_kv(data)
+    console.print(f"[red]Error:[/red] {message}")
+    console.print(f"Dependency ID: {dependency_id}")
+    sys.exit(2)
     log_duration(start_time, "service show dependency", logger)
 
 

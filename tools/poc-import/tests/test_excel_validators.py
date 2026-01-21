@@ -4,8 +4,10 @@
 """Tests for Excel validators."""
 
 from datetime import date
+from pathlib import Path
 
 from poc_import.models import ExpenseRow, RAEEntry, RAETaskBreakdown
+from poc_import.parsers.excel import parse_expenses_excel, parse_rae_excel
 from poc_import.validators import (
     ValidationSeverity,
     validate_expense_rows,
@@ -62,3 +64,35 @@ def test_validate_rae_breakdown_sum_mismatch():
     assert report.has_errors() is True
     issue = next(issue for issue in report.checks if issue.id == "VAL-RAE-004")
     assert issue.severity == ValidationSeverity.ERROR
+
+
+def test_validate_expenses_fixture(expenses_valid_xlsx_path):
+    """Test validating expenses fixture.
+
+    Given: A valid expenses Excel fixture
+    When: The expense validator is executed
+    Then: No validation errors are reported
+    """
+    data = parse_expenses_excel(Path(expenses_valid_xlsx_path))
+
+    report = validate_expense_rows(data.rows)
+
+    assert report.has_errors() is False
+
+
+def test_validate_rae_invalid_sum_fixture(rae_invalid_sum_xlsx_path):
+    """Test validating RAE fixture with invalid sum.
+
+    Given: A RAE Excel fixture with mismatched breakdown sum
+    When: The RAE validator is executed
+    Then: VAL-RAE-004 error is reported
+    """
+    data = parse_rae_excel(Path(rae_invalid_sum_xlsx_path))
+
+    report = validate_rae_entries(
+        data.entries,
+        milestone_names={"Milestone A"},
+    )
+
+    assert report.has_errors() is True
+    assert any(issue.id == "VAL-RAE-004" for issue in report.checks)

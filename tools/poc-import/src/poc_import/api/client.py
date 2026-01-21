@@ -486,38 +486,6 @@ class WfpApiClient:
 
         return self._request("GET", "/v0/resources", params=params)
 
-    def list_project_resources(
-        self,
-        project_id: str,
-        page: int | None = None,
-        per_page: int | None = None,
-    ) -> dict[str, Any]:
-        """List resources for a project.
-
-        Args:
-            project_id: Project UUID
-            page: Optional page number
-            per_page: Optional items per page
-
-        Returns:
-            API response data
-
-        Raises:
-            WfpApiError: On API error
-        """
-        logger.debug("Listing resources for project: %s", project_id)
-        params: dict[str, Any] = {}
-        if page is not None:
-            params["page"] = page
-        if per_page is not None:
-            params["per_page"] = per_page
-
-        return self._request(
-            "GET",
-            f"/v0/projects/{project_id}/resources",
-            params=params,
-        )
-
     def get_resource(self, resource_id: str) -> dict[str, Any]:
         """Get resource details.
 
@@ -582,61 +550,6 @@ class WfpApiClient:
         return self._request(
             "GET",
             f"/v0/projects/{project_id}/assignments/{assignment_id}",
-        )
-
-    def list_dependencies(
-        self,
-        project_id: str,
-        page: int | None = None,
-        per_page: int | None = None,
-    ) -> dict[str, Any]:
-        """List dependencies for a project.
-
-        Args:
-            project_id: Project UUID
-            page: Optional page number
-            per_page: Optional items per page
-
-        Returns:
-            API response data
-
-        Raises:
-            WfpApiError: On API error
-        """
-        logger.debug("Listing dependencies for project: %s", project_id)
-        params: dict[str, Any] = {}
-        if page is not None:
-            params["page"] = page
-        if per_page is not None:
-            params["per_page"] = per_page
-
-        return self._request(
-            "GET",
-            f"/v0/projects/{project_id}/dependencies",
-            params=params,
-        )
-
-    def get_dependency(self, project_id: str, dependency_id: str) -> dict[str, Any]:
-        """Get dependency details for a project.
-
-        Args:
-            project_id: Project UUID
-            dependency_id: Dependency UUID
-
-        Returns:
-            Dependency data
-
-        Raises:
-            WfpApiError: On API error
-        """
-        logger.debug(
-            "Getting dependency %s for project %s",
-            dependency_id,
-            project_id,
-        )
-        return self._request(
-            "GET",
-            f"/v0/projects/{project_id}/dependencies/{dependency_id}",
         )
 
     def create_tasks_bulk(self, project_id: str, tasks: list[Task]) -> dict[str, Any]:
@@ -1026,18 +939,6 @@ class WfpApiClient:
         assignment_id = result.get("data", {}).get("id")
         return {"assignment_id": assignment_id}
 
-    def delete_task(self, project_id: str, task_id: str) -> dict[str, Any]:
-        """Delete a task by ID.
-
-        Args:
-            project_id: Project UUID
-            task_id: Task UUID
-
-        Returns:
-            API response data
-        """
-        return self._request("DELETE", f"/v0/projects/{project_id}/tasks/{task_id}")
-
     def delete_assignment(self, project_id: str, assignment_id: str) -> dict[str, Any]:
         """Delete an assignment by ID.
 
@@ -1053,20 +954,17 @@ class WfpApiClient:
             f"/v0/projects/{project_id}/assignments/{assignment_id}",
         )
 
-    def delete_dependency(self, project_id: str, dependency_id: str) -> dict[str, Any]:
-        """Delete a dependency by ID.
+    def delete_task(self, project_id: str, task_id: str) -> dict[str, Any]:
+        """Delete a task by ID.
 
         Args:
             project_id: Project UUID
-            dependency_id: Dependency UUID
+            task_id: Task UUID
 
         Returns:
             API response data
         """
-        return self._request(
-            "DELETE",
-            f"/v0/projects/{project_id}/dependencies/{dependency_id}",
-        )
+        return self._request("DELETE", f"/v0/projects/{project_id}/tasks/{task_id}")
 
     def delete_resource(self, resource_id: str) -> dict[str, Any]:
         """Delete a resource by ID.
@@ -1103,11 +1001,12 @@ class WfpApiClient:
         deleted: list[str] = []
 
         for dep_id in reversed(dependency_ids or []):
-            try:
-                self.delete_dependency(project_id, dep_id)
-                deleted.append(dep_id)
-            except WfpApiError as exc:
-                failures.append({"dependency_id": dep_id, "error": str(exc)})
+            failures.append(
+                {
+                    "dependency_id": dep_id,
+                    "error": "Dependency deletion not supported by API",
+                }
+            )
 
         for assignment_id in reversed(assignment_ids or []):
             try:

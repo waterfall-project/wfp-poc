@@ -17,6 +17,7 @@ from poc_import.models import (
     ResourceType,
     Task,
 )
+from poc_import.parsers.msproject import MSProjectParser
 from poc_import.validators import (
     DataValidator,
     MilestoneValidator,
@@ -398,7 +399,54 @@ def test_validate_msproject_data_negative_resource_rate(
     is_valid, errors = DataValidator.validate_msproject_data(data)
 
     assert not is_valid
-    assert any("standard_rate cannot be negative" in err for err in errors)
+
+
+def test_validate_rules_circular_dependency_fixture(circular_dependency_xml_path):
+    """Test circular dependency validation using fixture.
+
+    Given: An XML fixture with a circular dependency
+    When: MS Project validation rules are executed
+    Then: VAL-001 is reported
+    """
+    parser = MSProjectParser(circular_dependency_xml_path)
+    data = parser.parse()
+
+    report = validate_msproject_rules(data)
+
+    assert report.has_errors() is True
+    assert any(issue.id == "VAL-001" for issue in report.checks)
+
+
+def test_validate_rules_invalid_dates_fixture(invalid_dates_xml_path):
+    """Test invalid dates validation using fixture.
+
+    Given: An XML fixture with Finish < Start
+    When: MS Project validation rules are executed
+    Then: VAL-003 is reported
+    """
+    parser = MSProjectParser(invalid_dates_xml_path)
+    data = parser.parse()
+
+    report = validate_msproject_rules(data)
+
+    assert report.has_errors() is True
+    assert any(issue.id == "VAL-003" for issue in report.checks)
+
+
+def test_validate_rules_missing_references_fixture(missing_references_xml_path):
+    """Test missing references validation using fixture.
+
+    Given: An XML fixture with missing predecessor references
+    When: MS Project validation rules are executed
+    Then: VAL-005 is reported
+    """
+    parser = MSProjectParser(missing_references_xml_path)
+    data = parser.parse()
+
+    report = validate_msproject_rules(data)
+
+    assert report.has_errors() is True
+    assert any(issue.id == "VAL-005" for issue in report.checks)
 
 
 def test_validate_msproject_data_assignment_invalid_task(

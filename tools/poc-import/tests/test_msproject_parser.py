@@ -214,3 +214,31 @@ class TestMSProjectParser:
         print(f"\nParsed {len(data.tasks)} tasks, {len(milestones)} milestones")
         print(f"Project: {data.project.name}")
         print(f"Period: {data.project.start_date} to {data.project.finish_date}")
+
+    def test_parse_simple_fixture(self, simple_project_xml_path):
+        """Test parsing simple XML fixture.
+
+        Given: A simple MS Project XML fixture
+        When: The parser processes the file
+        Then: Tasks/resources/assignments/dependencies are parsed correctly
+        """
+        parser = MSProjectParser(simple_project_xml_path)
+        data = parser.parse()
+
+        assert data.project.name == "Fixture Project"
+        assert len(data.tasks) == 2
+        assert len(data.resources) == 1
+        assert len(data.assignments) == 1
+        assert len(data.dependencies) == 1
+
+    def test_parse_large_fixture(self, large_project_xml_path):
+        """Test parsing large XML fixture.
+
+        Given: A large MS Project XML fixture with 1000 tasks
+        When: The parser processes the file
+        Then: All tasks are parsed without error
+        """
+        parser = MSProjectParser(large_project_xml_path)
+        data = parser.parse()
+
+        assert len(data.tasks) == 1000

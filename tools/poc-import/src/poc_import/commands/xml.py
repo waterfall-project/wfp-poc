@@ -205,6 +205,216 @@ def _extract_dependency_ids(result: dict[str, Any]) -> set[str]:
     return ids
 
 
+def _extract_project_id(response: dict[str, Any]) -> str:
+    """Extract project ID from API response.
+
+    Args:
+        response: API response payload.
+
+    Returns:
+        Project UUID string.
+
+    Raises:
+        ValueError: If project ID cannot be found.
+    """
+    project_id = response.get("data", {}).get("id") or response.get("id")
+    if not project_id:
+        raise ValueError("Project ID not found in response")
+    return str(project_id)
+
+
+def _import_project_entities(
+    client: WfpApiClient,
+    project_id: str,
+    data: MSProjectData,
+    continue_on_error: bool,
+) -> dict[str, list[str]]:
+    """Import tasks, resources, assignments, and dependencies.
+
+    Args:
+        client: API client.
+        project_id: Project UUID.
+        data: Parsed MS Project data.
+        continue_on_error: Continue on error flag.
+
+    Returns:
+        Dict with created entity IDs.
+    """
+    created_task_ids: list[str] = []
+    created_resource_ids: list[str] = []
+    created_assignment_ids: list[str] = []
+    created_dependency_ids: list[str] = []
+
+    task_map: dict[int, str] = {}
+    resource_map: dict[int, str] = {}
+
+    def _handle_import_error(
+        exc: WfpApiError,
+        created_tasks: list[str],
+        created_resources: list[str],
+        created_assignments: list[str],
+        created_deps: list[str] | None = None,
+    ) -> None:
+        """Handle import error with rollback.
+
+        Args:
+            exc: The API error that occurred.
+            created_tasks: List of created task IDs.
+            created_resources: List of created resource IDs.
+            created_assignments: List of created assignment IDs.
+            created_deps: Optional list of created dependency IDs.
+        """
+        console.print(f"[red]Error:[/red] {redact_secrets(str(exc))}")
+        if not continue_on_error:
+            console.print("\n[red]✗ Import failed. Rolling back...[/red]")
+            rollback = client.rollback_import(
+                project_id,
+                task_ids=created_tasks,
+                assignment_ids=created_assignments,
+                resource_ids=created_resources,
+                dependency_ids=created_deps or [],
+            )
+            _print_rollback_failures(rollback.get("failed", []))
+            sys.exit(1)
+
+    console.print("\n[bold]Importing tasks...[/bold]")
+    with Progress(
+        TextColumn(
+            "Importing tasks: {task.completed}/{task.total} ({task.percentage:>3.0f}%)"
+        ),
+        BarColumn(),
+        TaskProgressColumn(),
+        TimeRemainingColumn(),
+        console=console,
+    ) as progress:
+        task_progress = progress.add_task("Tasks", total=len(data.tasks))
+        for task in data.tasks:
+            try:
+                result = client.create_task(project_id, task)
+                task_id = result.get("task_id")
+                task_map.update(result.get("task_map", {}))
+                if task_id:
+                    created_task_ids.append(task_id)
+            except WfpApiError as exc:
+                _handle_import_error(
+                    exc,
+                    created_task_ids,
+                    created_resource_ids,
+                    created_assignment_ids,
+                )
+            finally:
+                progress.update(task_progress, advance=1)
+
+    console.print("\n[bold]Importing resources...[/bold]")
+    with Progress(
+        TextColumn(
+            "Importing resources: {task.completed}/{task.total} "
+            "({task.percentage:>3.0f}%)"
+        ),
+        BarColumn(),
+        TaskProgressColumn(),
+        TimeRemainingColumn(),
+        console=console,
+    ) as progress:
+        res_progress = progress.add_task("Resources", total=len(data.resources))
+        for resource in data.resources:
+            try:
+                result = client.create_resource(resource)
+                resource_id = result.get("resource_id")
+                resource_map.update(result.get("resource_map", {}))
+                if resource_id:
+                    created_resource_ids.append(resource_id)
+            except WfpApiError as exc:
+                _handle_import_error(
+                    exc,
+                    created_task_ids,
+                    created_resource_ids,
+                    created_assignment_ids,
+                )
+            finally:
+                progress.update(res_progress, advance=1)
+
+    console.print("\n[bold]Importing assignments...[/bold]")
+    with Progress(
+        TextColumn(
+            "Importing assignments: {task.completed}/{task.total} "
+            "({task.percentage:>3.0f}%)"
+        ),
+        BarColumn(),
+        TaskProgressColumn(),
+        TimeRemainingColumn(),
+        console=console,
+    ) as progress:
+        assign_progress = progress.add_task(
+            "Assignments",
+            total=len(data.assignments),
+        )
+        for assignment in data.assignments:
+            try:
+                result = client.create_assignment(
+                    project_id,
+                    assignment,
+                    task_map,
+                    resource_map,
+                )
+                assignment_id = result.get("assignment_id")
+                if assignment_id:
+                    created_assignment_ids.append(assignment_id)
+            except WfpApiError as exc:
+                _handle_import_error(
+                    exc,
+                    created_task_ids,
+                    created_resource_ids,
+                    created_assignment_ids,
+                )
+            finally:
+                progress.update(assign_progress, advance=1)
+
+    console.print("\n[bold]Importing dependencies...[/bold]")
+    if data.dependencies:
+        with Progress(
+            TextColumn(
+                "Importing dependencies: {task.completed}/{task.total} "
+                "({task.percentage:>3.0f}%)"
+            ),
+            BarColumn(),
+            TaskProgressColumn(),
+            TimeRemainingColumn(),
+            console=console,
+        ) as progress:
+            dep_progress = progress.add_task(
+                "Dependencies",
+                total=len(data.dependencies),
+            )
+            try:
+                client.sync_tasks(project_id, data.tasks)
+                progress.update(
+                    dep_progress,
+                    completed=len(data.dependencies),
+                )
+                console.print("[green]✓[/green] Dependencies applied")
+            except WfpApiError as exc:
+                console.print(f"[red]Error:[/red] {redact_secrets(str(exc))}")
+                if not continue_on_error:
+                    console.print("\n[red]✗ Import failed. Rolling back...[/red]")
+                    rollback = client.rollback_import(
+                        project_id,
+                        task_ids=created_task_ids,
+                        assignment_ids=created_assignment_ids,
+                        resource_ids=created_resource_ids,
+                        dependency_ids=created_dependency_ids,
+                    )
+                    _print_rollback_failures(rollback.get("failed", []))
+                    sys.exit(1)
+
+    return {
+        "tasks": created_task_ids,
+        "resources": created_resource_ids,
+        "assignments": created_assignment_ids,
+        "dependencies": created_dependency_ids,
+    }
+
+
 def _print_field(name: str, value: Any, imported: bool) -> None:
     """Print a field with imported/display-only styling.
 
@@ -788,8 +998,9 @@ def xml_validate(state: ShellState, output: str, strict: bool) -> None:
     help=(
         "Import XML entities.\n\n"
         "Commands:\n"
-        "  project  Import full project\n"
-        "  task     Import a single task"
+        "  create-project  Create a project and import data\n"
+        "  project         Import full project\n"
+        "  task            Import a single task"
     ),
 )
 def xml_import() -> None:
@@ -821,6 +1032,116 @@ def _print_rollback_failures(failures: list[dict[str, str]]) -> None:
     console.print("[yellow]Rollback issues:[/yellow]")
     for failure in failures:
         console.print(f"  • {failure}")
+
+
+@xml_import.command(
+    "create-project",
+    help="Create a new project from loaded XML and import data.",
+)
+@click.option("--dry-run", is_flag=True, help="Validate without API calls")
+@click.option(
+    "--continue-on-error",
+    is_flag=True,
+    help="Continue importing remaining entities if one fails",
+)
+@click.option(
+    "--token",
+    type=str,
+    envvar="WFP_JWT_TOKEN",
+    help="JWT authentication token (or set WFP_JWT_TOKEN env var)",
+)
+@click.option(
+    "--env",
+    "env_name",
+    type=click.Choice(["dev", "staging", "prod"], case_sensitive=False),
+    help="Environment to load (.env.dev/.env.staging/.env.prod)",
+)
+@click.option(
+    "--api-url",
+    type=str,
+    envvar="WFP_API_URL",
+    default="http://localhost:5000",
+    help="wfp-poc API base URL (or set WFP_API_URL env var)",
+)
+@click.option(
+    "--company-id",
+    type=str,
+    help="Company UUID for multi-tenant isolation (optional)",
+)
+@click.option(
+    "--log-level",
+    type=click.Choice(
+        ["debug", "info", "warning", "error", "critical"],
+        case_sensitive=False,
+    ),
+    help="Logging level",
+)
+@click.option(
+    "--verbose",
+    is_flag=True,
+    help="Enable verbose logging",
+)
+@click.pass_obj
+def xml_import_create_project(
+    state: ShellState,
+    dry_run: bool,
+    continue_on_error: bool,
+    token: str | None,
+    env_name: str | None,
+    api_url: str,
+    company_id: str | None,
+    log_level: str | None,
+    verbose: bool,
+) -> None:
+    """Create a new project from loaded XML and import entities."""
+    data = _require_loaded_xml(state)
+    setup_logging(verbose, log_level)
+
+    console.print("\n[bold]Validating data...[/bold]")
+    report = validate_msproject_rules(data)
+    _print_validation_report(report)
+    if report.has_errors():
+        sys.exit(2)
+
+    if dry_run:
+        console.print("[yellow]Dry run:[/yellow] Skipping API calls")
+        return
+
+    client = _build_client(api_url, token, company_id, env_name)
+    start_time = time.monotonic()
+
+    console.print("\n[bold]Creating project...[/bold]")
+    try:
+        project_result = client.create_project(data.project)
+        project_id = _extract_project_id(project_result)
+    except (WfpApiError, ValueError) as exc:
+        console.print(f"[red]Error:[/red] {redact_secrets(str(exc))}")
+        sys.exit(1)
+
+    state.selected_project_id = project_id
+    console.print(f"[green]✓[/green] Project created: {project_id}")
+
+    try:
+        _import_project_entities(
+            client,
+            project_id,
+            data,
+            continue_on_error,
+        )
+    except SystemExit:
+        try:
+            client._request("DELETE", f"/v0/projects/{project_id}")
+        except WfpApiError as delete_exc:
+            console.print(
+                "[yellow]Warning:[/yellow] "
+                "Unable to delete project after rollback: "
+                f"{redact_secrets(str(delete_exc))}"
+            )
+        raise
+
+    duration = time.monotonic() - start_time
+    console.print("\n[green]✓[/green] Import completed successfully")
+    console.print(f"Duration: {int(duration // 60)}m {int(duration % 60)}s")
 
 
 @xml_import.command("project", help="Import full project data.")
@@ -897,201 +1218,12 @@ def xml_import_project(
     client = _build_client(api_url, token, company_id, env_name)
     start_time = time.monotonic()
 
-    created_task_ids: list[str] = []
-    created_resource_ids: list[str] = []
-    created_assignment_ids: list[str] = []
-    created_dependency_ids: list[str] = []
-
-    task_map: dict[int, str] = {}
-    resource_map: dict[int, str] = {}
-
-    def _handle_import_error(
-        exc: WfpApiError,
-        created_tasks: list[str],
-        created_resources: list[str],
-        created_assignments: list[str],
-        created_deps: list[str] | None = None,
-    ) -> None:
-        """Handle import error with rollback.
-
-        Args:
-            exc: The API error that occurred.
-            created_tasks: List of created task IDs.
-            created_resources: List of created resource IDs.
-            created_assignments: List of created assignment IDs.
-            created_deps: Optional list of created dependency IDs.
-        """
-        console.print(f"[red]Error:[/red] {redact_secrets(str(exc))}")
-        if not continue_on_error:
-            console.print("\n[red]✗ Import failed. Rolling back...[/red]")
-            rollback = client.rollback_import(
-                project_id,
-                task_ids=created_tasks,
-                assignment_ids=created_assignments,
-                resource_ids=created_resources,
-                dependency_ids=created_deps or [],
-            )
-            _print_rollback_failures(rollback.get("failed", []))
-            sys.exit(1)
-
-    console.print("\n[bold]Importing tasks...[/bold]")
-    with Progress(
-        TextColumn(
-            "Importing tasks: {task.completed}/{task.total} ({task.percentage:>3.0f}%)"
-        ),
-        BarColumn(),
-        TaskProgressColumn(),
-        TimeRemainingColumn(),
-        console=console,
-    ) as progress:
-        task_progress = progress.add_task("Tasks", total=len(data.tasks))
-        for task in data.tasks:
-            try:
-                result = client.create_task(project_id, task)
-                task_id = result.get("task_id")
-                task_map.update(result.get("task_map", {}))
-                if task_id:
-                    created_task_ids.append(task_id)
-            except WfpApiError as exc:
-                _handle_import_error(
-                    exc,
-                    created_task_ids,
-                    created_resource_ids,
-                    created_assignment_ids,
-                )
-            finally:
-                progress.update(task_progress, advance=1)
-
-    console.print("\n[bold]Importing resources...[/bold]")
-    with Progress(
-        TextColumn(
-            "Importing resources: {task.completed}/{task.total} "
-            "({task.percentage:>3.0f}%)"
-        ),
-        BarColumn(),
-        TaskProgressColumn(),
-        TimeRemainingColumn(),
-        console=console,
-    ) as progress:
-        res_progress = progress.add_task("Resources", total=len(data.resources))
-        for resource in data.resources:
-            try:
-                result = client.create_resource(resource)
-                resource_id = result.get("resource_id")
-                resource_map.update(result.get("resource_map", {}))
-                if resource_id:
-                    created_resource_ids.append(resource_id)
-            except WfpApiError as exc:
-                _handle_import_error(
-                    exc,
-                    created_task_ids,
-                    created_resource_ids,
-                    created_assignment_ids,
-                )
-            finally:
-                progress.update(res_progress, advance=1)
-
-    console.print("\n[bold]Importing assignments...[/bold]")
-    with Progress(
-        TextColumn(
-            "Importing assignments: {task.completed}/{task.total} "
-            "({task.percentage:>3.0f}%)"
-        ),
-        BarColumn(),
-        TaskProgressColumn(),
-        TimeRemainingColumn(),
-        console=console,
-    ) as progress:
-        assign_progress = progress.add_task("Assignments", total=len(data.assignments))
-        for assignment in data.assignments:
-            try:
-                result = client.create_assignment(
-                    project_id,
-                    assignment,
-                    task_map,
-                    resource_map,
-                )
-                assignment_id = result.get("assignment_id")
-                if assignment_id:
-                    created_assignment_ids.append(assignment_id)
-            except WfpApiError as exc:
-                _handle_import_error(
-                    exc,
-                    created_task_ids,
-                    created_resource_ids,
-                    created_assignment_ids,
-                )
-            finally:
-                progress.update(assign_progress, advance=1)
-
-    console.print("\n[bold]Importing dependencies...[/bold]")
-    if data.dependencies:
-        existing_dependency_ids: set[str] = set()
-        try:
-            existing_dependency_ids = _extract_dependency_ids(
-                client.list_dependencies(project_id)
-            )
-        except WfpApiError as exc:
-            console.print(
-                "[yellow]Warning:[/yellow] "
-                f"Unable to list dependencies before import: {exc}"
-            )
-        with Progress(
-            TextColumn(
-                "Importing dependencies: {task.completed}/{task.total} "
-                "({task.percentage:>3.0f}%)"
-            ),
-            BarColumn(),
-            TaskProgressColumn(),
-            TimeRemainingColumn(),
-            console=console,
-        ) as progress:
-            dep_progress = progress.add_task(
-                "Dependencies", total=len(data.dependencies)
-            )
-            try:
-                client.sync_tasks(project_id, data.tasks)
-                try:
-                    after_ids = _extract_dependency_ids(
-                        client.list_dependencies(project_id)
-                    )
-                    created_dependency_ids.extend(
-                        sorted(after_ids - existing_dependency_ids)
-                    )
-                except WfpApiError as exc:
-                    console.print(
-                        "[yellow]Warning:[/yellow] "
-                        f"Unable to list dependencies after import: {exc}"
-                    )
-                progress.update(dep_progress, completed=len(data.dependencies))
-                console.print("[green]✓[/green] Dependencies applied")
-            except WfpApiError as exc:
-                console.print(f"[red]Error:[/red] {redact_secrets(str(exc))}")
-                if not continue_on_error:
-                    console.print("\n[red]✗ Import failed. Rolling back...[/red]")
-                    try:
-                        after_ids = _extract_dependency_ids(
-                            client.list_dependencies(project_id)
-                        )
-                        created_dependency_ids.extend(
-                            sorted(after_ids - existing_dependency_ids)
-                        )
-                    except WfpApiError as dep_exc:
-                        console.print(
-                            "[yellow]Warning:[/yellow] "
-                            "Unable to list dependencies after failed "
-                            "import for rollback: "
-                            f"{redact_secrets(str(dep_exc))}"
-                        )
-                    rollback = client.rollback_import(
-                        project_id,
-                        task_ids=created_task_ids,
-                        assignment_ids=created_assignment_ids,
-                        resource_ids=created_resource_ids,
-                        dependency_ids=created_dependency_ids,
-                    )
-                    _print_rollback_failures(rollback.get("failed", []))
-                    sys.exit(1)
+    _import_project_entities(
+        client,
+        project_id,
+        data,
+        continue_on_error,
+    )
 
     duration = time.monotonic() - start_time
     console.print("\n[green]✓[/green] Import completed successfully")

@@ -39,6 +39,13 @@ class TestCLI:
         assert "--mode" in result.output
         assert "--dry-run" in result.output
 
+    def test_xml_import_help_includes_create_project(self):
+        """Test xml import help lists create-project."""
+        runner = CliRunner()
+        result = runner.invoke(cli, ["xml", "import", "--help"])
+        assert result.exit_code == 0
+        assert "create-project" in result.output
+
     def test_msproject_missing_mode(self, sample_msproject_xml):
         """Test msproject without --mode argument."""
         runner = CliRunner()

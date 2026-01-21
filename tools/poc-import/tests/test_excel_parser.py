@@ -4,6 +4,7 @@
 """Tests for Excel parsers."""
 
 from datetime import date
+from pathlib import Path
 
 from openpyxl import Workbook
 
@@ -119,3 +120,46 @@ def test_parse_rae_with_breakdown(tmp_path):
     assert data.total_rows == 1
     assert data.entries[0].breakdown_sum == 50000
     assert len(data.entries[0].task_breakdown) == 1
+
+
+def test_parse_expenses_valid_fixture(expenses_valid_xlsx_path):
+    """Test parsing valid expenses fixture.
+
+    Given: A valid expenses Excel fixture
+    When: The expenses parser runs
+    Then: Totals and entries are populated
+    """
+    data = parse_expenses_excel(Path(expenses_valid_xlsx_path))
+
+    assert data.total_rows == 50
+    assert len(data.entries) == 50
+    assert data.total_amount == 12750.0
+
+
+def test_parse_expenses_grouped_fixture(expenses_grouped_xlsx_path):
+    """Test parsing grouped expenses fixture.
+
+    Given: An expenses fixture with grouped references
+    When: The expenses parser runs
+    Then: Entries are grouped and summed
+    """
+    data = parse_expenses_excel(Path(expenses_grouped_xlsx_path))
+
+    assert data.total_rows == 2
+    assert len(data.entries) == 1
+    assert data.entries[0].amount == 300.0
+    assert data.entries[0].grouped_rows == 2
+
+
+def test_parse_rae_valid_fixture(rae_valid_xlsx_path):
+    """Test parsing valid RAE fixture.
+
+    Given: A valid RAE Excel fixture
+    When: The RAE parser runs
+    Then: Entries and totals are populated
+    """
+    data = parse_rae_excel(Path(rae_valid_xlsx_path))
+
+    assert data.total_rows == 2
+    assert data.milestone_count == 2
+    assert data.total_remaining == 1500.0

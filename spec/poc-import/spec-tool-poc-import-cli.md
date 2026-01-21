@@ -210,6 +210,7 @@ Earned Value Management requires strict milestone tracking:
 #### XML Import Commands
 
 - **REQ-028**: poc-import SHALL provide `xml import project` command that imports entire project (all tasks, resources, dependencies, assignments) to wfp-poc
+- **REQ-028a**: poc-import SHALL provide `xml import create-project` command that creates a new project from loaded XML and imports all entities
 - **REQ-029**: poc-import SHALL require active project selection via `service select <project_id>` before import (reject if no project selected)
 - **REQ-030**: poc-import SHALL display progress bar during `xml import project` showing: "Importing tasks: 45/156 (29%)"
 - **REQ-031**: poc-import SHALL display import summary after completion: "✓ Project imported: 156 tasks, 23 resources, 89 assignments, 134 dependencies"
@@ -711,6 +712,58 @@ Recommendation: Fix 2 errors before importing. Use 'xml show task <id>' for deta
 **Exit Codes:**
 - 0: No errors (warnings allowed)
 - 2: Validation errors found
+
+---
+
+#### Command: `xml import create-project`
+
+**Purpose**: Create a new project from loaded XML and import all entities.
+
+**Prerequisites:**
+- XML file must be loaded
+
+**Options:**
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| --dry-run | Flag | False | Validate and preview import without executing |
+| --continue-on-error | Flag | False | Continue importing remaining entities if one fails |
+| --batch-size | Integer | 1 | Future: entities per API call (V1 always uses 1) |
+
+**Output Format:**
+```
+Creating project from XML...
+
+Project created: 123e4567-...
+
+Validation: ✓ Passed (0 errors, 2 warnings)
+
+Importing tasks...
+ ████████████████████░░░░░░░░ 156/156 (100%)
+
+Importing resources...
+ ████████████████████████████ 23/23 (100%)
+
+Importing assignments...
+ ████████████████████████████ 89/89 (100%)
+
+Importing dependencies...
+ ████████████████████████████ 134/134 (100%)
+
+✓ Import completed successfully
+
+Duration: 2m 34s
+
+Use 'service show project' to verify imported data.
+```
+
+**Exit Codes:**
+- 0: Import successful
+- 1: Import failed (with rollback + project deletion)
+- 2: Validation failed (--dry-run or pre-import validation)
+
+**Error Handling:**
+- On failure: Automatic rollback deletes all entities created during this import session
+- Project created by this command is deleted if import fails
 
 ---
 
@@ -2102,7 +2155,7 @@ The tables below list endpoints that poc-import V1 SHALL rely on.
 
 | Endpoint | Method | Purpose | Used By |
 |----------|--------|---------|----------|
-| `/{version}/projects` | POST | Create project | `xml import project` (V1) |
+| `/{version}/projects` | POST | Create project | `xml import create-project` (V1) |
 | `/{version}/projects/{project_id}/tasks` | POST | Create task | `xml import project`, `xml import task <id>` |
 | `/{version}/resources` | POST | Create resource | `xml import project` |
 | `/{version}/projects/{project_id}/assignments` | POST | Create assignment | `xml import project` |
