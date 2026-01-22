@@ -232,7 +232,8 @@ def msproject(
                 console.print(f"[green]✓[/green] Project created: {actual_project_id}")
 
                 console.print(
-                    "\n[bold]Importing tasks, resources, and assignments...[/bold]"
+                    "\n[bold]Importing tasks (resources and assignments are "
+                    "company-scoped)...[/bold]"
                 )
                 with Progress(
                     SpinnerColumn(),
@@ -249,12 +250,8 @@ def msproject(
 
                 console.print("\n[green]✓[/green] Initial import completed:")
                 console.print(f"  Tasks created: {import_summary['tasks_created']}")
-                console.print(
-                    f"  Resources created: {import_summary['resources_created']}"
-                )
-                console.print(
-                    f"  Assignments created: {import_summary['assignments_created']}"
-                )
+                console.print("  Resources created: 0 (skipped)")
+                console.print("  Assignments created: 0 (skipped)")
 
                 if import_summary["tasks_failed"] > 0:
                     console.print(
@@ -342,6 +339,13 @@ def msproject(
                 console.print("\n[green]✓[/green] Sync completed:")
                 console.print(f"  Tasks created: {import_summary['tasks_created']}")
                 console.print(f"  Tasks updated: {import_summary['tasks_updated']}")
+                if data.assignments:
+                    console.print(
+                        "  Assignments created: "
+                        f"{import_summary['assignments_created']}"
+                    )
+                else:
+                    console.print("  Assignments created: 0 (none in XML)")
 
                 if import_summary["tasks_failed"] > 0:
                     console.print(

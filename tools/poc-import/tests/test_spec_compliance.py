@@ -5,7 +5,7 @@
 
 from datetime import date
 
-from poc_import.models import RAEEntry
+from poc_import.models import RAEEntry, RAETaskBreakdown
 from poc_import.validators import ValidationSeverity, validate_rae_entries
 
 
@@ -20,8 +20,8 @@ class TestRAETaskExistenceValidation:
             remaining_amount=100000.0,
             forecast_date=date(2026, 3, 31),
             task_breakdown=[
-                {"task_name": "Existing Task", "amount": 50000.0},
-                {"task_name": "Missing Task", "amount": 50000.0},
+                RAETaskBreakdown(task_name="Existing Task", amount=50000.0),
+                RAETaskBreakdown(task_name="Missing Task", amount=50000.0),
             ],
             breakdown_sum=100000.0,
         )
@@ -43,8 +43,8 @@ class TestRAETaskExistenceValidation:
             remaining_amount=100000.0,
             forecast_date=date(2026, 3, 31),
             task_breakdown=[
-                {"task_name": "Task A", "amount": 50000.0},
-                {"task_name": "Task B", "amount": 50000.0},
+                RAETaskBreakdown(task_name="Task A", amount=50000.0),
+                RAETaskBreakdown(task_name="Task B", amount=50000.0),
             ],
             breakdown_sum=100000.0,
         )
@@ -68,8 +68,8 @@ class TestRAEValidationDisplayFormat:
             remaining_amount=100000.0,
             forecast_date=date(2026, 3, 31),
             task_breakdown=[
-                {"task_name": "Task A", "amount": 50000.0},
-                {"task_name": "Task B", "amount": 50000.0},
+                RAETaskBreakdown(task_name="Task A", amount=50000.0),
+                RAETaskBreakdown(task_name="Task B", amount=50000.0),
             ],
             breakdown_sum=100000.0,
         )
@@ -79,8 +79,8 @@ class TestRAEValidationDisplayFormat:
             remaining_amount=100000.0,
             forecast_date=date(2026, 6, 30),
             task_breakdown=[
-                {"task_name": "Task C", "amount": 30000.0},
-                {"task_name": "Task D", "amount": 20000.0},
+                RAETaskBreakdown(task_name="Task C", amount=30000.0),
+                RAETaskBreakdown(task_name="Task D", amount=20000.0),
             ],
             breakdown_sum=50000.0,
         )

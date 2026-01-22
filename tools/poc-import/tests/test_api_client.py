@@ -200,6 +200,68 @@ def test_create_tasks_bulk_too_many(api_client, sample_task):
         api_client.create_tasks_bulk(project_id, tasks)
 
 
+def test_build_resource_map_for_assignments_by_uid(api_client, monkeypatch):
+    """Test resource mapping by MS Project UID.
+
+    Given: Company resources with ms_project_uid matching XML resources
+    When: build_resource_map_for_assignments is called
+    Then: Resource UID maps to resource UUID and no missing entries
+    """
+    xml_resources = [
+        Resource(
+            uid=1,
+            name="Developer",
+            type=ResourceType.LABOR,
+        )
+    ]
+    assignments = [Assignment(task_uid=1, resource_uid=1, work_hours=40)]
+
+    def fake_list_resources(page=None, per_page=None):
+        return {
+            "data": [
+                {
+                    "id": "resource-uuid",
+                    "ms_project_uid": "1",
+                    "name": "Developer",
+                }
+            ],
+            "meta": {"total_pages": 1},
+        }
+
+    monkeypatch.setattr(api_client, "list_resources", fake_list_resources)
+
+    resource_map, missing = api_client.build_resource_map_for_assignments(
+        xml_resources,
+        assignments,
+    )
+
+    assert resource_map == {1: "resource-uuid"}
+    assert missing == []
+
+
+def test_build_task_map_for_assignments_missing(api_client, monkeypatch):
+    """Test missing task mapping detection.
+
+    Given: Assignments referencing task UIDs not in the project
+    When: build_task_map_for_assignments is called
+    Then: Missing list includes the unmapped task UID
+    """
+    assignments = [Assignment(task_uid=99, resource_uid=1, work_hours=0)]
+
+    def fake_list_project_tasks(project_id, page=None, per_page=None):
+        return {"data": [], "meta": {"total_pages": 1}}
+
+    monkeypatch.setattr(api_client, "list_project_tasks", fake_list_project_tasks)
+
+    task_map, missing = api_client.build_task_map_for_assignments(
+        "project-uuid",
+        assignments,
+    )
+
+    assert task_map == {}
+    assert "Task UID 99" in missing[0]
+
+
 def test_sync_tasks_success(api_client, sample_task):
     """Test successful task sync."""
     project_id = str(uuid4())

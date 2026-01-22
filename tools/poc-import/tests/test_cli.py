@@ -95,6 +95,48 @@ class TestCLI:
         assert result.exit_code == 1
         assert "No project selected" in result.output
 
+    def test_service_list_projects_fills_task_count(self, monkeypatch):
+        """Test project list fills missing task count.
+
+        Given: Projects without task_count in API response
+        When: service list projects is executed
+        Then: Task Count column is populated from task list totals
+        """
+        runner = CliRunner()
+
+        class FakeClient:
+            def list_projects(self, page=None, per_page=None):
+                return {
+                    "data": [
+                        {
+                            "id": "project-1",
+                            "name": "Project One",
+                            "start_date": "2024-01-01",
+                            "finish_date": "2024-12-31",
+                        }
+                    ]
+                }
+
+            def list_project_tasks(self, project_id, page=None, per_page=None):
+                return {"data": [], "total": 7, "total_pages": 1}
+
+        from poc_import.commands import service as service_module
+
+        monkeypatch.setattr(
+            service_module,
+            "_build_client",
+            lambda *args, **kwargs: FakeClient(),
+        )
+
+        result = runner.invoke(
+            cli,
+            ["service", "list", "projects", "--token=dummy-token"],
+        )
+
+        assert result.exit_code == 0
+        assert "Project One" in result.output
+        assert "7" in result.output
+
     def test_xml_import_help_includes_create_project(self):
         """Test xml import help lists create-project."""
         runner = CliRunner()

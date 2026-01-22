@@ -9,6 +9,7 @@ from uuid import uuid4
 import pytest
 
 from poc_import.models import (
+    UNASSIGNED_RESOURCE_UID,
     Assignment,
     Dependency,
     MSProjectData,
@@ -172,6 +173,58 @@ def test_validate_rules_missing_resource_reference(valid_project):
 
     assert report.has_errors() is True
     assert any(issue.id == "VAL-006" for issue in report.checks)
+
+
+def test_validate_rules_ignore_unassigned_resource(valid_project):
+    """Test unassigned resource UID ignored.
+
+    Given: Assignment uses unassigned resource sentinel
+    When: Validation rules are executed
+    Then: No missing resource error is reported
+    """
+    task = Task(uid=1, name="Task 1", wbs_code="1")
+    assignment = Assignment(
+        task_uid=1,
+        resource_uid=UNASSIGNED_RESOURCE_UID,
+        line_number=14010,
+    )
+    data = MSProjectData(
+        project=valid_project,
+        tasks=[task],
+        dependencies=[],
+        resources=[],
+        assignments=[assignment],
+    )
+
+    report = validate_msproject_rules(data)
+
+    assert report.has_errors() is False
+
+
+def test_data_validator_allows_unassigned_resource(valid_project):
+    """Test data validator allows unassigned resource UID.
+
+    Given: Assignment uses unassigned resource sentinel
+    When: DataValidator.validate_msproject_data is called
+    Then: Data validation passes
+    """
+    task = Task(uid=1, name="Task 1", wbs_code="1")
+    assignment = Assignment(
+        task_uid=1,
+        resource_uid=UNASSIGNED_RESOURCE_UID,
+    )
+    data = MSProjectData(
+        project=valid_project,
+        tasks=[task],
+        dependencies=[],
+        resources=[],
+        assignments=[assignment],
+    )
+
+    is_valid, errors = DataValidator.validate_msproject_data(data)
+
+    assert is_valid is True
+    assert errors == []
 
 
 def test_validate_rules_version_conflict(valid_project):

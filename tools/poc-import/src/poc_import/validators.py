@@ -12,6 +12,7 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 from poc_import.models import (
+    UNASSIGNED_RESOURCE_UID,
     Assignment,
     Dependency,
     ExpenseRow,
@@ -236,6 +237,9 @@ class DataValidator:
 
         # Validate assignments
         for i, assignment in enumerate(data.assignments):
+            if assignment.resource_uid == UNASSIGNED_RESOURCE_UID:
+                # MS Project sentinel for unassigned resources - ignore.
+                continue
             assignment_errors = []
 
             if assignment.task_uid not in task_uids:
@@ -288,6 +292,9 @@ def _validate_assignments(
     resource_map = {r.uid: r for r in resources}
 
     for assignment in assignments:
+        if assignment.resource_uid == UNASSIGNED_RESOURCE_UID:
+            # Skip assignments that represent unassigned resources.
+            continue
         line = assignment.line_number
 
         # VAL-008: Units > 1.0 (will be capped to 100%)
@@ -821,6 +828,9 @@ def _validate_references(
             )
 
     for assignment in assignments:
+        if assignment.resource_uid == UNASSIGNED_RESOURCE_UID:
+            # Skip unassigned resources from reference validation.
+            continue
         if assignment.resource_uid not in resource_uids:
             issues.append(
                 ValidationIssue(

@@ -10,6 +10,9 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
+# MS Project uses -65535 to represent an unassigned resource in assignments.
+UNASSIGNED_RESOURCE_UID = -65535
+
 
 class ImportMode(str, Enum):
     """Import mode."""

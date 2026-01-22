@@ -31,7 +31,7 @@ from poc_import.cli_support import (
     setup_logging,
 )
 from poc_import.config import Config, load_env_file
-from poc_import.models import MSProjectData
+from poc_import.models import UNASSIGNED_RESOURCE_UID, Assignment, MSProjectData
 from poc_import.parsers.msproject import MSProjectParser
 from poc_import.shell_state import ShellState
 from poc_import.validators import ValidationReport, validate_msproject_rules
@@ -80,6 +80,24 @@ def _require_selected_project(state: ShellState) -> str:
         )
         sys.exit(1)
     return state.selected_project_id
+
+
+def _filter_assigned_assignments(
+    assignments: list[Assignment],
+) -> list[Assignment]:
+    """Filter out assignments with unassigned resource UID.
+
+    Args:
+        assignments: Parsed assignments list.
+
+    Returns:
+        List of assignments referencing a real resource.
+    """
+    return [
+        assignment
+        for assignment in assignments
+        if assignment.resource_uid != UNASSIGNED_RESOURCE_UID
+    ]
 
 
 def _render_validation_html(report: ValidationReport) -> str:
@@ -228,14 +246,20 @@ def _import_project_entities(
     project_id: str,
     data: MSProjectData,
     continue_on_error: bool,
+    import_resources: bool,
+    import_assignments: bool,
+    resource_map: dict[int, str] | None = None,
 ) -> dict[str, list[str]]:
-    """Import tasks, resources, assignments, and dependencies.
+    """Import tasks, dependencies, and optionally resources/assignments.
 
     Args:
         client: API client.
         project_id: Project UUID.
         data: Parsed MS Project data.
         continue_on_error: Continue on error flag.
+        import_resources: Whether to import resources from XML.
+        import_assignments: Whether to import assignments from XML.
+        resource_map: Optional resource UID-to-UUID map for assignments.
 
     Returns:
         Dict with created entity IDs.
@@ -246,7 +270,7 @@ def _import_project_entities(
     created_dependency_ids: list[str] = []
 
     task_map: dict[int, str] = {}
-    resource_map: dict[int, str] = {}
+    resource_map = resource_map or {}
 
     def _handle_import_error(
         exc: WfpApiError,
@@ -305,70 +329,95 @@ def _import_project_entities(
             finally:
                 progress.update(task_progress, advance=1)
 
-    console.print("\n[bold]Importing resources...[/bold]")
-    with Progress(
-        TextColumn(
-            "Importing resources: {task.completed}/{task.total} "
-            "({task.percentage:>3.0f}%)"
-        ),
-        BarColumn(),
-        TaskProgressColumn(),
-        TimeRemainingColumn(),
-        console=console,
-    ) as progress:
-        res_progress = progress.add_task("Resources", total=len(data.resources))
-        for resource in data.resources:
-            try:
-                result = client.create_resource(resource)
-                resource_id = result.get("resource_id")
-                resource_map.update(result.get("resource_map", {}))
-                if resource_id:
-                    created_resource_ids.append(resource_id)
-            except WfpApiError as exc:
-                _handle_import_error(
-                    exc,
-                    created_task_ids,
-                    created_resource_ids,
-                    created_assignment_ids,
-                )
-            finally:
-                progress.update(res_progress, advance=1)
-
-    console.print("\n[bold]Importing assignments...[/bold]")
-    with Progress(
-        TextColumn(
-            "Importing assignments: {task.completed}/{task.total} "
-            "({task.percentage:>3.0f}%)"
-        ),
-        BarColumn(),
-        TaskProgressColumn(),
-        TimeRemainingColumn(),
-        console=console,
-    ) as progress:
-        assign_progress = progress.add_task(
-            "Assignments",
-            total=len(data.assignments),
+    if import_resources:
+        console.print("\n[bold]Importing resources...[/bold]")
+        with Progress(
+            TextColumn(
+                "Importing resources: {task.completed}/{task.total} "
+                "({task.percentage:>3.0f}%)"
+            ),
+            BarColumn(),
+            TaskProgressColumn(),
+            TimeRemainingColumn(),
+            console=console,
+        ) as progress:
+            res_progress = progress.add_task("Resources", total=len(data.resources))
+            for resource in data.resources:
+                try:
+                    result = client.create_resource(resource)
+                    resource_id = result.get("resource_id")
+                    resource_map.update(result.get("resource_map", {}))
+                    if resource_id:
+                        created_resource_ids.append(resource_id)
+                except WfpApiError as exc:
+                    _handle_import_error(
+                        exc,
+                        created_task_ids,
+                        created_resource_ids,
+                        created_assignment_ids,
+                    )
+                finally:
+                    progress.update(res_progress, advance=1)
+    elif data.resources:
+        console.print(
+            "\n[yellow]Skipping resource import (company-scoped resources).[/yellow]"
         )
-        for assignment in data.assignments:
-            try:
-                result = client.create_assignment(
-                    project_id,
-                    assignment,
-                    task_map,
-                    resource_map,
+
+    assigned_assignments = _filter_assigned_assignments(data.assignments)
+
+    if import_assignments:
+        if assigned_assignments and not resource_map:
+            console.print(
+                "\n[red]Error:[/red] No resource mapping available for assignments."
+            )
+            sys.exit(1)
+
+        if not assigned_assignments:
+            console.print(
+                "\n[yellow]Skipping assignment import (no assigned resources).[/yellow]"
+            )
+            assigned_assignments = []
+        else:
+            console.print("\n[bold]Importing assignments...[/bold]")
+            with Progress(
+                TextColumn(
+                    "Importing assignments: {task.completed}/{task.total} "
+                    "({task.percentage:>3.0f}%)"
+                ),
+                BarColumn(),
+                TaskProgressColumn(),
+                TimeRemainingColumn(),
+                console=console,
+            ) as progress:
+                assign_progress = progress.add_task(
+                    "Assignments",
+                    total=len(assigned_assignments),
                 )
-                assignment_id = result.get("assignment_id")
-                if assignment_id:
-                    created_assignment_ids.append(assignment_id)
-            except WfpApiError as exc:
-                _handle_import_error(
-                    exc,
-                    created_task_ids,
-                    created_resource_ids,
-                    created_assignment_ids,
-                )
-            finally:
-                progress.update(assign_progress, advance=1)
+                for assignment in assigned_assignments:
+                    try:
+                        result = client.create_assignment(
+                            project_id,
+                            assignment,
+                            task_map,
+                            resource_map,
+                        )
+                        assignment_id = result.get("assignment_id")
+                        if assignment_id:
+                            created_assignment_ids.append(assignment_id)
+                    except WfpApiError as exc:
+                        _handle_import_error(
+                            exc,
+                            created_task_ids,
+                            created_resource_ids,
+                            created_assignment_ids,
+                        )
+                    finally:
+                        progress.update(assign_progress, advance=1)
+    elif data.assignments:
+        console.print(
+            "\n[yellow]Skipping assignment import "
+            "(resources are company-scoped).[/yellow]"
+        )
 
     console.print("\n[bold]Importing dependencies...[/bold]")
     if data.dependencies:
@@ -461,7 +510,15 @@ def xml_load(state: ShellState, xml_file: Path, validate: bool) -> None:
     milestone_count = sum(1 for task in state.data.tasks if task.is_milestone)
     console.print(f"  Tasks: {len(state.data.tasks)} ({milestone_count} milestones)")
     console.print(f"  Resources: {len(state.data.resources)}")
-    console.print(f"  Assignments: {len(state.data.assignments)}")
+    assigned_assignments = _filter_assigned_assignments(state.data.assignments)
+    unassigned_count = len(state.data.assignments) - len(assigned_assignments)
+    if unassigned_count:
+        console.print(
+            f"  Assignments: {len(assigned_assignments)} "
+            f"({unassigned_count} unassigned)"
+        )
+    else:
+        console.print(f"  Assignments: {len(assigned_assignments)}")
     console.print(f"  Dependencies: {len(state.data.dependencies)}")
 
     if validate:
@@ -1127,6 +1184,8 @@ def xml_import_create_project(
             project_id,
             data,
             continue_on_error,
+            import_resources=False,
+            import_assignments=False,
         )
     except SystemExit:
         try:
@@ -1218,11 +1277,33 @@ def xml_import_project(
     client = _build_client(api_url, token, company_id, env_name)
     start_time = time.monotonic()
 
+    assigned_assignments = _filter_assigned_assignments(data.assignments)
+    resource_map: dict[int, str] = {}
+    if assigned_assignments:
+        resource_map, missing_resources = client.build_resource_map_for_assignments(
+            data.resources,
+            assigned_assignments,
+        )
+        if missing_resources:
+            console.print(
+                "[red]Error:[/red] Missing company resources for assignments:"
+            )
+            for item in missing_resources:
+                console.print(f"  • {item}")
+            console.print(
+                "[yellow]Tip:[/yellow] Import resources via Excel before "
+                "importing assignments."
+            )
+            sys.exit(1)
+
     _import_project_entities(
         client,
         project_id,
         data,
         continue_on_error,
+        import_resources=False,
+        import_assignments=True,
+        resource_map=resource_map,
     )
 
     duration = time.monotonic() - start_time
@@ -1340,6 +1421,24 @@ def xml_import_task(
     task_map: dict[int, str] = {}
     resource_map: dict[int, str] = {}
 
+    assigned_task_assignments = _filter_assigned_assignments(task_assignments)
+    if with_assignments:
+        resource_map, missing_resources = client.build_resource_map_for_assignments(
+            task_resources,
+            assigned_task_assignments,
+        )
+        if missing_resources:
+            console.print(
+                "[red]Error:[/red] Missing company resources for assignments:"
+            )
+            for item in missing_resources:
+                console.print(f"  • {item}")
+            console.print(
+                "[yellow]Tip:[/yellow] Import resources via Excel before "
+                "importing assignments."
+            )
+            sys.exit(1)
+
     try:
         result = client.create_task(project_id, task)
         task_id_value = result.get("task_id")
@@ -1351,16 +1450,9 @@ def xml_import_task(
             console.print(f"  UUID: {task_id_value}")
 
         if with_assignments:
-            for resource in task_resources:
-                if resource.uid not in needed_resource_uids:
-                    continue
-                res_result = client.create_resource(resource)
-                resource_id = res_result.get("resource_id")
-                resource_map.update(res_result.get("resource_map", {}))
-                if resource_id:
-                    created_resource_ids.append(resource_id)
-
-            for assignment in task_assignments:
+            if not assigned_task_assignments:
+                console.print("Assignments skipped (no assigned resources in XML)")
+            for assignment in assigned_task_assignments:
                 assn_result = client.create_assignment(
                     project_id,
                     assignment,

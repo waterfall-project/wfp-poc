@@ -339,6 +339,12 @@ def service_delete() -> None:
 @click.option("--page", type=int, help="Page number")
 @click.option("--per-page", type=int, help="Items per page")
 @click.option(
+    "--all",
+    "list_all",
+    is_flag=True,
+    help="List all pages",
+)
+@click.option(
     "--output",
     type=click.Choice(["table", "json"], case_sensitive=False),
     default="table",
@@ -382,9 +388,12 @@ def service_delete() -> None:
     is_flag=True,
     help="Enable verbose logging",
 )
+@click.pass_obj
 def service_list_projects(
+    state: ShellState,
     page: int | None,
     per_page: int | None,
+    list_all: bool,
     output: str,
     token: str | None,
     env_name: str | None,
@@ -400,7 +409,15 @@ def service_list_projects(
     client = _build_client(api_url, token, company_id, env_name)
 
     try:
-        result = client.list_projects(page=page, per_page=per_page)
+        if list_all:
+            items = _collect_paginated(
+                client.list_projects,
+                per_page=per_page or 100,
+            )
+            result = {"data": items}
+        else:
+            result = client.list_projects(page=page, per_page=per_page)
+            items = result.get("data", [])
     except WfpApiError as exc:
         console.print(f"[red]Error:[/red] {redact_secrets(str(exc))}")
         sys.exit(2)
@@ -409,12 +426,12 @@ def service_list_projects(
         _output_json(result)
         return
 
-    items = result.get("data", [])
     if not items:
         console.print("No projects found.")
         return
 
     table = Table(title="Projects")
+    table.add_column("Selected", justify="center")
     table.add_column("ID", style="cyan")
     table.add_column("Name")
     table.add_column("Start Date")
@@ -422,12 +439,28 @@ def service_list_projects(
     table.add_column("Task Count", justify="right")
 
     for item in items:
+        project_id = str(item.get("id", ""))
+        is_selected = project_id == str(state.selected_project_id or "")
+        selected_marker = ">" if is_selected else ""
+        task_count = item.get("task_count")
+        if task_count in (None, ""):
+            if project_id:
+                try:
+                    tasks_result = client.list_project_tasks(
+                        str(project_id),
+                        page=1,
+                        per_page=1,
+                    )
+                    task_count = tasks_result.get("total", "")
+                except WfpApiError:
+                    task_count = ""
         table.add_row(
-            str(item.get("id", "")),
+            selected_marker,
+            project_id,
             str(item.get("name", "")),
             str(item.get("start_date", "")),
             str(item.get("finish_date", "")),
-            str(item.get("task_count", "")),
+            str(task_count),
         )
 
     console.print(table)
@@ -437,6 +470,12 @@ def service_list_projects(
 @service_list.command("tasks", help="List tasks for the selected project.")
 @click.option("--page", type=int, help="Page number")
 @click.option("--per-page", type=int, help="Items per page")
+@click.option(
+    "--all",
+    "list_all",
+    is_flag=True,
+    help="List all pages",
+)
 @click.option(
     "--output",
     type=click.Choice(["table", "json"], case_sensitive=False),
@@ -486,6 +525,7 @@ def service_list_tasks(
     state: ShellState,
     page: int | None,
     per_page: int | None,
+    list_all: bool,
     output: str,
     token: str | None,
     env_name: str | None,
@@ -502,9 +542,23 @@ def service_list_tasks(
     client = _build_client(api_url, token, company_id, env_name)
 
     try:
-        result = client.list_project_tasks(
-            project_id=project_id, page=page, per_page=per_page
-        )
+        if list_all:
+            items = _collect_paginated(
+                lambda page_num, size: client.list_project_tasks(
+                    project_id=project_id,
+                    page=page_num,
+                    per_page=size,
+                ),
+                per_page=per_page or 100,
+            )
+            result = {"data": items}
+        else:
+            result = client.list_project_tasks(
+                project_id=project_id,
+                page=page,
+                per_page=per_page,
+            )
+            items = result.get("data", [])
     except WfpApiError as exc:
         console.print(f"[red]Error:[/red] {redact_secrets(str(exc))}")
         sys.exit(2)
@@ -513,7 +567,6 @@ def service_list_tasks(
         _output_json(result)
         return
 
-    items = result.get("data", [])
     if not items:
         console.print("No tasks found.")
         return
@@ -541,6 +594,12 @@ def service_list_tasks(
 @service_list.command("resources", help="List resources.")
 @click.option("--page", type=int, help="Page number")
 @click.option("--per-page", type=int, help="Items per page")
+@click.option(
+    "--all",
+    "list_all",
+    is_flag=True,
+    help="List all pages",
+)
 @click.option(
     "--output",
     type=click.Choice(["table", "json"], case_sensitive=False),
@@ -590,6 +649,7 @@ def service_list_resources(
     state: ShellState,
     page: int | None,
     per_page: int | None,
+    list_all: bool,
     output: str,
     token: str | None,
     env_name: str | None,
@@ -605,7 +665,15 @@ def service_list_resources(
     client = _build_client(api_url, token, company_id, env_name)
 
     try:
-        result = client.list_resources(page=page, per_page=per_page)
+        if list_all:
+            items = _collect_paginated(
+                client.list_resources,
+                per_page=per_page or 100,
+            )
+            result = {"data": items}
+        else:
+            result = client.list_resources(page=page, per_page=per_page)
+            items = result.get("data", [])
     except WfpApiError as exc:
         console.print(f"[red]Error:[/red] {redact_secrets(str(exc))}")
         sys.exit(2)
@@ -614,7 +682,6 @@ def service_list_resources(
         _output_json(result)
         return
 
-    items = result.get("data", [])
     if not items:
         console.print("No resources found.")
         return
@@ -640,6 +707,12 @@ def service_list_resources(
 @service_list.command("assignments", help="List assignments for project.")
 @click.option("--page", type=int, help="Page number")
 @click.option("--per-page", type=int, help="Items per page")
+@click.option(
+    "--all",
+    "list_all",
+    is_flag=True,
+    help="List all pages",
+)
 @click.option(
     "--output",
     type=click.Choice(["table", "json"], case_sensitive=False),
@@ -689,6 +762,7 @@ def service_list_assignments(
     state: ShellState,
     page: int | None,
     per_page: int | None,
+    list_all: bool,
     output: str,
     token: str | None,
     env_name: str | None,
@@ -705,9 +779,23 @@ def service_list_assignments(
     client = _build_client(api_url, token, company_id, env_name)
 
     try:
-        result = client.list_assignments(
-            project_id=project_id, page=page, per_page=per_page
-        )
+        if list_all:
+            items = _collect_paginated(
+                lambda page_num, size: client.list_assignments(
+                    project_id=project_id,
+                    page=page_num,
+                    per_page=size,
+                ),
+                per_page=per_page or 100,
+            )
+            result = {"data": items}
+        else:
+            result = client.list_assignments(
+                project_id=project_id,
+                page=page,
+                per_page=per_page,
+            )
+            items = result.get("data", [])
     except WfpApiError as exc:
         console.print(f"[red]Error:[/red] {redact_secrets(str(exc))}")
         sys.exit(2)
@@ -716,7 +804,6 @@ def service_list_assignments(
         _output_json(result)
         return
 
-    items = result.get("data", [])
     if not items:
         console.print("No assignments found.")
         return
@@ -742,6 +829,12 @@ def service_list_assignments(
 @service_list.command("dependencies", help="List dependencies for project.")
 @click.option("--page", type=int, help="Page number")
 @click.option("--per-page", type=int, help="Items per page")
+@click.option(
+    "--all",
+    "list_all",
+    is_flag=True,
+    help="List all pages",
+)
 @click.option(
     "--output",
     type=click.Choice(["table", "json"], case_sensitive=False),
@@ -791,6 +884,7 @@ def service_list_dependencies(
     state: ShellState,
     page: int | None,
     per_page: int | None,
+    list_all: bool,
     output: str,
     token: str | None,
     env_name: str | None,
@@ -807,16 +901,25 @@ def service_list_dependencies(
     client = _build_client(api_url, token, company_id, env_name)
 
     try:
-        result = client.list_project_tasks(
-            project_id=project_id,
-            page=page,
-            per_page=per_page,
-        )
+        if list_all:
+            task_items = _collect_paginated(
+                lambda page_num, size: client.list_project_tasks(
+                    project_id=project_id,
+                    page=page_num,
+                    per_page=size,
+                ),
+                per_page=per_page or 100,
+            )
+        else:
+            result = client.list_project_tasks(
+                project_id=project_id,
+                page=page,
+                per_page=per_page,
+            )
+            task_items = result.get("data", [])
     except WfpApiError as exc:
         console.print(f"[red]Error:[/red] {redact_secrets(str(exc))}")
         sys.exit(2)
-
-    task_items = result.get("data", [])
     dependencies: list[dict[str, object]] = []
     for task in task_items:
         if not isinstance(task, dict):

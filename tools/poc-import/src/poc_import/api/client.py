@@ -5,6 +5,7 @@
 
 import logging
 import math
+from collections.abc import Callable
 from typing import Any
 
 import requests
@@ -12,6 +13,7 @@ from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
 from poc_import.models import (
+    UNASSIGNED_RESOURCE_UID,
     Assignment,
     MSProjectData,
     ProjectMetadata,
@@ -185,6 +187,211 @@ class WfpApiClient:
             ) from exc
 
         return self._handle_response(response)
+
+    @staticmethod
+    def _normalize_ms_project_uid(value: Any) -> int | None:
+        """Normalize MS Project UID values to an int when possible.
+
+        Args:
+            value: Raw value from API or XML payload.
+
+        Returns:
+            Normalized integer UID or None when invalid.
+        """
+        # Convert numeric strings and integers to a consistent int type.
+        if isinstance(value, int):
+            return value
+        if isinstance(value, str):
+            trimmed = value.strip()
+            if trimmed.isdigit():
+                return int(trimmed)
+        return None
+
+    def _collect_paginated(
+        self,
+        fetch_page: Callable[[int, int], dict[str, Any]],
+        per_page: int = 200,
+    ) -> list[dict[str, Any]]:
+        """Collect paginated API results into a single list.
+
+        Args:
+            fetch_page: Callable that fetches a page of results.
+            per_page: Page size for pagination.
+
+        Returns:
+            List of items aggregated across pages.
+        """
+        # Aggregate results from all pages, stopping when the last page is hit.
+        items: list[dict[str, Any]] = []
+        page = 1
+
+        while True:
+            result = fetch_page(page, per_page)
+            page_items = result.get("data", [])
+            if not isinstance(page_items, list):
+                break
+
+            items.extend([item for item in page_items if isinstance(item, dict)])
+
+            meta = result.get("meta", {})
+            total_pages = meta.get("total_pages")
+            if isinstance(total_pages, int) and page >= total_pages:
+                break
+
+            if len(page_items) < per_page:
+                break
+
+            page += 1
+
+        return items
+
+    def _filter_assigned_assignments(
+        self, assignments: list[Assignment]
+    ) -> list[Assignment]:
+        """Return assignments that reference a real resource.
+
+        Args:
+            assignments: Parsed assignments.
+
+        Returns:
+            Assignments excluding unassigned-resource placeholders.
+        """
+        return [
+            assignment
+            for assignment in assignments
+            if assignment.resource_uid != UNASSIGNED_RESOURCE_UID
+        ]
+
+    def list_all_resources(self, per_page: int = 200) -> list[dict[str, Any]]:
+        """List all company-scoped resources.
+
+        Args:
+            per_page: Page size for pagination.
+
+        Returns:
+            List of resource records.
+        """
+        # Use pagination to ensure all resources are returned.
+        return self._collect_paginated(self.list_resources, per_page)
+
+    def list_all_project_tasks(
+        self, project_id: str, per_page: int = 200
+    ) -> list[dict[str, Any]]:
+        """List all tasks for a project.
+
+        Args:
+            project_id: Project UUID.
+            per_page: Page size for pagination.
+
+        Returns:
+            List of task records.
+        """
+        # Fetch all tasks so we can map MS Project UIDs to UUIDs.
+        return self._collect_paginated(
+            lambda page, size: self.list_project_tasks(project_id, page, size),
+            per_page,
+        )
+
+    def build_resource_map_for_assignments(
+        self,
+        xml_resources: list[Resource],
+        assignments: list[Assignment],
+    ) -> tuple[dict[int, str], list[str]]:
+        """Build resource UID-to-UUID map for assignments.
+
+        Args:
+            xml_resources: Resources parsed from XML.
+            assignments: Assignments that reference resource UIDs.
+
+        Returns:
+            Tuple of (resource_map, missing_resource_messages).
+        """
+        # Map only resources referenced by assignments to avoid false positives.
+        assigned = self._filter_assigned_assignments(assignments)
+        used_resource_uids = {assignment.resource_uid for assignment in assigned}
+        xml_resource_map = {resource.uid: resource for resource in xml_resources}
+
+        company_resources = self.list_all_resources()
+        by_ms_uid: dict[int, str] = {}
+        by_name: dict[str, list[str]] = {}
+
+        for resource in company_resources:
+            resource_id = resource.get("id")
+            if not isinstance(resource_id, str):
+                continue
+
+            ms_uid = self._normalize_ms_project_uid(resource.get("ms_project_uid"))
+            if ms_uid is not None:
+                by_ms_uid[ms_uid] = resource_id
+
+            name = resource.get("name")
+            if isinstance(name, str) and name.strip():
+                key = name.strip().lower()
+                by_name.setdefault(key, []).append(resource_id)
+
+        resource_map: dict[int, str] = {}
+        missing: list[str] = []
+
+        for uid in sorted(used_resource_uids):
+            xml_resource = xml_resource_map.get(uid)
+            if not xml_resource:
+                missing.append(f"Resource UID {uid} not found in XML")
+                continue
+
+            if uid in by_ms_uid:
+                resource_map[uid] = by_ms_uid[uid]
+                continue
+
+            name_key = xml_resource.name.strip().lower()
+            matching_ids = by_name.get(name_key, [])
+
+            if len(matching_ids) == 1:
+                resource_map[uid] = matching_ids[0]
+                continue
+
+            if len(matching_ids) > 1:
+                missing.append(f"{xml_resource.name} (uid={uid}) has multiple matches")
+            else:
+                missing.append(
+                    f"{xml_resource.name} (uid={uid}) not found in company resources"
+                )
+
+        return resource_map, missing
+
+    def build_task_map_for_assignments(
+        self,
+        project_id: str,
+        assignments: list[Assignment],
+    ) -> tuple[dict[int, str], list[str]]:
+        """Build task UID-to-UUID map for assignments.
+
+        Args:
+            project_id: Project UUID.
+            assignments: Assignments referencing task UIDs.
+
+        Returns:
+            Tuple of (task_map, missing_task_messages).
+        """
+        # Build a task map from API data for assignment reconciliation.
+        assigned = self._filter_assigned_assignments(assignments)
+        used_task_uids = {assignment.task_uid for assignment in assigned}
+        tasks = self.list_all_project_tasks(project_id)
+        task_map: dict[int, str] = {}
+
+        for task in tasks:
+            task_id = task.get("id")
+            if not isinstance(task_id, str):
+                continue
+            ms_uid = self._normalize_ms_project_uid(task.get("ms_project_uid"))
+            if ms_uid is not None:
+                task_map[ms_uid] = task_id
+
+        missing: list[str] = []
+        for uid in sorted(used_task_uids):
+            if uid not in task_map:
+                missing.append(f"Task UID {uid} not found in project")
+
+        return task_map, missing
 
     def _convert_hours_to_iso8601_duration(self, duration_hours: float) -> str:
         """Convert duration in hours to ISO 8601 duration format.
@@ -1179,7 +1386,6 @@ class WfpApiClient:
         }
 
         task_map: dict[int, str] = {}
-        resource_map: dict[int, str] = {}
 
         try:
             # Import tasks in batches (REQ-005: Batch processing)
@@ -1245,30 +1451,31 @@ class WfpApiClient:
                             }
                         )
 
-            # Import resources (only for initial mode)
-            if mode == "initial" and data.resources:
+            # Resources and assignments are company-scoped and handled separately.
+            if mode == "sync" and data.assignments:
                 try:
-                    result = self.create_resources_bulk(project_id, data.resources)
-                    summary["resources_created"] = result.get("created_count", 0)
-                    summary["resources_failed"] = result.get("failed_count", 0)
-                    resource_map = result.get("resource_map", {})
-                except WfpApiError as e:
-                    logger.error(f"Resource import failed: {e}", exc_info=True)
-                    from typing import cast
-
-                    cast(list[dict[str, Any]], summary["failed_batches"]).append(
-                        {
-                            "batch_type": "resources",
-                            "error": str(e),
-                        }
+                    assigned = self._filter_assigned_assignments(data.assignments)
+                    if not assigned:
+                        return summary
+                    task_map, missing_tasks = self.build_task_map_for_assignments(
+                        project_id, assigned
+                    )
+                    resource_map, missing_resources = (
+                        self.build_resource_map_for_assignments(
+                            data.resources, assigned
+                        )
                     )
 
-            # Import assignments (only for initial mode)
-            if mode == "initial" and data.assignments:
-                try:
+                    if missing_tasks or missing_resources:
+                        details = ", ".join(missing_tasks + missing_resources)
+                        message = (
+                            f"Missing task/resource mappings for assignments: {details}"
+                        )
+                        raise WfpApiError(message, status_code=400)
+
                     result = self.create_assignments_with_mapping(
                         project_id,
-                        data.assignments,
+                        assigned,
                         task_map,
                         resource_map,
                     )
@@ -1284,6 +1491,7 @@ class WfpApiClient:
                             "error": str(e),
                         }
                     )
+                    raise
 
             logger.info(
                 f"Import completed: {summary['tasks_created']} tasks created, "

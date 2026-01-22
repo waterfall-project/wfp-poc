@@ -80,8 +80,8 @@ tags: [tool, cli, poc-import, ms-project, excel, etl, validation, interactive-sh
 
 | Term | Definition |
 |------|------------|
-| **Initial Import** | First-time import creating all entities (project, tasks, milestones, resources) in wfp-poc from MS Project XML. |
-| **Re-import** | Subsequent import after export from wfp-poc, modification in MS Project, and re-import to calculate EVM milestone shifts. |
+| **Initial Import** | First-time import creating project and planning data (tasks, milestones, dependencies) in wfp-poc from MS Project XML. Resources and assignments are managed per company and imported separately (Excel/API). |
+| **Re-import** | Subsequent import after export from wfp-poc, modification in MS Project, and re-import to update planning data and assignments using existing company resources. |
 | **UUID Cycle** | Workflow where UUIDs assigned by wfp-poc during initial import are preserved in export, modified MS Project maintains them, and re-import uses them for entity matching (UUID exists = update, else = create). |
 | **Planning Data** | MS Project-sourced data: WBS, task names, dates, durations, dependencies, resource assignments. |
 | **Tracking Data** | wfp-poc-sourced data preserved during re-import: expenses, actual dates, progress updates, RAE entries. |
@@ -105,7 +105,7 @@ tags: [tool, cli, poc-import, ms-project, excel, etl, validation, interactive-sh
 Organizations migrating to Waterfall often have years of MS Project expertise and data. An abrupt switch creates adoption barriers and risks data loss. poc-import enables a **smooth migration path**:
 
 1. **Initial Import**: Import existing MS Project planning into wfp-poc
-2. **Enrichment**: Add resources, assignments, expenses via wfp-poc web UI or API
+2. **Enrichment**: Import resources via Excel or API, then manage assignments/expenses via wfp-poc
 3. **Export**: Use poc-export to generate enriched MS Project XML with wfp-poc UUIDs embedded
 4. **Modify**: Adjust schedules, add sub-tasks in MS Project (familiar environment)
 5. **Re-import**: Import modified XML to update planning data while preserving tracking data
@@ -209,11 +209,12 @@ Earned Value Management requires strict milestone tracking:
 
 #### XML Import Commands
 
-- **REQ-028**: poc-import SHALL provide `xml import project` command that imports entire project (all tasks, resources, dependencies, assignments) to wfp-poc
-- **REQ-028a**: poc-import SHALL provide `xml import create-project` command that creates a new project from loaded XML and imports all entities
+- **REQ-028**: poc-import SHALL provide `xml import project` command that imports tasks, dependencies, and assignments using existing company resources (no resource creation from XML)
+- **REQ-028a**: poc-import SHALL provide `xml import create-project` command that creates a new project from loaded XML and imports tasks and dependencies only
+- **REQ-028b**: poc-import SHALL resolve assignment resources against company resources by `ms_project_uid` (fallback to unique name) and abort if any required resource is missing
 - **REQ-029**: poc-import SHALL require active project selection via `service select <project_id>` before import (reject if no project selected)
 - **REQ-030**: poc-import SHALL display progress bar during `xml import project` showing: "Importing tasks: 45/156 (29%)"
-- **REQ-031**: poc-import SHALL display import summary after completion: "✓ Project imported: 156 tasks, 23 resources, 89 assignments, 134 dependencies"
+- **REQ-031**: poc-import SHALL display import summary after completion, indicating skipped resources and assignment status
 - **REQ-032**: poc-import SHALL support `xml import project --dry-run` flag for validation-only mode (no API calls)
 - **REQ-033**: poc-import SHALL support `xml import project --continue-on-error` flag to continue importing remaining entities if one fails (default: stop on first error)
 - **REQ-034**: poc-import SHALL provide `xml import task <id>` command for importing single task (debugging)
@@ -721,7 +722,7 @@ Recommendation: Fix 2 errors before importing. Use 'xml show task <id>' for deta
 
 #### Command: `xml import create-project`
 
-**Purpose**: Create a new project from loaded XML and import all entities.
+**Purpose**: Create a new project from loaded XML and import tasks + dependencies.
 
 **Prerequisites:**
 - XML file must be loaded
@@ -744,11 +745,8 @@ Validation: ✓ Passed (0 errors, 2 warnings)
 Importing tasks...
  ████████████████████░░░░░░░░ 156/156 (100%)
 
-Importing resources...
- ████████████████████████████ 23/23 (100%)
-
-Importing assignments...
- ████████████████████████████ 89/89 (100%)
+Skipping resources (company-scoped)
+Skipping assignments (company-scoped)
 
 Importing dependencies...
  ████████████████████████████ 134/134 (100%)
@@ -773,7 +771,7 @@ Use 'service show project' to verify imported data.
 
 #### Command: `xml import project`
 
-**Purpose**: Import entire project (all tasks, resources, dependencies, assignments) to wfp-poc.
+**Purpose**: Import tasks, dependencies, and assignments using existing company resources.
 
 **Prerequisites:**
 - XML file must be loaded
@@ -797,10 +795,9 @@ Validation: ✓ Passed (0 errors, 2 warnings)
 Importing tasks...
  ████████████████████░░░░░░░░ 156/156 (100%)
 
-Importing resources...
- ████████████████████████████ 23/23 (100%)
+Skipping resources (company-scoped)
 
-Importing assignments...
+Importing assignments (mapped to company resources)...
  ████████████████████████████ 89/89 (100%)
 
 Importing dependencies...
@@ -810,13 +807,18 @@ Importing dependencies...
 
 Summary:
   - Tasks created: 98, updated: 58
-  - Resources created: 5, updated: 18
-  - Assignments created: 45, updated: 44
+  - Resources created: 0 (skipped)
+  - Assignments created: 45
   - Dependencies created: 78, updated: 56
 
 Duration: 2m 34s
 
 Use 'service list tasks' to verify imported data.
+
+**Error Handling:**
+- If assignments reference resources that do not exist for the company, the import
+  stops with an error listing missing resources and a tip to import resources
+  via Excel before retrying.
 ```
 
 **Exit Codes:**
@@ -2015,7 +2017,7 @@ Recommendation: Fix 2 errors before importing. Use 'xml show task <id>' for deta
 
 **AC-004**: Given XML loaded, When `xml validate` executed, Then detect circular dependencies, date errors, reference errors
 
-**AC-005**: Given XML loaded and project selected, When `xml import project` executed, Then create/update all entities via wfp-poc API
+**AC-005**: Given XML loaded and project selected, When `xml import project` executed, Then import tasks/dependencies and create assignments using existing company resources
 
 **AC-006**: Given import fails at task 45/156, When rollback triggered, Then delete all 44 created tasks and restore database state
 
@@ -2239,8 +2241,8 @@ The tables below list endpoints that poc-import V1 SHALL rely on.
 |----------|--------|---------|----------|
 | `/{version}/projects` | POST | Create project | `xml import create-project` (V1) |
 | `/{version}/projects/{project_id}/tasks` | POST | Create task | `xml import project`, `xml import task <id>` |
-| `/{version}/resources` | POST | Create resource | `xml import project` |
-| `/{version}/projects/{project_id}/assignments` | POST | Create assignment | `xml import project` |
+| `/{version}/resources` | POST | Create resource | Excel/API resource import (company-scoped) |
+| `/{version}/projects/{project_id}/assignments` | POST | Create assignment | `xml import project` (assignments only) |
 | `/{version}/projects/{project_id}/milestones` | POST | Create milestone | `xml import project` |
 | `/{version}/projects/{project_id}/expenses` | POST | Create expense | `excel import expenses` |
 | `/{version}/milestones/{milestone_id}/rae` | POST | Update milestone RAE | `excel import rae` |
@@ -2837,9 +2839,9 @@ LOG.info("Validation Summary: 42 passed, 6 warnings, 2 errors")
 
 **Import Progress:**
 ```python
-LOG.info("Starting import: 156 tasks, 23 resources, 89 assignments")
+LOG.info("Starting import: 156 tasks, 89 assignments (resources skipped)")
 LOG.info("Importing tasks... 45/156 (29%)")  # Every 10 entities
-LOG.info("✓ Import completed: 156 tasks, 23 resources, 89 assignments")
+LOG.info("✓ Import completed: 156 tasks, assignments mapped to company resources")
 ```
 
 **Errors:**
