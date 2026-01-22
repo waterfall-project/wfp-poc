@@ -58,8 +58,7 @@ services:
       DATABASE_URL: postgresql://wfp:wfp@db_service:5432/wfp
       METRICS_API_KEY: dev-metrics-key-change-me
       PROMETHEUS_METRICS_ENABLED: "true"
-      RATE_LIMIT_ENABLED: "true"
-      RATE_LIMIT_STORAGE_URL: memory://
+      RATE_LIMIT_ENABLED: "false"
       GUARDIAN_SERVICE_URL: http://guardian_mock:5001
       GUARDIAN_SERVICE_TIMEOUT: "5"
       JWT_SECRET_KEY: dev-jwt-secret-change-me
